@@ -1,53 +1,10 @@
 import polars as pl
 from _assertions import IndicatorAssertions
+from _data import CLOSE, ramp_up
 
 from polars_ta import ema, macd
 
-VALUES: list[float] = [
-    float(value)
-    for value in [
-        1,
-        3,
-        2,
-        6,
-        5,
-        9,
-        4,
-        8,
-        7,
-        11,
-        6,
-        10,
-        9,
-        13,
-        8,
-        12,
-        11,
-        15,
-        10,
-        14,
-        13,
-        17,
-        12,
-        16,
-        15,
-        19,
-        14,
-        18,
-        17,
-        21,
-        16,
-        20,
-        19,
-        23,
-        18,
-        22,
-        21,
-        25,
-        20,
-        24,
-    ]
-]
+VALUES: list[float] = CLOSE
 
 
 def evaluate(expr: pl.Expr, values: list[float] | None = None) -> pl.DataFrame:
@@ -121,7 +78,7 @@ class TestMacd(IndicatorAssertions):
                 self.assertAlmostEqual(value, gap[index], places=10)
 
     def test_rising_input_gives_a_positive_macd_line(self) -> None:
-        rising = [float(index) for index in range(40)]
+        rising = ramp_up(40, 0.0)
         for value in evaluate(macd("close", 3, 6, 4), rising)["macd"].to_list():
             if value is not None:
                 self.assertGreater(value, 0.0)

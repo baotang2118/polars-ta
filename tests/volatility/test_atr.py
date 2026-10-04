@@ -1,21 +1,8 @@
 import polars as pl
 from _assertions import IndicatorAssertions
+from _data import CLOSE, HIGH, LOW, constant, frame, frame_from, with_null
 
 from polars_ta import atr, true_range
-
-HIGH: list[float] = [10.0, 11, 12, 11, 10, 11, 12, 13, 12, 11, 13, 14, 12, 11, 10, 12]
-LOW: list[float] = [8.0, 9, 10, 9, 8, 9, 10, 11, 10, 9, 11, 12, 10, 9, 8, 10]
-CLOSE: list[float] = [9.0, 10, 11, 10, 9, 10, 11, 12, 11, 10, 12, 13, 11, 10, 9, 11]
-
-
-def frame(high=None, low=None, close=None) -> pl.DataFrame:
-    return pl.DataFrame(
-        {
-            "high": HIGH if high is None else high,
-            "low": LOW if low is None else low,
-            "close": CLOSE if close is None else close,
-        }
-    )
 
 
 def evaluate(expr: pl.Expr, data: pl.DataFrame | None = None):
@@ -80,8 +67,7 @@ class TestTrueRange(IndicatorAssertions):
         )
 
     def test_null_input_propagates(self) -> None:
-        high = list(HIGH)
-        high[4] = None
+        high = with_null(HIGH, 4)
         result = evaluate(true_range("high", "low", "close"), frame(high=high))
         self.assert_values_equal(result, reference_true_range(high, LOW, CLOSE))
 
@@ -112,7 +98,7 @@ class TestAtr(IndicatorAssertions):
                 self.assertGreaterEqual(value, 0.0)
 
     def test_constant_range_gives_that_range(self) -> None:
-        data = frame([6.0] * 8, [4.0] * 8, [5.0] * 8)
+        data = frame_from(constant(8), 1.0)
         self.assert_values_equal(
             evaluate(atr("high", "low", "close", 3), data)[3:], [2.0] * 5
         )
@@ -123,8 +109,7 @@ class TestAtr(IndicatorAssertions):
         self.assertAlmostEqual(result[5], sum(ranges[1:6]) / 5, places=10)
 
     def test_null_input_delays_the_seed(self) -> None:
-        high = list(HIGH)
-        high[2] = None
+        high = with_null(HIGH, 2)
         result = evaluate(atr("high", "low", "close", 3), frame(high=high))
         self.assert_values_equal(result, reference_atr(high, LOW, CLOSE, 3))
 

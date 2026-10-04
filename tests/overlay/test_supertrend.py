@@ -1,84 +1,8 @@
 import polars as pl
 from _assertions import IndicatorAssertions
+from _data import CLOSE, HIGH, LOW, frame, frame_from, ramp_up, with_null
 
 from polars_ta import supertrend
-
-HIGH: list[float] = [
-    10.0,
-    11,
-    12,
-    11,
-    10,
-    11,
-    12,
-    13,
-    12,
-    11,
-    13,
-    14,
-    16,
-    18,
-    20,
-    19,
-    17,
-    14,
-    11,
-    9,
-]
-LOW: list[float] = [
-    8.0,
-    9,
-    10,
-    9,
-    8,
-    9,
-    10,
-    11,
-    10,
-    9,
-    11,
-    12,
-    14,
-    16,
-    18,
-    17,
-    15,
-    12,
-    9,
-    7,
-]
-CLOSE: list[float] = [
-    9.0,
-    10,
-    11,
-    10,
-    9,
-    10,
-    11,
-    12,
-    11,
-    10,
-    12,
-    13,
-    15,
-    17,
-    19,
-    18,
-    16,
-    13,
-    10,
-    8,
-]
-
-
-def frame(high=None, low=None, close=None) -> pl.DataFrame:
-    return pl.DataFrame(
-        {
-            "high": HIGH if high is None else high,
-            "low": LOW if low is None else low,
-            "close": CLOSE if close is None else close,
-        }
-    )
 
 
 def evaluate(expr: pl.Expr, data: pl.DataFrame | None = None) -> pl.DataFrame:
@@ -127,16 +51,16 @@ class TestSupertrend(IndicatorAssertions):
         self.assertIn(-1, directions)
 
     def test_monotonic_rise_never_flips(self) -> None:
-        rising = [float(index) for index in range(1, 30)]
-        data = frame(rising, [v - 1 for v in rising], rising)
+        rising = ramp_up(29)
+        data = frame_from(rising)
         directions = evaluate(supertrend("high", "low", "close", 5, 2.0), data)[
             "direction"
         ]
         self.assertEqual(set(directions.drop_nulls().to_list()), {1})
 
     def test_band_ratchets_upward_while_the_trend_holds(self) -> None:
-        rising = [float(index) for index in range(1, 30)]
-        data = frame(rising, [v - 1 for v in rising], rising)
+        rising = ramp_up(29)
+        data = frame_from(rising)
         values = (
             evaluate(supertrend("high", "low", "close", 5, 2.0), data)["supertrend"]
             .drop_nulls()
@@ -146,15 +70,14 @@ class TestSupertrend(IndicatorAssertions):
             self.assertGreaterEqual(later, earlier)
 
     def test_larger_multiplier_gives_a_looser_band(self) -> None:
-        rising = [float(index) for index in range(1, 30)]
-        data = frame(rising, [v - 1 for v in rising], rising)
+        rising = ramp_up(29)
+        data = frame_from(rising)
         tight = evaluate(supertrend("high", "low", "close", 5, 1.0), data)["supertrend"]
         loose = evaluate(supertrend("high", "low", "close", 5, 4.0), data)["supertrend"]
         self.assertGreater(tight[-1], loose[-1])
 
     def test_null_input_propagates(self) -> None:
-        close = list(CLOSE)
-        close[8] = None
+        close = with_null(CLOSE, 8)
         result = evaluate(
             supertrend("high", "low", "close", 3, 2.0), frame(close=close)
         )

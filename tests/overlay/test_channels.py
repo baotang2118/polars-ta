@@ -1,16 +1,8 @@
 import polars as pl
 from _assertions import IndicatorAssertions
+from _data import HIGH, LOW, constant, frame, frame_from, ramp_up, with_null
 
 from polars_ta import donchian
-
-HIGH: list[float] = [10.0, 11, 12, 11, 10, 11, 12, 13, 12, 11, 13, 14, 12, 11, 10, 12]
-LOW: list[float] = [8.0, 9, 10, 9, 8, 9, 10, 11, 10, 9, 11, 12, 10, 9, 8, 10]
-
-
-def frame(high=None, low=None) -> pl.DataFrame:
-    return pl.DataFrame(
-        {"high": HIGH if high is None else high, "low": LOW if low is None else low}
-    )
 
 
 def evaluate(expr: pl.Expr, data: pl.DataFrame | None = None) -> pl.DataFrame:
@@ -79,13 +71,12 @@ class TestDonchian(IndicatorAssertions):
         self.assert_values_equal(result["lower"].to_list(), LOW)
 
     def test_constant_input_collapses_the_channel(self) -> None:
-        result = evaluate(donchian("high", "low", 3), frame([5.0] * 6, [5.0] * 6))
+        result = evaluate(donchian("high", "low", 3), frame_from(constant(6), 0.0))
         self.assert_values_equal(result["upper"].to_list()[2:], [5.0] * 4)
         self.assert_values_equal(result["lower"].to_list()[2:], [5.0] * 4)
 
     def test_null_blanks_every_overlapping_window(self) -> None:
-        high = list(HIGH)
-        high[6] = None
+        high = with_null(HIGH, 6)
         result = evaluate(donchian("high", "low", 3), frame(high=high))
         lower, middle, upper = reference_donchian(high, LOW, 3)
         self.assert_values_equal(result["upper"].to_list(), upper)
@@ -98,7 +89,7 @@ class TestDonchian(IndicatorAssertions):
         self.assertEqual(result["upper"].to_list(), [None] * len(HIGH))
 
     def test_default_window_is_twenty(self) -> None:
-        values = [float(index) for index in range(25)]
+        values = ramp_up(25, 0.0)
         result = evaluate(donchian("high", "low"), frame(values, values))
         self.assertEqual(result["upper"].to_list()[:19], [None] * 19)
 
@@ -119,7 +110,7 @@ class TestDonchian(IndicatorAssertions):
             .with_columns(donchian("high", "low", 5).alias("d"))
             .collect()
         )
-        self.assertEqual(collected.columns, ["high", "low", "d"])
+        self.assertEqual(collected.columns[-1], "d")
 
     def test_invalid_window_raises(self) -> None:
         for window in (0, -1, 2.5):

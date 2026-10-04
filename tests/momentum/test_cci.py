@@ -1,22 +1,19 @@
 import polars as pl
 from _assertions import IndicatorAssertions
+from _data import (
+    CLOSE,
+    HIGH,
+    LOW,
+    constant,
+    frame,
+    frame_from,
+    ramp_down,
+    ramp_up,
+    with_null,
+)
 
 from polars_ta import cci
 from polars_ta.momentum.cci import CCI_SCALE
-
-HIGH: list[float] = [10.0, 11, 12, 11, 10, 11, 12, 13, 12, 11, 13, 14, 12, 11, 10, 12]
-LOW: list[float] = [8.0, 9, 10, 9, 8, 9, 10, 11, 10, 9, 11, 12, 10, 9, 8, 10]
-CLOSE: list[float] = [9.0, 10, 11, 10, 9, 10, 11, 12, 11, 10, 12, 13, 11, 10, 9, 11]
-
-
-def frame(high=None, low=None, close=None) -> pl.DataFrame:
-    return pl.DataFrame(
-        {
-            "high": HIGH if high is None else high,
-            "low": LOW if low is None else low,
-            "close": CLOSE if close is None else close,
-        }
-    )
 
 
 def evaluate(expr: pl.Expr, data: pl.DataFrame | None = None):
@@ -62,21 +59,21 @@ class TestCci(IndicatorAssertions):
                 self.assertIsNotNone(result[window - 1])
 
     def test_typical_price_above_its_mean_is_positive(self) -> None:
-        rising = [float(index) for index in range(1, 11)]
-        for value in evaluate(
-            cci("high", "low", "close", 5), frame(rising, rising, rising)
-        )[4:]:
+        rising = ramp_up(10)
+        for value in evaluate(cci("high", "low", "close", 5), frame_from(rising, 0.0))[
+            4:
+        ]:
             self.assertGreater(value, 0.0)
 
     def test_typical_price_below_its_mean_is_negative(self) -> None:
-        falling = [float(10 - index) for index in range(10)]
-        for value in evaluate(
-            cci("high", "low", "close", 5), frame(falling, falling, falling)
-        )[4:]:
+        falling = ramp_down(10)
+        for value in evaluate(cci("high", "low", "close", 5), frame_from(falling, 0.0))[
+            4:
+        ]:
             self.assertLess(value, 0.0)
 
     def test_flat_input_reports_zero(self) -> None:
-        data = frame([5.0] * 8, [5.0] * 8, [5.0] * 8)
+        data = frame_from(constant(8), 0.0)
         self.assert_values_equal(
             evaluate(cci("high", "low", "close", 3), data)[2:], [0.0] * 6
         )
@@ -85,8 +82,7 @@ class TestCci(IndicatorAssertions):
         self.assertEqual(CCI_SCALE, 0.015)
 
     def test_null_in_any_input_propagates(self) -> None:
-        close = list(CLOSE)
-        close[6] = None
+        close = with_null(CLOSE, 6)
         result = evaluate(cci("high", "low", "close", 3), frame(close=close))
         self.assert_values_equal(result, reference_cci(HIGH, LOW, close, 3))
         self.assertEqual(result[6:9], [None, None, None])

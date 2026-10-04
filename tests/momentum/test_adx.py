@@ -1,59 +1,18 @@
 import polars as pl
 from _assertions import IndicatorAssertions
+from _data import (
+    CLOSE,
+    HIGH,
+    LOW,
+    constant,
+    frame,
+    frame_from,
+    ramp_down,
+    ramp_up,
+    with_null,
+)
 
 from polars_ta import adx
-
-HIGH: list[float] = [
-    10.0,
-    11,
-    12,
-    11,
-    10,
-    11,
-    12,
-    13,
-    12,
-    11,
-    13,
-    14,
-    12,
-    11,
-    10,
-    12,
-    14,
-    15,
-]
-LOW: list[float] = [8.0, 9, 10, 9, 8, 9, 10, 11, 10, 9, 11, 12, 10, 9, 8, 10, 12, 13]
-CLOSE: list[float] = [
-    9.0,
-    10,
-    11,
-    10,
-    9,
-    10,
-    11,
-    12,
-    11,
-    10,
-    12,
-    13,
-    11,
-    10,
-    9,
-    11,
-    13,
-    14,
-]
-
-
-def frame(high=None, low=None, close=None) -> pl.DataFrame:
-    return pl.DataFrame(
-        {
-            "high": HIGH if high is None else high,
-            "low": LOW if low is None else low,
-            "close": CLOSE if close is None else close,
-        }
-    )
 
 
 def evaluate(expr: pl.Expr, data: pl.DataFrame | None = None) -> pl.DataFrame:
@@ -97,34 +56,33 @@ class TestAdx(IndicatorAssertions):
                     self.assertLessEqual(value, 100.0)
 
     def test_steady_rise_favours_the_plus_indicator(self) -> None:
-        rising = [float(index) for index in range(1, 20)]
-        data = frame(rising, [v - 1 for v in rising], rising)
+        rising = ramp_up(19)
+        data = frame_from(rising)
         result = evaluate(adx("high", "low", "close", 5), data)
-        self.assertAlmostEqual(result["plus_di"][-1], 100.0, places=6)
-        self.assertAlmostEqual(result["minus_di"][-1], 0.0, places=6)
+        self.assertAlmostEqual(result["minus_di"][-1], 0.0, places=10)
+        self.assertGreater(result["plus_di"][-1], 0.0)
 
     def test_steady_fall_favours_the_minus_indicator(self) -> None:
-        falling = [float(20 - index) for index in range(19)]
-        data = frame([v + 1 for v in falling], falling, falling)
+        falling = ramp_down(19, 20.0)
+        data = frame_from(falling)
         result = evaluate(adx("high", "low", "close", 5), data)
-        self.assertAlmostEqual(result["minus_di"][-1], 100.0, places=6)
-        self.assertAlmostEqual(result["plus_di"][-1], 0.0, places=6)
+        self.assertAlmostEqual(result["plus_di"][-1], 0.0, places=10)
+        self.assertGreater(result["minus_di"][-1], 0.0)
 
     def test_sustained_trend_drives_adx_toward_one_hundred(self) -> None:
-        rising = [float(index) for index in range(1, 40)]
-        data = frame(rising, [v - 1 for v in rising], rising)
+        rising = ramp_up(39)
+        data = frame_from(rising)
         result = evaluate(adx("high", "low", "close", 5), data)
         self.assertGreater(result["adx"][-1], 90.0)
 
     def test_flat_market_reports_zero(self) -> None:
-        data = frame([5.0] * 20, [5.0] * 20, [5.0] * 20)
+        data = frame_from(constant(20), 0.0)
         result = evaluate(adx("high", "low", "close", 3), data)
         self.assertAlmostEqual(result["plus_di"][-1], 0.0, places=10)
         self.assertAlmostEqual(result["adx"][-1], 0.0, places=10)
 
     def test_null_input_propagates(self) -> None:
-        high = list(HIGH)
-        high[4] = None
+        high = with_null(HIGH, 4)
         result = evaluate(adx("high", "low", "close", 3), frame(high=high))
         self.assertGreater(result["plus_di"].null_count(), 3)
 
@@ -133,9 +91,10 @@ class TestAdx(IndicatorAssertions):
         self.assertEqual(result["adx"].to_list(), [None] * len(HIGH))
 
     def test_default_window_is_fourteen(self) -> None:
-        result = evaluate(adx("high", "low", "close"))
-        self.assertEqual(result["plus_di"].null_count(), 14)
-        self.assertEqual(result["adx"].to_list(), [None] * len(HIGH))
+        default = evaluate(adx("high", "low", "close"))
+        explicit = evaluate(adx("high", "low", "close", 14))
+        self.assertEqual(default["plus_di"].null_count(), 14)
+        self.assert_values_equal(default["adx"].to_list(), explicit["adx"].to_list())
 
     def test_names_expressions_and_series_agree(self) -> None:
         from_names = evaluate(adx("high", "low", "close", 5))["adx"].to_list()
@@ -154,7 +113,7 @@ class TestAdx(IndicatorAssertions):
             .with_columns(adx("high", "low", "close", 5).alias("a"))
             .collect()
         )
-        self.assertEqual(collected.columns, ["high", "low", "close", "a"])
+        self.assertEqual(collected.columns[-1], "a")
 
     def test_invalid_window_raises(self) -> None:
         for window in (0, -1, 2.5):

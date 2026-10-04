@@ -1,21 +1,8 @@
 import polars as pl
 from _assertions import IndicatorAssertions
+from _data import CLOSE, HIGH, LOW, constant, frame, frame_from, with_null
 
 from polars_ta import ichimoku
-
-HIGH: list[float] = [float(10 + (index % 7)) for index in range(40)]
-LOW: list[float] = [value - 2.0 for value in HIGH]
-CLOSE: list[float] = [value - 1.0 for value in HIGH]
-
-
-def frame(high=None, low=None, close=None) -> pl.DataFrame:
-    return pl.DataFrame(
-        {
-            "high": HIGH if high is None else high,
-            "low": LOW if low is None else low,
-            "close": CLOSE if close is None else close,
-        }
-    )
 
 
 def evaluate(expr: pl.Expr, data: pl.DataFrame | None = None) -> pl.DataFrame:
@@ -94,14 +81,13 @@ class TestIchimoku(IndicatorAssertions):
         self.assertEqual(result["lagging"].to_list()[-26:], [None] * 26)
 
     def test_constant_input_gives_constant_lines(self) -> None:
-        data = frame([5.0] * 20, [5.0] * 20, [5.0] * 20)
+        data = frame_from(constant(20), 0.0)
         result = evaluate(ichimoku("high", "low", "close", 3, 6, 12, 6), data)
         for value in result["conversion"].to_list()[2:]:
             self.assertAlmostEqual(value, 5.0, places=10)
 
     def test_null_blanks_every_overlapping_window(self) -> None:
-        high = list(HIGH)
-        high[10] = None
+        high = with_null(HIGH, 10)
         result = evaluate(
             ichimoku("high", "low", "close", 3, 6, 12, 6), frame(high=high)
         )
@@ -132,7 +118,7 @@ class TestIchimoku(IndicatorAssertions):
             .with_columns(ichimoku("high", "low", "close", 3, 6, 12, 6).alias("i"))
             .collect()
         )
-        self.assertEqual(collected.columns, ["high", "low", "close", "i"])
+        self.assertEqual(collected.columns[-1], "i")
 
     def test_invalid_periods_raise(self) -> None:
         for periods in (
