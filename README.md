@@ -6,7 +6,7 @@ Indicators are expression-first: they return a `pl.Expr` that composes inside `s
 
 ## Indicators
 
-Indicators are grouped by how they are charted. *Overlay* indicators are drawn on the price axis, and moving averages live in `polars_ta.overlay.ma`. Every public indicator is also re-exported from the package root.
+Indicators are grouped by how they are charted. *Overlay* indicators are drawn on the price axis; *momentum* oscillators occupy a separate pane. Every public indicator is also re-exported from the package root.
 
 | Group | Module | Function | Description |
 | ----- | ------ | -------- | ----------- |
@@ -15,17 +15,34 @@ Indicators are grouped by how they are charted. *Overlay* indicators are drawn o
 | Overlay | `overlay.ma` | `ema(column, window, *, alpha=None, mode="talib")` | Exponential moving average |
 | Overlay | `overlay.ma` | `dema(column, window, *, alpha=None, mode="talib")` | Double exponential moving average |
 | Overlay | `overlay.ma` | `tema(column, window, *, alpha=None, mode="talib")` | Triple exponential moving average |
+| Overlay | `overlay.bands` | `bbands(column, window=20, *, num_std=2.0, ddof=0)` | Bollinger Bands (struct of `lower`/`middle`/`upper`) |
+| Momentum | `momentum.rsi` | `rsi(column, window=14)` | Relative Strength Index |
+| Momentum | `momentum.mfi` | `mfi(high, low, close, volume, window=14)` | Money Flow Index |
 
 ```python
 import polars as pl
-from polars_ta import dema, ema, sma, tema, wma
+from polars_ta import bbands, ema, mfi, rsi, sma, wma
 
 df = pl.DataFrame({"close": [1.0, 3.0, 2.0, 6.0, 5.0, 9.0]})
 df.with_columns(
     sma("close", 3).alias("sma_3"),
     wma("close", 3).alias("wma_3"),
     ema("close", 3).alias("ema_3"),
+    rsi("close", 3).alias("rsi_3"),
 )
+```
+
+`bbands` returns a single struct column, so one call stays one expression:
+
+```python
+df.with_columns(bbands("close", 20).alias("bb")).unnest("bb")  # three columns
+df.with_columns(bbands("close", 20).struct.field("upper"))  # just one band
+```
+
+`mfi` takes its four inputs positionally, in TA-Lib's order:
+
+```python
+ohlcv.with_columns(mfi("high", "low", "close", "volume", 14).alias("mfi_14"))
 ```
 
 Each function takes a column name, a `pl.Expr`, or a `pl.Series`:
@@ -38,7 +55,7 @@ sma(pl.Series("close", [1.0, 2.0]), 3)  # pl.Series
 
 `ema` defaults to the TA-Lib convention, seeding the recursion with the simple moving average of the first complete window. Pass `mode="recursive"` or `mode="adjust"` for the pandas `ewm(adjust=False)` and `ewm(adjust=True)` conventions, or `alpha=` to override the default smoothing factor of `2 / (window + 1)`. `dema` and `tema` chain two and three EMA passes and accept the same arguments.
 
-Single-pass indicators emit `window - 1` leading nulls; `dema` and `tema` emit `2 * (window - 1)` and `3 * (window - 1)` respectively, matching the TA-Lib lookbacks. See [docs/indicators.md](docs/indicators.md) for the formulas, null-handling rules, and worked examples.
+Single-pass moving averages emit `window - 1` leading nulls; `dema` and `tema` emit `2 * (window - 1)` and `3 * (window - 1)`; `rsi` and `mfi` emit `window`. Every figure matches the corresponding TA-Lib lookback. See [docs/indicators.md](docs/indicators.md) for the formulas, null-handling rules, and worked examples.
 
 ## Development
 

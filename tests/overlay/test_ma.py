@@ -1,6 +1,5 @@
-import unittest
-
 import polars as pl
+from _assertions import IndicatorAssertions
 
 from polars_ta import dema, ema, sma, tema, wma
 
@@ -97,18 +96,6 @@ def reference_ema_adjust(values: list[float], window: int, alpha: float):
         numerator = sum(w * values[index - o] for o, w in enumerate(weights))
         result.append(None if index + 1 < window else numerator / sum(weights))
     return result
-
-
-class IndicatorAssertions(unittest.TestCase):
-    def assert_values_equal(self, actual, expected) -> None:
-        self.assertEqual(len(actual), len(expected))
-        for index, (got, want) in enumerate(zip(actual, expected)):
-            with self.subTest(index=index):
-                if want is None:
-                    self.assertIsNone(got)
-                else:
-                    self.assertIsNotNone(got)
-                    self.assertAlmostEqual(got, want, places=10)
 
 
 class TestSma(IndicatorAssertions):

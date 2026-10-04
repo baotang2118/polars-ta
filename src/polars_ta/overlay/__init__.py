@@ -1,5 +1,6 @@
 """Overlay indicators, which are plotted on the price chart itself."""
 
+from polars_ta.overlay.bands import bbands
 from polars_ta.overlay.ma import dema, ema, sma, tema, wma
 
-__all__ = ["dema", "ema", "sma", "tema", "wma"]
+__all__ = ["bbands", "dema", "ema", "sma", "tema", "wma"]
