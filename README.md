@@ -11,15 +11,19 @@ Indicators are grouped by how they are charted. *Overlay* indicators are drawn o
 | Group | Module | Function | Description |
 | ----- | ------ | -------- | ----------- |
 | Overlay | `overlay.ma` | `sma(column, window)` | Simple moving average |
+| Overlay | `overlay.ma` | `wma(column, window)` | Weighted moving average (linear weights) |
 | Overlay | `overlay.ma` | `ema(column, window, *, alpha=None, mode="talib")` | Exponential moving average |
+| Overlay | `overlay.ma` | `dema(column, window, *, alpha=None, mode="talib")` | Double exponential moving average |
+| Overlay | `overlay.ma` | `tema(column, window, *, alpha=None, mode="talib")` | Triple exponential moving average |
 
 ```python
 import polars as pl
-from polars_ta import ema, sma  # or: from polars_ta.overlay.ma import ema, sma
+from polars_ta import dema, ema, sma, tema, wma
 
 df = pl.DataFrame({"close": [1.0, 3.0, 2.0, 6.0, 5.0, 9.0]})
 df.with_columns(
     sma("close", 3).alias("sma_3"),
+    wma("close", 3).alias("wma_3"),
     ema("close", 3).alias("ema_3"),
 )
 ```
@@ -32,9 +36,9 @@ sma(pl.col("close"), 3)  # pl.Expr
 sma(pl.Series("close", [1.0, 2.0]), 3)  # pl.Series
 ```
 
-`ema` defaults to the TA-Lib convention, seeding the recursion with the simple moving average of the first complete window. Pass `mode="recursive"` or `mode="adjust"` for the pandas `ewm(adjust=False)` and `ewm(adjust=True)` conventions, or `alpha=` to override the default smoothing factor of `2 / (window + 1)`.
+`ema` defaults to the TA-Lib convention, seeding the recursion with the simple moving average of the first complete window. Pass `mode="recursive"` or `mode="adjust"` for the pandas `ewm(adjust=False)` and `ewm(adjust=True)` conventions, or `alpha=` to override the default smoothing factor of `2 / (window + 1)`. `dema` and `tema` chain two and three EMA passes and accept the same arguments.
 
-The first `window - 1` rows are null for every indicator and mode. See [docs/indicators.md](docs/indicators.md) for the formulas, null-handling rules, and worked examples.
+Single-pass indicators emit `window - 1` leading nulls; `dema` and `tema` emit `2 * (window - 1)` and `3 * (window - 1)` respectively, matching the TA-Lib lookbacks. See [docs/indicators.md](docs/indicators.md) for the formulas, null-handling rules, and worked examples.
 
 ## Development
 
