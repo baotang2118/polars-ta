@@ -45,7 +45,7 @@ uv sync --dev
 uv run pytest
 ```
 
-The starter test uses `unittest.TestCase` assertions and is executed with pytest. Follow [AGENTS.md](AGENTS.md) for the Python linting and formatting workflow.
+Tests use `unittest.TestCase` assertions and are executed with pytest. Follow [AGENTS.md](AGENTS.md) for the Python linting and formatting workflow.
 
 ## Project References
 

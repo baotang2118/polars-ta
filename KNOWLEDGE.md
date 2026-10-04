@@ -32,7 +32,7 @@ Use these projects to check expected behavior and terminology. Do not copy their
 ## Package Scaffold
 
 - Installable package source lives in `src/polars_ta/` and is configured through `pyproject.toml`.
-- The public API exports `hello()`, `sma()`, and `ema()`.
+- The public API exports `sma()` and `ema()`.
 - Unit tests live in `tests/`; tests use `unittest.TestCase` and are run with pytest as required by the project workflow.
 - Python files are linted and formatted with Ruff; follow the workflow in `AGENTS.md` after Python code changes.
 - Runtime dependencies are Polars and PyArrow. Development dependencies include pytest and Ruff.
