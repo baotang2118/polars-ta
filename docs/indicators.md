@@ -2,21 +2,33 @@
 
 Formulas and conventions for every indicator implemented in `polars_ta`.
 Indicators are grouped by how they are charted: *overlay* indicators share the
-price axis and are drawn on top of the price series. Moving averages live in
-`polars_ta.overlay.ma` and are re-exported from `polars_ta.overlay` and the
-package root.
+price axis and are drawn on top of the price series, while *momentum*
+oscillators occupy a separate pane. Each group is a subpackage
+(`polars_ta.overlay`, `polars_ta.momentum`), and every public indicator is also
+re-exported from the package root.
+
+| Indicator | Module | Inputs | Output |
+| --------- | ------ | ------ | ------ |
+| `sma`, `wma`, `ema`, `dema`, `tema` | `overlay.ma` | one column | one `Float64` column |
+| `bbands` | `overlay.bands` | one column | struct of three `Float64` fields |
+| `rsi` | `momentum.rsi` | one column | one `Float64` column |
+| `mfi` | `momentum.mfi` | high, low, close, volume | one `Float64` column |
 
 ## Shared Conventions
 
 - **Input forms.** Each indicator accepts a column name (`str`), a `pl.Expr`, or
   a `pl.Series`. Name and expression inputs return a `pl.Expr`, so they compose
   inside `select`/`with_columns` and run lazily. A series input is evaluated
-  eagerly and returns a `pl.Series` carrying the input series name.
-- **Warm-up.** Single-pass indicators emit `window - 1` leading nulls. Indicators
-  that chain several EMA passes extend that proportionally: `2 * (window - 1)`
-  for DEMA and `3 * (window - 1)` for TEMA, matching the TA-Lib lookbacks.
-  There is no `min_periods` parameter, so a simple and an exponential moving
-  average of the same window line up row for row.
+  eagerly and returns a `pl.Series` carrying the input series name. For
+  multi-input indicators every argument must be the same kind — mixing a
+  `pl.Series` with a column name raises `TypeError`.
+- **Warm-up.** Single-pass moving averages emit `window - 1` leading nulls.
+  Indicators that chain several EMA passes extend that proportionally:
+  `2 * (window - 1)` for DEMA and `3 * (window - 1)` for TEMA. Indicators built
+  on a one-period change emit `window` leading nulls: `rsi` and `mfi`. Every
+  figure matches the corresponding TA-Lib lookback. There is no `min_periods`
+  parameter, so a simple and an exponential moving average of the same window
+  line up row for row.
 - **Nulls.** A null input never silently disappears. See the null handling notes
   under each indicator for the exact rule.
 - **Output dtype.** Always `Float64`, including for integer inputs.
@@ -253,3 +265,131 @@ passes.
 
 `dema` and `tema` accept the same `alpha` and `mode` arguments as `ema`, and
 every pass uses the chosen convention.
+
+## BBANDS — Bollinger Bands
+
+A moving average with a volatility envelope: the band width expands when the
+recent standard deviation rises and contracts when the market is quiet.
+
+$$\mathrm{middle}_t = \mathrm{SMA}_t, \qquad
+\sigma_t = \sqrt{\frac{1}{n - \mathrm{ddof}} \sum_{i=0}^{n-1}
+\left(P_{t-i} - \mathrm{middle}_t\right)^2}$$
+
+$$\mathrm{upper}_t = \mathrm{middle}_t + k\,\sigma_t, \qquad
+\mathrm{lower}_t = \mathrm{middle}_t - k\,\sigma_t$$
+
+where $k$ is `num_std`, defaulting to `2.0`.
+
+```python
+import polars as pl
+from polars_ta import bbands
+
+df = pl.DataFrame({"close": [1.0, 3.0, 2.0, 6.0, 5.0]})
+df.with_columns(bbands("close", 3).alias("bb")).unnest("bb")
+```
+
+`bbands` returns a **struct** with fields `lower`, `middle`, and `upper`, so one
+call stays one expression. Unnest it as above, or pull a single band out:
+
+```python
+df.with_columns(bbands("close", 20).struct.field("upper").alias("bb_upper"))
+```
+
+**Degrees of freedom.** `ddof=0` (the default) is the population deviation used
+by TA-Lib. Pass `ddof=1` for the sample deviation, which is Polars' own default
+for `rolling_std`. `ddof` must satisfy `0 <= ddof < window`.
+
+**Warm-up.** $n-1$ leading nulls, as for the SMA.
+
+**Null handling.** All three fields are null whenever any of the $n$ values in
+the window is null.
+
+**Implementation.** `rolling_mean` and `rolling_std`, both with
+`min_samples=window`, combined into a `pl.struct`. A constant window gives
+$\sigma = 0$, collapsing all three bands onto the same value rather than
+producing a null.
+
+## RSI — Relative Strength Index
+
+The share of recent price movement that was upward, scaled to $[0, 100]$.
+Each bar's change is split into a gain and a loss:
+
+$$G_t = \max(P_t - P_{t-1},\, 0), \qquad L_t = \max(P_{t-1} - P_t,\, 0)$$
+
+Both are smoothed with **Wilder's moving average** — an EMA with
+$\alpha = 1/n$ — seeded with the mean of the first $n$ changes:
+
+$$\bar{G}_t = \frac{(n-1)\,\bar{G}_{t-1} + G_t}{n}, \qquad
+\mathrm{RSI}_t = 100 \cdot \frac{\bar{G}_t}{\bar{G}_t + \bar{L}_t}$$
+
+That last form is algebraically identical to the more familiar
+$100 - \dfrac{100}{1 + \bar{G}_t/\bar{L}_t}$ but has no division by zero when
+there were no losses.
+
+```python
+from polars_ta import rsi
+
+df.with_columns(rsi("close", 14).alias("rsi_14"))
+```
+
+On Wilder's own worked example the first output is **70.4641**, matching the
+published value and TA-Lib.
+
+**Warm-up.** $n$ leading nulls — one row lost to the difference, then $n$
+changes needed for the seed. This matches the TA-Lib `RSI` lookback.
+
+**Degenerate windows.** When neither a gain nor a loss has been seen, the ratio
+is $0/0$ and `rsi` reports the neutral **50.0**. TA-Lib changed this from `0.0`
+to `50.0` precisely because zero reads as "extremely oversold".
+
+**Null handling.** Inherited from `ema`: a null delays the seed to the first
+complete, null-free window.
+
+**Implementation.** `diff` then `clip` to split gains from losses — `clip`
+preserves nulls, whereas a `when/otherwise` chain would turn the leading null
+into `0.0` and shorten the warm-up. Each side is smoothed by calling the public
+`ema` with `alpha=1/window`, which reuses the existing TA-Lib seeding rule
+rather than reimplementing Wilder's recursion.
+
+## MFI — Money Flow Index
+
+A volume-weighted RSI. Each bar gets a typical price and a money flow:
+
+$$\mathrm{TP}_t = \frac{H_t + L_t + C_t}{3}, \qquad
+\mathrm{MF}_t = \mathrm{TP}_t \cdot V_t$$
+
+The flow counts as positive or negative according to the direction the typical
+price moved, and a bar with an unchanged typical price contributes nothing:
+
+$$\mathrm{MF}^{+}_t = \begin{cases} \mathrm{MF}_t & \mathrm{TP}_t > \mathrm{TP}_{t-1} \\ 0 & \text{otherwise} \end{cases}
+\qquad
+\mathrm{MF}^{-}_t = \begin{cases} \mathrm{MF}_t & \mathrm{TP}_t < \mathrm{TP}_{t-1} \\ 0 & \text{otherwise} \end{cases}$$
+
+$$\mathrm{MFI}_t = 100 \cdot \frac{\sum_{i=0}^{n-1} \mathrm{MF}^{+}_{t-i}}
+{\sum_{i=0}^{n-1} \mathrm{MF}^{+}_{t-i} + \sum_{i=0}^{n-1} \mathrm{MF}^{-}_{t-i}}$$
+
+Note that unlike RSI, MFI uses plain **rolling sums**, not Wilder smoothing.
+
+```python
+from polars_ta import mfi
+
+df.with_columns(mfi("high", "low", "close", "volume", 14).alias("mfi_14"))
+```
+
+The four inputs are positional, in TA-Lib's order. They may be column names,
+expressions, or series, but not a mixture of series and the other two.
+
+**Warm-up.** $n$ leading nulls, matching the TA-Lib `MFI` lookback.
+
+**Degenerate windows.** A window that received no money flow at all — flat
+typical prices, or zero volume throughout — reports **0.0**, following TA-Lib.
+This differs from `rsi`, which reports `50.0`; the two libraries' conventions
+genuinely diverge here, and `polars_ta` matches each one.
+
+**Null handling.** A null in any of the four inputs makes that bar's flow
+unknown, which blanks the $n$ windows overlapping it.
+
+**Difference from TA-Lib.** TA-Lib treats a typical-price move as "no movement"
+when it falls inside a relative epsilon dead-zone. `polars_ta` compares against
+exact zero instead, so the two can differ only for moves at float-rounding
+scale.
