@@ -13,6 +13,9 @@ re-exported from the package root.
 | `bbands` | `overlay.bands` | one column | struct of three `Float64` fields |
 | `rsi` | `momentum.rsi` | one column | one `Float64` column |
 | `mfi` | `momentum.mfi` | high, low, close, volume | one `Float64` column |
+| `stoch` | `momentum.stoch` | high, low, close | struct of two `Float64` fields |
+| `cci` | `momentum.cci` | high, low, close | one `Float64` column |
+| `macd` | `momentum.macd` | one column | struct of three `Float64` fields |
 
 ## Shared Conventions
 
@@ -22,13 +25,23 @@ re-exported from the package root.
   eagerly and returns a `pl.Series` carrying the input series name. For
   multi-input indicators every argument must be the same kind — mixing a
   `pl.Series` with a column name raises `TypeError`.
-- **Warm-up.** Single-pass moving averages emit `window - 1` leading nulls.
-  Indicators that chain several EMA passes extend that proportionally:
-  `2 * (window - 1)` for DEMA and `3 * (window - 1)` for TEMA. Indicators built
-  on a one-period change emit `window` leading nulls: `rsi` and `mfi`. Every
-  figure matches the corresponding TA-Lib lookback. There is no `min_periods`
-  parameter, so a simple and an exponential moving average of the same window
-  line up row for row.
+- **Warm-up.** Every indicator emits exactly the TA-Lib lookback as leading
+  nulls:
+
+  | Indicator | Leading nulls |
+  | --------- | ------------- |
+  | `sma`, `wma`, `ema`, `bbands`, `cci` | `window - 1` |
+  | `dema` | `2 * (window - 1)` |
+  | `tema` | `3 * (window - 1)` |
+  | `rsi`, `mfi` | `window` |
+  | `stoch` | `(fastk_period - 1) + (slowk_period - 1) + (slowd_period - 1)` |
+  | `macd` | `(slow_period - 1) + (signal_period - 1)` |
+
+  There is no `min_periods` parameter, so a simple and an exponential moving
+  average of the same window line up row for row.
+- **Multi-field outputs start together.** Where an indicator returns a struct,
+  every field begins on the same row, as TA-Lib does. This holds back `stoch`'s
+  `k` until `d` exists, and `macd`'s `macd` line until its `signal` exists.
 - **Nulls.** A null input never silently disappears. See the null handling notes
   under each indicator for the exact rule.
 - **Output dtype.** Always `Float64`, including for integer inputs.
@@ -393,3 +406,117 @@ unknown, which blanks the $n$ windows overlapping it.
 when it falls inside a relative epsilon dead-zone. `polars_ta` compares against
 exact zero instead, so the two can differ only for moves at float-rounding
 scale.
+
+## STOCH — Stochastic Oscillator
+
+Where the close sits inside its recent high/low range, as a percentage. Raw
+fast %K is
+
+$$\mathrm{FastK}_t = 100 \cdot
+\frac{C_t - \min(L_{t-n+1 \ldots t})}{\max(H_{t-n+1 \ldots t}) - \min(L_{t-n+1 \ldots t})}$$
+
+with $n$ = `fastk_period`. Raw fast %K is noisy, so it is smoothed twice, each
+time with a simple moving average:
+
+$$\%K = \mathrm{SMA}(\mathrm{FastK},\ \texttt{slowk\_period}), \qquad
+\%D = \mathrm{SMA}(\%K,\ \texttt{slowd\_period})$$
+
+`stoch` returns these *slow* lines, which is what TA-Lib's `STOCH` returns and
+what charting packages normally plot. %D is the signal line, drawn over %K.
+
+```python
+import polars as pl
+from polars_ta import stoch
+
+ohlc.with_columns(stoch("high", "low", "close", 5, 3, 3).alias("st")).unnest("st")
+```
+
+The result is a **struct** with fields `k` and `d`, both in $[0, 100]$.
+
+**Warm-up.** $(\texttt{fastk\_period} - 1) + (\texttt{slowk\_period} - 1) +
+(\texttt{slowd\_period} - 1)$ leading nulls, matching the TA-Lib lookback. Both
+fields start on that same row: `k` is held back until `d` exists, because
+TA-Lib emits the two lines aligned.
+
+**Degenerate windows.** A window whose high equals its low has no range to
+divide by; that bar's raw %K is **0.0**, following TA-Lib.
+
+**Null handling.** A null in any input blanks the windows overlapping it, and
+that gap then propagates through both smoothing passes.
+
+**Implementation.** `rolling_min` and `rolling_max` with `min_samples`, then two
+`rolling_mean` passes. Because `min_samples` does not count nulls, the warm-up
+and the null propagation both fall out of the rolling calls.
+
+## CCI — Commodity Channel Index
+
+How far the typical price has strayed from its own recent mean, measured in
+units of mean absolute deviation:
+
+$$\mathrm{TP}_t = \frac{H_t + L_t + C_t}{3}, \qquad
+M_t = \frac{1}{n}\sum_{i=0}^{n-1} \mathrm{TP}_{t-i}$$
+
+$$D_t = \frac{1}{n}\sum_{i=0}^{n-1} \left| \mathrm{TP}_{t-i} - M_t \right|,
+\qquad \mathrm{CCI}_t = \frac{\mathrm{TP}_t - M_t}{0.015 \cdot D_t}$$
+
+The constant $0.015$ is Lambert's, chosen so that roughly 70–80% of readings
+land in $[-100, 100]$; readings outside that band are the conventional
+overbought/oversold signals. Unlike RSI or MFI, CCI is **unbounded**.
+
+```python
+from polars_ta import cci
+
+ohlc.with_columns(cci("high", "low", "close", 14).alias("cci_14"))
+```
+
+**Warm-up.** $n - 1$ leading nulls, matching the TA-Lib `CCI` lookback.
+
+**Degenerate windows.** A window with zero deviation reports **0.0** rather than
+dividing by zero.
+
+**Null handling.** Null whenever any of the $n$ values in the window is null,
+exactly as for the SMA.
+
+**Implementation.** Note that $D_t$ measures each value against the *current*
+window's mean $M_t$, which changes every row — so it is **not** a rolling
+aggregate and `rolling_std` is not a substitute (that would be a root-mean-square
+deviation, not a mean-absolute one). It expands instead into one shifted term
+per period: $n$ `shift` expressions summed together. This is $O(n)$ expressions,
+which is fine for conventional periods but worth knowing before passing a very
+large `window`.
+
+## MACD — Moving Average Convergence/Divergence
+
+The gap between a fast and a slow EMA, compared against a smoothed copy of
+itself:
+
+$$\mathrm{MACD}_t = \mathrm{EMA}(P, \texttt{fast})_t -
+\mathrm{EMA}(P, \texttt{slow})_t$$
+
+$$\mathrm{signal}_t = \mathrm{EMA}(\mathrm{MACD}, \texttt{signal})_t, \qquad
+\mathrm{histogram}_t = \mathrm{MACD}_t - \mathrm{signal}_t$$
+
+The MACD line crossing its signal line is the classic trade trigger; the
+histogram makes the size and direction of that gap visible.
+
+```python
+from polars_ta import macd
+
+df.with_columns(macd("close", 12, 26, 9).alias("m")).unnest("m")
+```
+
+The result is a **struct** with fields `macd`, `signal`, and `histogram`.
+
+**Warm-up.** $(\texttt{slow} - 1) + (\texttt{signal} - 1)$ leading nulls — 33
+rows for the default $12, 26, 9$ — matching the TA-Lib `MACD` lookback.
+
+**All three fields start together.** The MACD line alone would be available
+$\texttt{signal} - 1$ rows earlier, but TA-Lib emits the three series aligned,
+so `macd` and `histogram` are held back until `signal` exists.
+
+**Modes.** `mode` is passed through to every EMA pass, so `"recursive"` and
+`"adjust"` give the pandas conventions described under EMA above.
+
+**Null handling and implementation.** Three calls to the public `ema`. The
+TA-Lib seeding rule — seed at the first complete, null-free window — produces
+the correct combined warm-up with no explicit offset arithmetic.

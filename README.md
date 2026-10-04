@@ -18,10 +18,13 @@ Indicators are grouped by how they are charted. *Overlay* indicators are drawn o
 | Overlay | `overlay.bands` | `bbands(column, window=20, *, num_std=2.0, ddof=0)` | Bollinger Bands (struct of `lower`/`middle`/`upper`) |
 | Momentum | `momentum.rsi` | `rsi(column, window=14)` | Relative Strength Index |
 | Momentum | `momentum.mfi` | `mfi(high, low, close, volume, window=14)` | Money Flow Index |
+| Momentum | `momentum.stoch` | `stoch(high, low, close, fastk_period=5, slowk_period=3, slowd_period=3)` | Stochastic oscillator (struct of `k`/`d`) |
+| Momentum | `momentum.cci` | `cci(high, low, close, window=14)` | Commodity Channel Index |
+| Momentum | `momentum.macd` | `macd(column, fast_period=12, slow_period=26, signal_period=9, *, mode="talib")` | MACD (struct of `macd`/`signal`/`histogram`) |
 
 ```python
 import polars as pl
-from polars_ta import bbands, ema, mfi, rsi, sma, wma
+from polars_ta import bbands, cci, ema, macd, mfi, rsi, sma, stoch, wma
 
 df = pl.DataFrame({"close": [1.0, 3.0, 2.0, 6.0, 5.0, 9.0]})
 df.with_columns(
@@ -32,17 +35,22 @@ df.with_columns(
 )
 ```
 
-`bbands` returns a single struct column, so one call stays one expression:
+`bbands` returns a single struct column, so one call stays one expression. `stoch` and `macd` work the same way:
 
 ```python
 df.with_columns(bbands("close", 20).alias("bb")).unnest("bb")  # three columns
 df.with_columns(bbands("close", 20).struct.field("upper"))  # just one band
+df.with_columns(macd("close").alias("m")).unnest("m")  # macd, signal, histogram
 ```
 
-`mfi` takes its four inputs positionally, in TA-Lib's order:
+Indicators needing several price columns take them positionally, in TA-Lib's order:
 
 ```python
-ohlcv.with_columns(mfi("high", "low", "close", "volume", 14).alias("mfi_14"))
+ohlcv.with_columns(
+    mfi("high", "low", "close", "volume", 14).alias("mfi_14"),
+    cci("high", "low", "close", 14).alias("cci_14"),
+    stoch("high", "low", "close").alias("st"),
+)
 ```
 
 Each function takes a column name, a `pl.Expr`, or a `pl.Series`:
@@ -53,9 +61,9 @@ sma(pl.col("close"), 3)  # pl.Expr
 sma(pl.Series("close", [1.0, 2.0]), 3)  # pl.Series
 ```
 
-`ema` defaults to the TA-Lib convention, seeding the recursion with the simple moving average of the first complete window. Pass `mode="recursive"` or `mode="adjust"` for the pandas `ewm(adjust=False)` and `ewm(adjust=True)` conventions, or `alpha=` to override the default smoothing factor of `2 / (window + 1)`. `dema` and `tema` chain two and three EMA passes and accept the same arguments.
+`ema` defaults to the TA-Lib convention, seeding the recursion with the simple moving average of the first complete window. Pass `mode="recursive"` or `mode="adjust"` for the pandas `ewm(adjust=False)` and `ewm(adjust=True)` conventions, or `alpha=` to override the default smoothing factor of `2 / (window + 1)`. `dema`, `tema`, and `macd` chain further EMA passes and accept the same `mode`.
 
-Single-pass moving averages emit `window - 1` leading nulls; `dema` and `tema` emit `2 * (window - 1)` and `3 * (window - 1)`; `rsi` and `mfi` emit `window`. Every figure matches the corresponding TA-Lib lookback. See [docs/indicators.md](docs/indicators.md) for the formulas, null-handling rules, and worked examples.
+Every indicator emits exactly the TA-Lib lookback as leading nulls: `window - 1` for the single-pass moving averages, `bbands`, and `cci`; `2 * (window - 1)` and `3 * (window - 1)` for `dema` and `tema`; `window` for `rsi` and `mfi`; the sum of the three period offsets for `stoch`; and `(slow_period - 1) + (signal_period - 1)` for `macd`. Where an indicator returns a struct, every field starts on the same row. See [docs/indicators.md](docs/indicators.md) for the formulas, null-handling rules, and worked examples.
 
 ## Development
 
