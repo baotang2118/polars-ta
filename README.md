@@ -1,10 +1,21 @@
 # polars-ta
 
-A Python library for data and technical-analysis workloads, designed around Polars with PyArrow for Arrow interoperability where needed.
+A Python technical-indicator library designed around Polars and PyArrow.
 
-The project prioritizes Polars-native APIs and avoids additional dataframe, numeric, or indicator dependencies when the core libraries can meet the requirement.
+The initial scaffold includes a small `hello()` API; technical indicators will be added in subsequent development.
+
+## Development
+
+Install the package and development tools, then run the unit tests with pytest:
+
+```sh
+uv sync --dev
+uv run pytest
+```
+
+The starter test uses `unittest.TestCase` assertions and is executed with pytest. Follow [AGENTS.md](AGENTS.md) for the Python linting and formatting workflow.
 
 ## Project References
 
-- [KNOWLEDGE.md](KNOWLEDGE.md): design principles, dependency guidance, and behavioral references.
+- [KNOWLEDGE.md](KNOWLEDGE.md): package structure, design principles, and dependency guidance.
 - [AGENTS.md](AGENTS.md): repository-wide development and validation requirements.
