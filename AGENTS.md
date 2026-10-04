@@ -15,6 +15,6 @@ These guidelines apply to all work in this repository. Follow relevant file-spec
 
 ## Python Validation
 
-- Always use pytest for Python unit tests. Follow the `pytest-unit-tests` skill.
+- After every Python code change, run the relevant unit tests with pytest before finishing. Use the full suite unless the change has a clearly narrower test scope; follow the `pytest-unit-tests` skill for the command and reporting procedure. If tests are missing, cannot run, or fail, report that accurately instead of skipping validation or claiming success.
 - After generating or modifying Python code, run the complete lint and formatting workflow in the `lint-format-code` skill before finishing.
 - Report the validation commands actually run, their results, and any unresolved issues. If a required tool is unavailable, say so rather than claiming validation passed.
