@@ -1,11 +1,11 @@
 ---
 name: pytest-unit-tests
-description: 'Run Python unit tests with pytest. Use when adding, updating, debugging, or running unit tests in this workspace.'
+description: 'Run Python unit tests with pytest after Python code changes. Use when implementing, refactoring, debugging, or validating Python code and tests in this workspace.'
 argument-hint: 'Optional test file, directory, or pytest selection'
 ---
 # Python Unit Tests with Pytest
 
-Always use pytest to run Python unit tests in this workspace. Do not switch to `unittest` or another test runner.
+Always run relevant Python unit tests after a Python code change, even when the user did not explicitly request testing. Use pytest as the runner; do not switch to `unittest` or another test runner.
 
 ## Procedure
 

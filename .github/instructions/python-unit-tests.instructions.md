@@ -1,6 +1,6 @@
 ---
-description: "Use when creating or running Python unit tests. Requires pytest as the test runner."
+description: "Use when writing or changing Python code, or creating and running unit tests. Requires running tests after code changes with pytest."
 ---
 # Python Unit Tests
 
-Whenever running Python unit tests, follow the `pytest-unit-tests` skill and use pytest as the test runner. Do not substitute another test runner.
+After every Python code change, run the relevant unit tests before completing the task. Use pytest as the test runner; follow the `pytest-unit-tests` skill for scope, commands, and reporting. Do not substitute another test runner or silently skip tests that cannot run.
