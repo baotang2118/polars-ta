@@ -12,14 +12,16 @@ package root.
   a `pl.Series`. Name and expression inputs return a `pl.Expr`, so they compose
   inside `select`/`with_columns` and run lazily. A series input is evaluated
   eagerly and returns a `pl.Series` carrying the input series name.
-- **Warm-up.** The first `window - 1` rows are always null, for every indicator
-  and every mode. There is no `min_periods` parameter, so a simple and an
-  exponential moving average of the same window line up row for row.
+- **Warm-up.** Single-pass indicators emit `window - 1` leading nulls. Indicators
+  that chain several EMA passes extend that proportionally: `2 * (window - 1)`
+  for DEMA and `3 * (window - 1)` for TEMA, matching the TA-Lib lookbacks.
+  There is no `min_periods` parameter, so a simple and an exponential moving
+  average of the same window line up row for row.
 - **Nulls.** A null input never silently disappears. See the null handling notes
   under each indicator for the exact rule.
 - **Output dtype.** Always `Float64`, including for integer inputs.
-- **Insufficient data.** If the input is shorter than `window`, the whole result
-  is null.
+- **Insufficient data.** If the input is shorter than the warm-up length, the
+  whole result is null.
 
 Throughout, $P_t$ is the input value at row $t$ (zero-indexed) and $n$ is
 `window`.
@@ -56,6 +58,42 @@ series recovers as soon as the null leaves the window.
 **Implementation.** `pl.Expr.rolling_mean(window_size=n, min_samples=n)`. The
 `min_samples=n` setting produces both the warm-up nulls and the null
 propagation, because a null does not count as an observed sample.
+
+## WMA — Weighted Moving Average
+
+A linearly weighted average: the most recent value carries weight $n$, the one
+before it $n-1$, down to weight $1$ at the oldest value in the window.
+
+$$\mathrm{WMA}_t = \frac{\sum_{i=0}^{n-1} (n-i)\,P_{t-i}}{\sum_{k=1}^{n} k}
+= \frac{2}{n(n+1)} \sum_{i=0}^{n-1} (n-i)\,P_{t-i}$$
+
+The linear ramp makes a WMA respond faster than an SMA of the same window while
+still forgetting a value completely once it leaves the window — unlike an EMA,
+whose weights never reach zero.
+
+```python
+from polars_ta import wma
+
+df.with_columns(wma("close", 3).alias("wma_3"))
+```
+
+| `close` | `wma_3` | Calculation |
+| ------- | ------- | ----------- |
+| 1.0 | `null` | warm-up |
+| 3.0 | `null` | warm-up |
+| 2.0 | 2.166667 | $(1\cdot1 + 2\cdot3 + 3\cdot2)/6$ |
+| 6.0 | 4.166667 | $(1\cdot3 + 2\cdot2 + 3\cdot6)/6$ |
+| 5.0 | 4.833333 | $(1\cdot2 + 2\cdot6 + 3\cdot5)/6$ |
+
+**Null handling.** Identical to the SMA: a row is null whenever any of the $n$
+values in its window is null.
+
+**Implementation.** `pl.Expr.rolling_mean(window_size=n, weights=[1..n])`, which
+normalizes by the weight sum. Polars panics rather than raising when weighted
+rolling aggregations meet nulls, so the input is cast to `Float64` and
+null-filled first, and rows whose window contained a null are masked back to
+null afterwards using a rolling count of nulls. The mask reproduces exactly the
+SMA null rule, so no otherwise-valid row is discarded.
 
 ## EMA — Exponential Moving Average
 
@@ -143,3 +181,75 @@ complete, null-free window is available.
 before the seed are null and the seed row holds the rolling mean, after which
 `ewm_mean(adjust=False, min_samples=1)` reproduces the TA-Lib recursion without
 a Python-level loop.
+
+## DEMA — Double Exponential Moving Average
+
+An EMA lags the price; a second EMA applied to the first lags it by roughly the
+same amount again. Subtracting that second-order lag cancels most of the first:
+
+$$\mathrm{DEMA}_t = 2\,\mathrm{EMA}^{(1)}_t - \mathrm{EMA}^{(2)}_t,
+\qquad \mathrm{EMA}^{(2)} = \mathrm{EMA}\!\left(\mathrm{EMA}^{(1)}\right)$$
+
+Both passes use the same $n$ and the same $\alpha$. The result is faster than a
+plain EMA at the cost of overshooting sharp moves.
+
+```python
+from polars_ta import dema
+
+df.with_columns(dema("close", 3).alias("dema_3"))
+```
+
+With $n = 3$, $\alpha = 0.5$ and `close = [1, 3, 2, 6, 5]`:
+
+| row | $\mathrm{EMA}^{(1)}$ | $\mathrm{EMA}^{(2)}$ | `dema_3` |
+| --- | -------------------- | -------------------- | -------- |
+| 0-3 | — | `null` | `null` |
+| 4 | 4.5 | 3.5 | 5.5 |
+
+$\mathrm{EMA}^{(1)}$ starts at row 2 with the seed $(1+3+2)/3 = 2$, so
+$\mathrm{EMA}^{(2)}$ cannot seed until row 4, where it averages
+$(2 + 4 + 4.5)/3 = 3.5$. The DEMA is then $2 \cdot 4.5 - 3.5 = 5.5$.
+
+**Warm-up.** $2(n-1)$ leading nulls, matching the TA-Lib `DEMA` lookback.
+
+**Null handling.** Inherited from `ema`. Because the second pass sees the first
+pass's nulls, an interior null delays the chain rather than corrupting it.
+
+**Implementation.** `ema` is applied twice; the nested call receives the first
+pass as an expression, and the `"talib"` seeding rule — seed at the first
+complete, null-free window — automatically produces the correct $2(n-1)$
+warm-up without any explicit offset bookkeeping.
+
+## TEMA — Triple Exponential Moving Average
+
+Extends the same lag-cancellation idea to a third pass:
+
+$$\mathrm{TEMA}_t = 3\,\mathrm{EMA}^{(1)}_t - 3\,\mathrm{EMA}^{(2)}_t
++ \mathrm{EMA}^{(3)}_t$$
+
+The coefficients $3, -3, 1$ come from expanding $1 - (1 - E)^3$, where $E$ is
+the EMA operator; DEMA is the same expansion truncated at two terms.
+
+```python
+from polars_ta import tema
+
+df.with_columns(tema("close", 3).alias("tema_3"))
+```
+
+**Warm-up.** $3(n-1)$ leading nulls, matching the TA-Lib `TEMA` lookback.
+
+**Null handling and implementation.** As for DEMA, with three chained `ema`
+passes.
+
+### Choosing between them
+
+| Indicator | Lag | Overshoot | Smoothness |
+| --------- | --- | --------- | ---------- |
+| SMA | highest | none | highest |
+| WMA | medium | none | high |
+| EMA | medium | none | high |
+| DEMA | low | some | medium |
+| TEMA | lowest | most | lowest |
+
+`dema` and `tema` accept the same `alpha` and `mode` arguments as `ema`, and
+every pass uses the chosen convention.
