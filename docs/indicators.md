@@ -22,6 +22,7 @@ implemented.
 | `midprice` | `overlay.midpoint` | high, low | one `Float64` column |
 | `bbands` | `overlay.bands` | one column | struct of three `Float64` fields |
 | `donchian` | `overlay.channels` | high, low | struct of three `Float64` fields |
+| `keltner` | `overlay.channels` | high, low, close | struct of three `Float64` fields |
 | `sar`, `sarext` | `overlay.sar` | high, low | one `Float64` column |
 | `supertrend` | `overlay.supertrend` | high, low, close | struct of `Float64` and `Int8` |
 | `ichimoku` | `overlay.ichimoku` | high, low, close | struct of five `Float64` fields |
@@ -87,6 +88,7 @@ implemented.
   | `mavp` | `max_period - 1` |
   | `ht_dcperiod`, `ht_phasor`, `mama` | `32` |
   | `ht_dcphase`, `ht_sine`, `ht_trendmode`, `ht_trendline` | `63` |
+  | `keltner` | per field; see below |
   | `ichimoku` | per field; see below |
 
   There is no `min_periods` parameter, so a simple and an exponential moving
@@ -684,6 +686,50 @@ nulls `upper` and `middle` but leaves `lower` intact.
 **Implementation.** `rolling_max` and `rolling_min` with `min_samples=window`.
 This is not a TA-Lib function; the TA-Lib equivalents are the separate `MAX`
 and `MIN`.
+
+## KELTNER — Keltner Channels
+
+An exponential average with an envelope scaled by the Average True Range:
+
+$$\mathrm{middle}_t = \mathrm{EMA}_n(C)_t, \qquad
+\mathrm{upper}_t = \mathrm{middle}_t + k \cdot \mathrm{ATR}_m(H, L, C)_t, \qquad
+\mathrm{lower}_t = \mathrm{middle}_t - k \cdot \mathrm{ATR}_m(H, L, C)_t$$
+
+with $n$ = `window` (default 20), $m$ = `atr_window` (default 10), and $k$ =
+`multiplier` (default 2.0).
+
+```python
+from polars_ta import keltner
+
+ohlc.with_columns(keltner("high", "low", "close", 20).alias("kc")).unnest("kc")
+```
+
+Where Bollinger Bands scale their envelope by the standard deviation of the
+**close**, Keltner scales it by the true range, which includes gaps and the
+full bar. The channel is therefore steadier — it does not pinch shut during a
+run of small closing changes that nonetheless saw wide bars — so a close
+outside it is a stronger breakout signal than a Bollinger touch.
+
+| | Bollinger Bands | Keltner Channels |
+| --- | --- | --- |
+| Centre | SMA of close | EMA of close |
+| Width from | standard deviation of close | Average True Range |
+| Reacts to gaps | no | yes |
+
+**Separate periods.** The centre line and the envelope take independent
+periods, because the smoothing that suits a trend line rarely suits a
+volatility estimate. The defaults follow the common 20/10 convention.
+
+**Warm-up.** Per field, as for `donchian`. `middle` depends only on the close
+and starts after $n - 1$ rows; the two edges also need the ATR and so start
+after $\max(n - 1, m)$ rows.
+
+**Null handling.** Inherited from `ema` and `atr`. A null close blanks all
+three fields; a null high or low blanks only the two edges.
+
+**Implementation.** `_ema_expr` for the centre and the shared `_atr_expr` for
+the width, so Wilder's smoothing stays a single implementation. This is not a
+TA-Lib function.
 
 ## SUPERTREND
 

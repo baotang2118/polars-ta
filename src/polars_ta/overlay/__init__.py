@@ -2,7 +2,7 @@
 
 from polars_ta.overlay.adaptive import kama, mama
 from polars_ta.overlay.bands import bbands
-from polars_ta.overlay.channels import donchian
+from polars_ta.overlay.channels import donchian, keltner
 from polars_ta.overlay.dispatch import MA_TYPES, MaType, ma, mavp
 from polars_ta.overlay.ichimoku import ichimoku
 from polars_ta.overlay.ma import dema, ema, sma, t3, tema, trima, wma
@@ -19,6 +19,7 @@ __all__ = [
     "ema",
     "ichimoku",
     "kama",
+    "keltner",
     "ma",
     "mama",
     "mavp",
