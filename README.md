@@ -8,7 +8,7 @@ Indicators are expression-first: they return a `pl.Expr` that composes inside `s
 
 Indicators are grouped by how they are charted. *Overlay* indicators are drawn on the price axis; *momentum* oscillators occupy a separate pane; *volume* indicators weight movement by how much traded; *volatility* indicators measure the size of movement; *cycle* indicators measure its rhythm. Every public indicator is also re-exported from the package root.
 
-Every TA-Lib function in [indicators.md](indicators.md) is implemented.
+Every TA-Lib function in [indicators.md](indicators.md) is implemented, along with a few indicators TA-Lib does not carry: `donchian`, `keltner`, `supertrend`, and `ichimoku`.
 
 | Group | Module | Function | Description |
 | ----- | ------ | -------- | ----------- |
@@ -27,6 +27,7 @@ Every TA-Lib function in [indicators.md](indicators.md) is implemented.
 | Overlay | `overlay.midpoint` | `midprice(high, low, window=14)` | Midpoint price |
 | Overlay | `overlay.bands` | `bbands(column, window=20, *, num_std=2.0, ddof=0)` | Bollinger Bands (struct of `lower`/`middle`/`upper`) |
 | Overlay | `overlay.channels` | `donchian(high, low, window=20)` | Donchian Channels (struct of `lower`/`middle`/`upper`) |
+| Overlay | `overlay.channels` | `keltner(high, low, close, window=20, *, atr_window=10, multiplier=2.0)` | Keltner Channels (struct of `lower`/`middle`/`upper`) |
 | Overlay | `overlay.sar` | `sar(high, low, acceleration=0.02, maximum=0.2)` | Parabolic SAR |
 | Overlay | `overlay.sar` | `sarext(high, low, *, start_value=0.0, ...)` | Parabolic SAR, extended and signed |
 | Overlay | `overlay.supertrend` | `supertrend(high, low, close, window=10, multiplier=3.0)` | Supertrend (struct of `supertrend`/`direction`) |
@@ -126,7 +127,7 @@ sma(pl.Series("close", [1.0, 2.0]), 3)  # pl.Series
 
 `ema` defaults to the TA-Lib convention, seeding the recursion with the simple moving average of the first complete window. Pass `mode="recursive"` or `mode="adjust"` for the pandas `ewm(adjust=False)` and `ewm(adjust=True)` conventions, or `alpha=` to override the default smoothing factor of `2 / (window + 1)`. `dema`, `tema`, and `macd` chain further EMA passes and accept the same `mode`.
 
-Every indicator emits exactly the TA-Lib lookback as leading nulls: `window - 1` for the single-pass moving averages, `bbands`, `cci`, `donchian`, `midpoint`, `midprice`, `trima`, and `willr`; `2 * (window - 1)`, `3 * (window - 1)`, and `6 * (window - 1)` for `dema`, `tema`, and `t3`; `window` for `rsi`, `cmo`, `mfi`, `atr`, `natr`, `kama`, `supertrend`, `aroon`, `dx`, and the directional indicators; `window - 1` for `plus_dm`/`minus_dm`; `2 * window - 1` for `adx` and `3 * window - 2` for `adxr`; `1` for `sar` and `sarext`; `32` for `ht_dcperiod`, `ht_phasor`, and `mama`; `63` for the remaining `ht_*` indicators; and nothing at all for `bop`, `ad`, and `obv`. Struct fields start on the same row where TA-Lib emits them together, and keep their own warm-ups where TA-Lib treats them as separate functions. See [docs/indicators.md](docs/indicators.md) for the formulas, null-handling rules, and worked examples.
+Every indicator emits exactly the TA-Lib lookback as leading nulls: `window - 1` for the single-pass moving averages, `bbands`, `cci`, `donchian`, `midpoint`, `midprice`, `trima`, and `willr`; `2 * (window - 1)`, `3 * (window - 1)`, and `6 * (window - 1)` for `dema`, `tema`, and `t3`; `window` for `rsi`, `cmo`, `mfi`, `atr`, `natr`, `kama`, `supertrend`, `aroon`, `dx`, and the directional indicators; `window - 1` for `plus_dm`/`minus_dm`; `2 * window - 1` for `adx` and `3 * window - 2` for `adxr`; `1` for `sar` and `sarext`; `32` for `ht_dcperiod`, `ht_phasor`, and `mama`; `63` for the remaining `ht_*` indicators; and nothing at all for `bop`, `ad`, and `obv`. Struct fields start on the same row where TA-Lib emits them together, and keep their own warm-ups where TA-Lib treats them as separate functions. `donchian`, `keltner`, and `ichimoku` likewise let each field reflect only the inputs it depends on — `keltner`'s `middle` starts after `window - 1` rows while its edges wait for the ATR. See [docs/indicators.md](docs/indicators.md) for the formulas, null-handling rules, and worked examples.
 
 ## Development
 
