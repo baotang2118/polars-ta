@@ -74,12 +74,12 @@ class TestTrima(IndicatorAssertions):
         self.assert_values_equal(evaluate(trima("close", 1)), VALUES)
 
     def test_flat_series_equals_its_level(self) -> None:
-        self.assert_values_equal(evaluate(trima("close", 5), constant(10))[4:], [5.0] * 6)
+        self.assert_values_equal(
+            evaluate(trima("close", 5), constant(10))[4:], [5.0] * 6
+        )
 
     def test_default_window_is_thirty(self) -> None:
-        self.assert_values_equal(
-            evaluate(trima("close")), evaluate(trima("close", 30))
-        )
+        self.assert_values_equal(evaluate(trima("close")), evaluate(trima("close", 30)))
 
     def test_invalid_window_raises(self) -> None:
         for window in (0, -1, 2.5):
@@ -140,7 +140,9 @@ class TestKama(IndicatorAssertions):
                 self.assertIsNotNone(result[window])
 
     def test_flat_series_equals_its_level(self) -> None:
-        self.assert_values_equal(evaluate(kama("close", 4), constant(12))[4:], [5.0] * 8)
+        self.assert_values_equal(
+            evaluate(kama("close", 4), constant(12))[4:], [5.0] * 8
+        )
 
     def test_null_restarts_the_recursion(self) -> None:
         result = evaluate(kama("close", 3), with_null(VALUES, 10))

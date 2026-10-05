@@ -10,9 +10,7 @@ from polars_ta._common import IntoColumn, apply_to_columns, validate_window
 from polars_ta.overlay.ma import ema
 
 
-def _ad_expr(
-    high: pl.Expr, low: pl.Expr, close: pl.Expr, volume: pl.Expr
-) -> pl.Expr:
+def _ad_expr(high: pl.Expr, low: pl.Expr, close: pl.Expr, volume: pl.Expr) -> pl.Expr:
     span = high - low
     # A bar with no range contributes nothing rather than dividing by zero.
     flow = (

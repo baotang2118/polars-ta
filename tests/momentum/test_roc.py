@@ -12,9 +12,7 @@ def evaluate(expr: pl.Expr, values: list[float | None] | None = None):
     return pl.DataFrame({"close": data}).select(expr).to_series().to_list()
 
 
-def reference_change(
-    values: list[float], window: int, kind: str
-) -> list[float | None]:
+def reference_change(values: list[float], window: int, kind: str) -> list[float | None]:
     """TA-Lib's rate-of-change family, reporting 0.0 on a zero reference price."""
     result: list[float | None] = [None] * len(values)
     for index in range(window, len(values)):
@@ -106,7 +104,9 @@ class TestRateOfChange(IndicatorAssertions):
     def test_name_expression_and_series_agree(self) -> None:
         from_name = evaluate(roc("close", 3))
         self.assert_values_equal(evaluate(roc(pl.col("close"), 3)), from_name)
-        self.assert_values_equal(roc(pl.Series("close", VALUES), 3).to_list(), from_name)
+        self.assert_values_equal(
+            roc(pl.Series("close", VALUES), 3).to_list(), from_name
+        )
 
     def test_series_input_keeps_its_name(self) -> None:
         result = mom(pl.Series("close", VALUES), 3)

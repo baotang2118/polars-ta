@@ -18,8 +18,9 @@ def _po_expr(
     percentage: bool,
 ) -> pl.Expr:
     # TA-Lib orders the periods rather than returning a sign-flipped result.
-    fast_period, slow_period = min(fast_period, slow_period), max(
-        fast_period, slow_period
+    fast_period, slow_period = (
+        min(fast_period, slow_period),
+        max(fast_period, slow_period),
     )
     fast = _ma_expr(values, fast_period, ma_type)
     slow = _ma_expr(values, slow_period, ma_type)

@@ -153,7 +153,9 @@ def minus_dm(high: str | pl.Expr, low: str | pl.Expr, window: int = 14) -> pl.Ex
 def minus_dm(high: pl.Series, low: pl.Series, window: int = 14) -> pl.Series: ...
 
 
-def minus_dm(high: IntoColumn, low: IntoColumn, window: int = 14) -> pl.Expr | pl.Series:
+def minus_dm(
+    high: IntoColumn, low: IntoColumn, window: int = 14
+) -> pl.Expr | pl.Series:
     """Minus Directional Movement: the Wilder-smoothed running sum of ``-DM``.
 
     Args:

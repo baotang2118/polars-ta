@@ -73,9 +73,7 @@ class TestStochf(IndicatorAssertions):
         for index in range(6, 60):
             expected_d[index] = sum(raw[index - 2 : index + 1]) / 3.0
         self.assert_values_equal(fields["fast_d"], expected_d)
-        self.assert_values_equal(
-            fields["fast_k"], [None] * 6 + raw[6:]
-        )
+        self.assert_values_equal(fields["fast_k"], [None] * 6 + raw[6:])
 
     def test_warm_up_sums_both_periods(self) -> None:
         bars = frame(high=HIGH[:60], low=LOW[:60], close=VALUES)

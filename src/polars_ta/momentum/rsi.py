@@ -47,7 +47,6 @@ def _cmo_expr(values: pl.Expr, window: int) -> pl.Expr:
     )
 
 
-
 @overload
 def rsi(column: str | pl.Expr, window: int = 14) -> pl.Expr: ...
 

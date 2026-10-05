@@ -262,8 +262,7 @@ def sarext(
         offset_on_reverse, (int, float)
     ):
         raise ValueError(
-            f"offset_on_reverse must be a float, "
-            f"got {type(offset_on_reverse).__name__}"
+            f"offset_on_reverse must be a float, got {type(offset_on_reverse).__name__}"
         )
     if offset_on_reverse < 0.0:
         raise ValueError(f"offset_on_reverse must be >= 0, got {offset_on_reverse}")

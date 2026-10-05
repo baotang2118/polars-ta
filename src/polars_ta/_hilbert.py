@@ -152,11 +152,11 @@ def hilbert_transform(
         else:
             even_previous3, even_previous2 = even_previous2, detrender
 
-        phase = (
-            math.atan(quadrature / in_phase) * _RAD2DEG if in_phase != 0.0 else 0.0
-        )
+        phase = math.atan(quadrature / in_phase) * _RAD2DEG if in_phase != 0.0 else 0.0
 
-        real = 0.2 * (smoothed_i2 * previous_i2 + smoothed_q2 * previous_q2) + 0.8 * real
+        real = (
+            0.2 * (smoothed_i2 * previous_i2 + smoothed_q2 * previous_q2) + 0.8 * real
+        )
         imaginary = (
             0.2 * (smoothed_i2 * previous_q2 - smoothed_q2 * previous_i2)
             + 0.8 * imaginary

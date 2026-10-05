@@ -40,12 +40,15 @@ class TestMidpoint(IndicatorAssertions):
         self.assert_values_equal(evaluate(midpoint("close", 1)), VALUES)
 
     def test_flat_series_equals_its_level(self) -> None:
-        self.assert_values_equal(evaluate(midpoint("close", 3), constant(6))[2:], [5.0] * 4)
+        self.assert_values_equal(
+            evaluate(midpoint("close", 3), constant(6))[2:], [5.0] * 4
+        )
 
     def test_rising_series_is_the_window_centre(self) -> None:
         rising = ramp_up(10, 0.0)
         self.assert_values_equal(
-            evaluate(midpoint("close", 3), rising)[2:], [index + 1.0 for index in range(8)]
+            evaluate(midpoint("close", 3), rising)[2:],
+            [index + 1.0 for index in range(8)],
         )
 
     def test_null_blanks_the_whole_window(self) -> None:
@@ -76,7 +79,9 @@ class TestMidprice(IndicatorAssertions):
         bars = frame(high=HIGH[:40], low=LOW[:40])
         for window in (2, 5, 14):
             with self.subTest(window=window):
-                result = bars.select(midprice("high", "low", window)).to_series().to_list()
+                result = (
+                    bars.select(midprice("high", "low", window)).to_series().to_list()
+                )
                 expected: list[float | None] = [None] * 40
                 for index in range(window - 1, 40):
                     start = index - window + 1
@@ -89,7 +94,9 @@ class TestMidprice(IndicatorAssertions):
         bars = frame(high=HIGH[:40], low=LOW[:40])
         for window in (3, 7):
             with self.subTest(window=window):
-                result = bars.select(midprice("high", "low", window)).to_series().to_list()
+                result = (
+                    bars.select(midprice("high", "low", window)).to_series().to_list()
+                )
                 self.assertEqual(result[: window - 1], [None] * (window - 1))
                 self.assertIsNotNone(result[window - 1])
 

@@ -1,6 +1,6 @@
 """Overlay indicators, which are plotted on the price chart itself."""
 
-from polars_ta.overlay.adaptive import kama
+from polars_ta.overlay.adaptive import kama, mama
 from polars_ta.overlay.bands import bbands
 from polars_ta.overlay.channels import donchian
 from polars_ta.overlay.dispatch import MA_TYPES, MaType, ma, mavp
@@ -20,6 +20,7 @@ __all__ = [
     "ichimoku",
     "kama",
     "ma",
+    "mama",
     "mavp",
     "midpoint",
     "midprice",

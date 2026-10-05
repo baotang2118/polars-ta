@@ -12,7 +12,7 @@ from polars_ta._common import (
     apply_to_columns,
     validate_window,
 )
-from polars_ta.overlay.adaptive import _kama_expr
+from polars_ta.overlay.adaptive import _kama_expr, _mama_expr
 from polars_ta.overlay.ma import (
     _dema_expr,
     _ema_expr,
@@ -23,7 +23,7 @@ from polars_ta.overlay.ma import (
     _wma_expr,
 )
 
-MaType = Literal["sma", "ema", "wma", "dema", "tema", "trima", "kama", "t3"]
+MaType = Literal["sma", "ema", "wma", "dema", "tema", "trima", "kama", "mama", "t3"]
 """Moving-average kinds accepted by :func:`ma` and the indicators built on it."""
 
 MA_TYPES: tuple[str, ...] = get_args(MaType)
@@ -44,6 +44,9 @@ def _ma_expr(values: pl.Expr, window: int, ma_type: MaType) -> pl.Expr:
         return _trima_expr(values, window)
     if ma_type == "kama":
         return _kama_expr(values, window, 2, 30)
+    if ma_type == "mama":
+        # TA-Lib's MA takes the MAMA line and ignores the window entirely.
+        return _mama_expr(values, 0.5, 0.05).struct.field("mama")
     alpha = 2.0 / (window + 1.0)
     if ma_type == "ema":
         return _ema_expr(values, window, alpha, "talib")
@@ -78,7 +81,9 @@ def ma(
 
 
 @overload
-def ma(column: pl.Series, window: int = 30, *, ma_type: MaType = "sma") -> pl.Series: ...
+def ma(
+    column: pl.Series, window: int = 30, *, ma_type: MaType = "sma"
+) -> pl.Series: ...
 
 
 def ma(

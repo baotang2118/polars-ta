@@ -139,7 +139,9 @@ class TestDirectionalMovement(IndicatorAssertions):
         line = trend.to_series().to_list()
         expected = [
             None
-            if line[index] is None or index < window - 1 or line[index - window + 1] is None
+            if line[index] is None
+            or index < window - 1
+            or line[index - window + 1] is None
             else (line[index] + line[index - window + 1]) / 2.0
             for index in range(LENGTH)
         ]
@@ -156,7 +158,9 @@ class TestDirectionalMovement(IndicatorAssertions):
     def test_only_one_movement_is_non_zero_per_bar(self) -> None:
         rising = ramp_up(30)
         bars = frame_from(rising)
-        self.assert_values_equal(column(minus_dm("high", "low", 5), bars)[4:], [0.0] * 26)
+        self.assert_values_equal(
+            column(minus_dm("high", "low", 5), bars)[4:], [0.0] * 26
+        )
         for value in column(plus_dm("high", "low", 5), bars)[4:]:
             self.assertGreater(value, 0.0)
 
@@ -170,9 +174,7 @@ class TestDirectionalMovement(IndicatorAssertions):
             self.assert_values_equal(column(expr, bars)[4:], [0.0] * 26)
 
     def test_window_of_one_is_unsmoothed(self) -> None:
-        expected = reference_directional(
-            HIGH[:LENGTH], LOW[:LENGTH], CLOSE[:LENGTH], 1
-        )
+        expected = reference_directional(HIGH[:LENGTH], LOW[:LENGTH], CLOSE[:LENGTH], 1)
         self.assert_values_equal(column(plus_dm("high", "low", 1)), expected["plus_dm"])
         self.assert_values_equal(
             column(plus_di("high", "low", "close", 1)), expected["plus_di"]

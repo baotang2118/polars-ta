@@ -37,7 +37,9 @@ class TestNatr(IndicatorAssertions):
                 "close": [0.0] * 8,
             }
         )
-        self.assert_values_equal(column(natr("high", "low", "close", 3), bars)[3:], [0.0] * 5)
+        self.assert_values_equal(
+            column(natr("high", "low", "close", 3), bars)[3:], [0.0] * 5
+        )
 
     def test_invalid_window_raises(self) -> None:
         with self.assertRaises(ValueError):
@@ -51,7 +53,10 @@ class TestTrix(IndicatorAssertions):
         stage = bars.select(ema("close", 5)).to_series().to_list()
         for _ in range(2):
             stage = (
-                pl.DataFrame({"close": stage}).select(ema("close", 5)).to_series().to_list()
+                pl.DataFrame({"close": stage})
+                .select(ema("close", 5))
+                .to_series()
+                .to_list()
             )
         expected = [
             None
@@ -175,9 +180,7 @@ class TestMacdVariants(IndicatorAssertions):
             ).alias("m")
         ).unnest("m")
         plain = bars.select(macd("close", 5, 12, 4).alias("m")).unnest("m")
-        self.assert_values_equal(
-            fields["signal"].to_list(), plain["signal"].to_list()
-        )
+        self.assert_values_equal(fields["signal"].to_list(), plain["signal"].to_list())
 
     def test_macdext_fields_start_together(self) -> None:
         bars = pl.DataFrame({"close": CLOSE[:LENGTH]})
@@ -185,9 +188,7 @@ class TestMacdVariants(IndicatorAssertions):
         lookback = (12 - 1) + (4 - 1)
         for name in ("macd", "signal", "histogram"):
             with self.subTest(name=name):
-                self.assertEqual(
-                    fields[name].to_list()[:lookback], [None] * lookback
-                )
+                self.assertEqual(fields[name].to_list()[:lookback], [None] * lookback)
                 self.assertIsNotNone(fields[name][lookback])
 
     def test_invalid_arguments_raise(self) -> None:

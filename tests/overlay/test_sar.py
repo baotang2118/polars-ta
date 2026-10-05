@@ -36,9 +36,7 @@ def reference_sar(
                 result[index] = stop
                 factor = acceleration
                 extreme = low[index]
-                stop = max(
-                    stop + factor * (extreme - stop), previous_high, high[index]
-                )
+                stop = max(stop + factor * (extreme - stop), previous_high, high[index])
             else:
                 result[index] = stop
                 if high[index] > extreme:
@@ -77,9 +75,7 @@ class TestSar(IndicatorAssertions):
 
     def test_stays_below_price_in_a_sustained_rise(self) -> None:
         rising = ramp_up(40)
-        bars = pl.DataFrame(
-            {"high": rising, "low": [value - 1.0 for value in rising]}
-        )
+        bars = pl.DataFrame({"high": rising, "low": [value - 1.0 for value in rising]})
         result = column(sar("high", "low"), bars)
         for index in range(2, 40):
             self.assertLessEqual(result[index], rising[index])
@@ -137,17 +133,13 @@ class TestSarext(IndicatorAssertions):
 
     def test_positive_start_value_begins_long(self) -> None:
         rising = ramp_up(30)
-        bars = pl.DataFrame(
-            {"high": rising, "low": [value - 1.0 for value in rising]}
-        )
+        bars = pl.DataFrame({"high": rising, "low": [value - 1.0 for value in rising]})
         result = column(sarext("high", "low", start_value=0.5), bars)
         self.assertGreater(result[1], 0.0)
 
     def test_negative_start_value_begins_short(self) -> None:
         rising = ramp_up(30)
-        bars = pl.DataFrame(
-            {"high": rising, "low": [value - 1.0 for value in rising]}
-        )
+        bars = pl.DataFrame({"high": rising, "low": [value - 1.0 for value in rising]})
         result = column(sarext("high", "low", start_value=-100.0), bars)
         self.assertLess(result[1], 0.0)
 

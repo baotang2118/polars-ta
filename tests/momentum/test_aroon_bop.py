@@ -87,8 +87,7 @@ class TestAroon(IndicatorAssertions):
         bars = frame(high=HIGH[:LENGTH], low=LOW[:LENGTH])
         fields = unnest(aroon("high", "low", 7), bars)
         expected = [
-            None if u is None else u - d
-            for u, d in zip(fields["up"], fields["down"])
+            None if u is None else u - d for u, d in zip(fields["up"], fields["down"])
         ]
         result = bars.select(aroonosc("high", "low", 7)).to_series().to_list()
         self.assert_values_equal(result, expected)
@@ -110,16 +109,17 @@ class TestAroon(IndicatorAssertions):
 
     def test_invalid_window_raises(self) -> None:
         for function in (aroon, aroonosc):
-            with self.subTest(function=function.__name__), self.assertRaises(ValueError):
+            with (
+                self.subTest(function=function.__name__),
+                self.assertRaises(ValueError),
+            ):
                 function("high", "low", 0)
 
 
 class TestBop(IndicatorAssertions):
     def test_matches_reference(self) -> None:
         bars = frame(high=HIGH[:LENGTH], low=LOW[:LENGTH])
-        result = (
-            bars.select(bop("open", "high", "low", "close")).to_series().to_list()
-        )
+        result = bars.select(bop("open", "high", "low", "close")).to_series().to_list()
         expected = [
             (CLOSE[index] - OPEN[index]) / (HIGH[index] - LOW[index])
             for index in range(LENGTH)
@@ -128,9 +128,7 @@ class TestBop(IndicatorAssertions):
 
     def test_has_no_warm_up(self) -> None:
         bars = frame(high=HIGH[:LENGTH], low=LOW[:LENGTH])
-        result = (
-            bars.select(bop("open", "high", "low", "close")).to_series().to_list()
-        )
+        result = bars.select(bop("open", "high", "low", "close")).to_series().to_list()
         self.assertIsNotNone(result[0])
 
     def test_output_stays_within_minus_one_and_one(self) -> None:

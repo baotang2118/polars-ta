@@ -9,9 +9,7 @@ import polars as pl
 from polars_ta._common import IntoColumn, apply_to_columns
 
 
-def _bop_expr(
-    open_: pl.Expr, high: pl.Expr, low: pl.Expr, close: pl.Expr
-) -> pl.Expr:
+def _bop_expr(open_: pl.Expr, high: pl.Expr, low: pl.Expr, close: pl.Expr) -> pl.Expr:
     span = high - low
     return (
         pl.when(span.is_null() | close.is_null() | open_.is_null())

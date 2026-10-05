@@ -55,9 +55,7 @@ def _stochf_expr(fast_k: pl.Expr, fastd_period: int) -> pl.Expr:
     )
 
 
-def _willr_expr(
-    high: pl.Expr, low: pl.Expr, close: pl.Expr, window: int
-) -> pl.Expr:
+def _willr_expr(high: pl.Expr, low: pl.Expr, close: pl.Expr, window: int) -> pl.Expr:
     lowest = low.rolling_min(window_size=window, min_samples=window)
     highest = high.rolling_max(window_size=window, min_samples=window)
     span = highest - lowest
@@ -68,7 +66,6 @@ def _willr_expr(
         .then(-100.0 * (highest - close) / span)
         .otherwise(0.0)
     )
-
 
 
 @overload

@@ -71,15 +71,11 @@ def aroon(high: IntoColumn, low: IntoColumn, window: int = 14) -> pl.Expr | pl.S
         TypeError: If series inputs are mixed with names or expressions.
     """
     validate_window(window)
-    return apply_to_columns(
-        (high, low), lambda h, low_: _aroon_expr(h, low_, window)
-    )
+    return apply_to_columns((high, low), lambda h, low_: _aroon_expr(h, low_, window))
 
 
 @overload
-def aroonosc(
-    high: str | pl.Expr, low: str | pl.Expr, window: int = 14
-) -> pl.Expr: ...
+def aroonosc(high: str | pl.Expr, low: str | pl.Expr, window: int = 14) -> pl.Expr: ...
 
 
 @overload

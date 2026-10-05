@@ -57,16 +57,16 @@ def midpoint(column: IntoColumn, window: int = 14) -> pl.Expr | pl.Series:
 
 
 @overload
-def midprice(
-    high: str | pl.Expr, low: str | pl.Expr, window: int = 14
-) -> pl.Expr: ...
+def midprice(high: str | pl.Expr, low: str | pl.Expr, window: int = 14) -> pl.Expr: ...
 
 
 @overload
 def midprice(high: pl.Series, low: pl.Series, window: int = 14) -> pl.Series: ...
 
 
-def midprice(high: IntoColumn, low: IntoColumn, window: int = 14) -> pl.Expr | pl.Series:
+def midprice(
+    high: IntoColumn, low: IntoColumn, window: int = 14
+) -> pl.Expr | pl.Series:
     """Midpoint price: the average of the highest high and the lowest low.
 
     The two-column counterpart of :func:`midpoint`, taking the extremes from

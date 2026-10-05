@@ -31,7 +31,9 @@ def _macd_expr(
     signal_period: int,
     mode: EmaMode,
 ) -> pl.Expr:
-    macd_line = ema(values, fast_period, mode=mode) - ema(values, slow_period, mode=mode)
+    macd_line = ema(values, fast_period, mode=mode) - ema(
+        values, slow_period, mode=mode
+    )
     return _macd_struct(macd_line, ema(macd_line, signal_period, mode=mode))
 
 
@@ -48,7 +50,6 @@ def _macdext_expr(
         values, slow_period, slow_ma_type
     )
     return _macd_struct(macd_line, _ma_expr(macd_line, signal_period, signal_ma_type))
-
 
 
 @overload
