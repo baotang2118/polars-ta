@@ -11,6 +11,8 @@ from polars_ta.momentum import (
     cmo,
     dx,
     macd,
+    macdext,
+    macdfix,
     mfi,
     minus_di,
     minus_dm,
@@ -26,6 +28,8 @@ from polars_ta.momentum import (
     stoch,
     stochf,
     stochrsi,
+    trix,
+    ultosc,
     willr,
 )
 from polars_ta.overlay import (
@@ -41,6 +45,8 @@ from polars_ta.overlay import (
     mavp,
     midpoint,
     midprice,
+    sar,
+    sarext,
     sma,
     supertrend,
     t3,
@@ -48,11 +54,14 @@ from polars_ta.overlay import (
     trima,
     wma,
 )
-from polars_ta.volatility import atr, true_range
+from polars_ta.volatility import atr, natr, true_range
+from polars_ta.volume import ad, adosc, obv
 
 __all__ = [
     "MA_TYPES",
     "MaType",
+    "ad",
+    "adosc",
     "adx",
     "adxr",
     "apo",
@@ -71,6 +80,8 @@ __all__ = [
     "kama",
     "ma",
     "macd",
+    "macdext",
+    "macdfix",
     "mavp",
     "mfi",
     "midpoint",
@@ -78,6 +89,8 @@ __all__ = [
     "minus_di",
     "minus_dm",
     "mom",
+    "natr",
+    "obv",
     "plus_di",
     "plus_dm",
     "ppo",
@@ -86,15 +99,18 @@ __all__ = [
     "rocr",
     "rocr100",
     "rsi",
+    "sar",
+    "sarext",
     "sma",
-    "stoch",
-    "stochf",
+    "stoch",    "stochf",
     "stochrsi",
     "supertrend",
     "t3",
     "tema",
     "trima",
+    "trix",
     "true_range",
+    "ultosc",
     "willr",
     "wma",
 ]

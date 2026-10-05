@@ -31,6 +31,17 @@ def _atr_expr(high: pl.Expr, low: pl.Expr, close: pl.Expr, window: int) -> pl.Ex
     return ema(_true_range_expr(high, low, close), window, alpha=1.0 / window)
 
 
+def _natr_expr(high: pl.Expr, low: pl.Expr, close: pl.Expr, window: int) -> pl.Expr:
+    average = _atr_expr(high, low, close, window)
+    return (
+        pl.when(average.is_null() | close.is_null())
+        .then(None)
+        .when(close != 0.0)
+        .then(100.0 * average / close)
+        .otherwise(0.0)
+    )
+
+
 @overload
 def true_range(
     high: str | pl.Expr, low: str | pl.Expr, close: str | pl.Expr
@@ -104,4 +115,52 @@ def atr(
     return apply_to_columns(
         (high, low, close),
         lambda h, low_, c: _atr_expr(h, low_, c, window),
+    )
+
+
+@overload
+def natr(
+    high: str | pl.Expr,
+    low: str | pl.Expr,
+    close: str | pl.Expr,
+    window: int = 14,
+) -> pl.Expr: ...
+
+
+@overload
+def natr(
+    high: pl.Series, low: pl.Series, close: pl.Series, window: int = 14
+) -> pl.Series: ...
+
+
+def natr(
+    high: IntoColumn,
+    low: IntoColumn,
+    close: IntoColumn,
+    window: int = 14,
+) -> pl.Expr | pl.Series:
+    """Normalized Average True Range: the ATR as a percentage of the close.
+
+    Expressing volatility relative to price makes readings comparable across
+    instruments and across long stretches of history, which the raw ATR is not.
+
+    Args:
+        high: Column name, expression, or series of high prices.
+        low: Column name, expression, or series of low prices.
+        close: Column name, expression, or series of closing prices.
+        window: Number of periods to smooth over.
+
+    Returns:
+        A non-negative percentage: a ``pl.Series`` when every input is a
+        series, otherwise a ``pl.Expr``. The first ``window`` rows are null,
+        and a zero close reports ``0.0`` rather than dividing.
+
+    Raises:
+        ValueError: If ``window`` is not an integer of at least 1.
+        TypeError: If series inputs are mixed with names or expressions.
+    """
+    validate_window(window)
+    return apply_to_columns(
+        (high, low, close),
+        lambda h, low_, c: _natr_expr(h, low_, c, window),
     )

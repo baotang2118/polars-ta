@@ -7,6 +7,7 @@ from polars_ta.overlay.dispatch import MA_TYPES, MaType, ma, mavp
 from polars_ta.overlay.ichimoku import ichimoku
 from polars_ta.overlay.ma import dema, ema, sma, t3, tema, trima, wma
 from polars_ta.overlay.midpoint import midpoint, midprice
+from polars_ta.overlay.sar import sar, sarext
 from polars_ta.overlay.supertrend import supertrend
 
 __all__ = [
@@ -22,6 +23,8 @@ __all__ = [
     "mavp",
     "midpoint",
     "midprice",
+    "sar",
+    "sarext",
     "sma",
     "supertrend",
     "t3",
