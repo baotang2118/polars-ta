@@ -1,32 +1,10 @@
 import polars as pl
 from _assertions import IndicatorAssertions
+from _data import HAND_CHECKED, WILDER_CLOSE, constant, ramp_down, ramp_up
 
 from polars_ta import rsi
 
-# Wilder's worked example from "New Concepts in Technical Trading Systems".
-WILDER_CLOSE: list[float] = [
-    44.34,
-    44.09,
-    44.15,
-    43.61,
-    44.33,
-    44.83,
-    45.10,
-    45.42,
-    45.84,
-    46.08,
-    45.89,
-    46.03,
-    45.61,
-    46.28,
-    46.28,
-    46.00,
-    46.03,
-    46.41,
-    46.22,
-    45.64,
-]
-VALUES: list[float] = [1.0, 3.0, 2.0, 6.0, 5.0, 9.0, 4.0, 8.0, 7.0, 11.0]
+VALUES: list[float] = HAND_CHECKED[:10]
 
 
 def evaluate(expr: pl.Expr, values: list[float | None] | None = None):
@@ -80,15 +58,15 @@ class TestRsi(IndicatorAssertions):
                 self.assertLessEqual(value, 100.0)
 
     def test_monotonic_rise_reaches_one_hundred(self) -> None:
-        rising = [float(index) for index in range(10)]
+        rising = ramp_up(10, 0.0)
         self.assert_values_equal(evaluate(rsi("close", 3), rising)[3:], [100.0] * 7)
 
     def test_monotonic_fall_reaches_zero(self) -> None:
-        falling = [float(10 - index) for index in range(10)]
+        falling = ramp_down(10)
         self.assert_values_equal(evaluate(rsi("close", 3), falling)[3:], [0.0] * 7)
 
     def test_flat_series_reports_the_neutral_fifty(self) -> None:
-        self.assert_values_equal(evaluate(rsi("close", 3), [5.0] * 8)[3:], [50.0] * 5)
+        self.assert_values_equal(evaluate(rsi("close", 3), constant(8))[3:], [50.0] * 5)
 
     def test_input_shorter_than_warm_up_is_all_null(self) -> None:
         self.assertEqual(evaluate(rsi("close", len(VALUES))), [None] * len(VALUES))

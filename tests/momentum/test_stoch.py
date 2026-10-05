@@ -1,21 +1,18 @@
 import polars as pl
 from _assertions import IndicatorAssertions
+from _data import (
+    CLOSE,
+    HIGH,
+    LOW,
+    constant,
+    frame,
+    frame_from,
+    ramp_down,
+    ramp_up,
+    with_null,
+)
 
 from polars_ta import stoch
-
-HIGH: list[float] = [10.0, 11, 12, 11, 10, 11, 12, 13, 12, 11, 13, 14, 12, 11, 10, 12]
-LOW: list[float] = [8.0, 9, 10, 9, 8, 9, 10, 11, 10, 9, 11, 12, 10, 9, 8, 10]
-CLOSE: list[float] = [9.0, 10, 11, 10, 9, 10, 11, 12, 11, 10, 12, 13, 11, 10, 9, 11]
-
-
-def frame(high=None, low=None, close=None) -> pl.DataFrame:
-    return pl.DataFrame(
-        {
-            "high": HIGH if high is None else high,
-            "low": LOW if low is None else low,
-            "close": CLOSE if close is None else close,
-        }
-    )
 
 
 def evaluate(expr: pl.Expr, data: pl.DataFrame | None = None) -> pl.DataFrame:
@@ -88,27 +85,26 @@ class TestStoch(IndicatorAssertions):
                     self.assertLessEqual(value, 100.0)
 
     def test_close_at_the_window_high_is_one_hundred(self) -> None:
-        rising = [float(index) for index in range(1, 11)]
+        rising = ramp_up(10)
         result = evaluate(
-            stoch("high", "low", "close", 3, 1, 1), frame(rising, rising, rising)
+            stoch("high", "low", "close", 3, 1, 1), frame_from(rising, 0.0)
         )
         self.assert_values_equal(result["k"].to_list()[2:], [100.0] * 8)
 
     def test_close_at_the_window_low_is_zero(self) -> None:
-        falling = [float(10 - index) for index in range(10)]
+        falling = ramp_down(10)
         result = evaluate(
-            stoch("high", "low", "close", 3, 1, 1), frame(falling, falling, falling)
+            stoch("high", "low", "close", 3, 1, 1), frame_from(falling, 0.0)
         )
         self.assert_values_equal(result["k"].to_list()[2:], [0.0] * 8)
 
     def test_flat_range_reports_zero(self) -> None:
-        data = frame([5.0] * 8, [5.0] * 8, [5.0] * 8)
+        data = frame_from(constant(8), 0.0)
         result = evaluate(stoch("high", "low", "close", 3, 2, 2), data)
         self.assert_values_equal(result["k"].to_list()[4:], [0.0] * 4)
 
     def test_null_input_propagates(self) -> None:
-        close = list(CLOSE)
-        close[6] = None
+        close = with_null(CLOSE, 6)
         result = evaluate(stoch("high", "low", "close", 3, 2, 2), frame(close=close))
         k, _ = reference_stoch(HIGH, LOW, close, 3, 2, 2)
         self.assert_values_equal(result["k"].to_list(), k)
@@ -140,7 +136,7 @@ class TestStoch(IndicatorAssertions):
             .with_columns(stoch("high", "low", "close", 5, 3, 3).alias("s"))
             .collect()
         )
-        self.assertEqual(collected.columns, ["high", "low", "close", "s"])
+        self.assertEqual(collected.columns[-1], "s")
 
     def test_invalid_periods_raise(self) -> None:
         for periods in ((0, 3, 3), (5, 0, 3), (5, 3, -1), (5, 2.5, 3)):

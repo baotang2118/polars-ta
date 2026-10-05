@@ -1,10 +1,12 @@
 import polars as pl
 from _assertions import IndicatorAssertions
+from _data import HAND_CHECKED
 
 from polars_ta import dema, ema, sma, tema, wma
 
-VALUES: list[float] = [1.0, 3.0, 2.0, 6.0, 5.0, 9.0, 4.0, 8.0]
-LONG_VALUES: list[float] = VALUES + [7.0, 11.0, 6.0, 10.0, 9.0, 13.0, 8.0, 12.0]
+# The literal expectations below were worked out against this exact series.
+VALUES: list[float] = HAND_CHECKED[:8]
+LONG_VALUES: list[float] = HAND_CHECKED
 
 
 def evaluate(

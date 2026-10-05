@@ -2,10 +2,12 @@ import math
 
 import polars as pl
 from _assertions import IndicatorAssertions
+from _data import HAND_CHECKED, constant, ramp_up
 
 from polars_ta import bbands
 
-VALUES: list[float] = [1.0, 3.0, 2.0, 6.0, 5.0, 9.0, 4.0, 8.0]
+# The literal expectations below were worked out against this exact series.
+VALUES: list[float] = HAND_CHECKED[:8]
 
 
 def evaluate(expr: pl.Expr, values: list[float | None] | None = None) -> pl.DataFrame:
@@ -75,7 +77,7 @@ class TestBbands(IndicatorAssertions):
         self.assert_values_equal(frame["upper"].to_list(), upper)
 
     def test_constant_input_collapses_the_bands(self) -> None:
-        frame = evaluate(bbands("close", 3), [4.0] * 6)
+        frame = evaluate(bbands("close", 3), constant(6, 4.0))
         self.assert_values_equal(frame["upper"].to_list()[2:], [4.0] * 4)
         self.assert_values_equal(frame["lower"].to_list()[2:], [4.0] * 4)
 
@@ -91,7 +93,7 @@ class TestBbands(IndicatorAssertions):
         self.assertIsNotNone(frame["middle"][5])
 
     def test_default_window_is_twenty(self) -> None:
-        values = [float(index) for index in range(25)]
+        values = ramp_up(25, 0.0)
         self.assertEqual(
             evaluate(bbands("close"), values)["middle"].to_list()[:19], [None] * 19
         )

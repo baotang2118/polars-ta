@@ -2,20 +2,26 @@
 
 Formulas and conventions for every indicator implemented in `polars_ta`.
 Indicators are grouped by how they are charted: *overlay* indicators share the
-price axis and are drawn on top of the price series, while *momentum*
-oscillators occupy a separate pane. Each group is a subpackage
-(`polars_ta.overlay`, `polars_ta.momentum`), and every public indicator is also
-re-exported from the package root.
+price axis and are drawn on top of the price series, *momentum* oscillators
+occupy a separate pane, and *volatility* indicators measure the size of
+movement rather than its direction. Each group is a subpackage
+(`polars_ta.overlay`, `polars_ta.momentum`, `polars_ta.volatility`), and every
+public indicator is also re-exported from the package root.
 
 | Indicator | Module | Inputs | Output |
 | --------- | ------ | ------ | ------ |
 | `sma`, `wma`, `ema`, `dema`, `tema` | `overlay.ma` | one column | one `Float64` column |
 | `bbands` | `overlay.bands` | one column | struct of three `Float64` fields |
+| `donchian` | `overlay.channels` | high, low | struct of three `Float64` fields |
+| `supertrend` | `overlay.supertrend` | high, low, close | struct of `Float64` and `Int8` |
+| `ichimoku` | `overlay.ichimoku` | high, low, close | struct of five `Float64` fields |
 | `rsi` | `momentum.rsi` | one column | one `Float64` column |
 | `mfi` | `momentum.mfi` | high, low, close, volume | one `Float64` column |
 | `stoch` | `momentum.stoch` | high, low, close | struct of two `Float64` fields |
 | `cci` | `momentum.cci` | high, low, close | one `Float64` column |
 | `macd` | `momentum.macd` | one column | struct of three `Float64` fields |
+| `adx` | `momentum.adx` | high, low, close | struct of three `Float64` fields |
+| `true_range`, `atr` | `volatility.atr` | high, low, close | one `Float64` column |
 
 ## Shared Conventions
 
@@ -30,18 +36,27 @@ re-exported from the package root.
 
   | Indicator | Leading nulls |
   | --------- | ------------- |
-  | `sma`, `wma`, `ema`, `bbands`, `cci` | `window - 1` |
+  | `sma`, `wma`, `ema`, `bbands`, `cci`, `donchian` | `window - 1` |
   | `dema` | `2 * (window - 1)` |
   | `tema` | `3 * (window - 1)` |
-  | `rsi`, `mfi` | `window` |
+  | `true_range` | `1` |
+  | `rsi`, `mfi`, `atr`, `supertrend` | `window` |
+  | `adx` (`plus_di`, `minus_di`) | `window` |
+  | `adx` (`adx`) | `2 * window - 1` |
   | `stoch` | `(fastk_period - 1) + (slowk_period - 1) + (slowd_period - 1)` |
   | `macd` | `(slow_period - 1) + (signal_period - 1)` |
+  | `ichimoku` | per field; see below |
 
   There is no `min_periods` parameter, so a simple and an exponential moving
   average of the same window line up row for row.
-- **Multi-field outputs start together.** Where an indicator returns a struct,
-  every field begins on the same row, as TA-Lib does. This holds back `stoch`'s
-  `k` until `d` exists, and `macd`'s `macd` line until its `signal` exists.
+- **Multi-field outputs follow TA-Lib's emission.** Where TA-Lib produces a
+  struct's fields from one function, they start on the same row: this holds back
+  `stoch`'s `k` until `d` exists, and `macd`'s `macd` line until its `signal`
+  exists. Where the fields correspond to *separate* TA-Lib functions with
+  different lookbacks, they keep their own warm-ups rather than discarding good
+  data — `adx`'s `plus_di` and `minus_di` start `window - 1` rows before `adx`.
+  `donchian` and `ichimoku` likewise let each field reflect only the inputs it
+  actually depends on.
 - **Nulls.** A null input never silently disappears. See the null handling notes
   under each indicator for the exact rule.
 - **Output dtype.** Always `Float64`, including for integer inputs.
@@ -520,3 +535,189 @@ so `macd` and `histogram` are held back until `signal` exists.
 **Null handling and implementation.** Three calls to the public `ema`. The
 TA-Lib seeding rule — seed at the first complete, null-free window — produces
 the correct combined warm-up with no explicit offset arithmetic.
+
+## TRANGE / ATR — True Range and Average True Range
+
+True Range is the widest of three spans, so that an overnight gap counts as
+movement even though no trading happened across it:
+
+$$\mathrm{TR}_t = \max\left(H_t - L_t,\ |H_t - C_{t-1}|,\ |L_t - C_{t-1}|\right)$$
+
+ATR is Wilder's smoothing of that series — an EMA with $\alpha = 1/n$, seeded
+with the mean of the first $n$ true ranges:
+
+$$\mathrm{ATR}_t = \frac{(n-1)\,\mathrm{ATR}_{t-1} + \mathrm{TR}_t}{n}$$
+
+ATR is a pure *volatility* measure: it is always non-negative and says nothing
+about direction. It is reported in price units, so it is not comparable across
+instruments without normalizing.
+
+```python
+import polars as pl
+from polars_ta import atr, true_range
+
+ohlc.with_columns(
+    true_range("high", "low", "close").alias("tr"),
+    atr("high", "low", "close", 14).alias("atr_14"),
+)
+```
+
+**Warm-up.** `true_range` emits 1 leading null — there is no previous close for
+the first bar — and `atr` emits $n$, both matching the TA-Lib lookbacks.
+
+**Null handling.** A bar is null unless its high, low, and *previous* close are
+all known. Note that `pl.max_horizontal` **ignores** nulls rather than
+propagating them, so the inputs are guarded explicitly; relying on the default
+would silently emit $H_t - L_t$ for the very first bar.
+
+## ADX / DI — Average Directional Index
+
+Measures *trend strength* without regard to direction. Each bar's move is
+assigned to at most one side, whichever is larger:
+
+$$\mathrm{+DM}_t = \begin{cases} H_t - H_{t-1} & \text{if } H_t - H_{t-1} > L_{t-1} - L_t \text{ and } > 0 \\ 0 & \text{otherwise}\end{cases}$$
+
+$$\mathrm{-DM}_t = \begin{cases} L_{t-1} - L_t & \text{if } L_{t-1} - L_t > H_t - H_{t-1} \text{ and } > 0 \\ 0 & \text{otherwise}\end{cases}$$
+
+Wilder-smoothing both, and normalizing by smoothed true range, gives the two
+directional indicators:
+
+$$\mathrm{+DI}_t = 100 \cdot \frac{\overline{\mathrm{+DM}}_t}{\overline{\mathrm{TR}}_t},
+\qquad \mathrm{-DI}_t = 100 \cdot \frac{\overline{\mathrm{-DM}}_t}{\overline{\mathrm{TR}}_t}$$
+
+Their normalized gap is smoothed once more into ADX itself:
+
+$$\mathrm{DX}_t = 100 \cdot \frac{|\mathrm{+DI}_t - \mathrm{-DI}_t|}{\mathrm{+DI}_t + \mathrm{-DI}_t},
+\qquad \mathrm{ADX}_t = \mathrm{Wilder}(\mathrm{DX},\ n)_t$$
+
+Conventionally, ADX above 25 means a trend worth following and below 20 means a
+range; the crossing of `plus_di` and `minus_di` gives the direction.
+
+```python
+from polars_ta import adx
+
+ohlc.with_columns(adx("high", "low", "close", 14).alias("a")).unnest("a")
+```
+
+The result is a **struct** with fields `adx`, `plus_di`, and `minus_di`.
+
+**Warm-up.** `plus_di` and `minus_di` start after $n$ rows; `adx` needs a
+further $n-1$ rows to seed its own smoothing, so it starts at $2n - 1$. These
+are the TA-Lib `PLUS_DI`, `MINUS_DI`, and `ADX` lookbacks respectively, and the
+fields are deliberately **not** aligned to the latest of them — doing so would
+throw away $n-1$ rows of perfectly good indicator data.
+
+**Degenerate windows.** Zero smoothed true range gives indicators of `0.0`;
+zero $\mathrm{+DI} + \mathrm{-DI}$ gives a DX of `0.0`.
+
+**Implementation.** Wilder's running *sum* (as TA-Lib keeps it) and Wilder's
+running *average* differ by a constant factor of $n$, which cancels in the
+$\mathrm{+DM}/\mathrm{TR}$ ratio — so the public `ema` with `alpha=1/n` can be
+used for all three smoothing passes and still match TA-Lib exactly.
+
+## DONCHIAN — Donchian Channels
+
+The simplest channel there is: the extremes of the last $n$ bars.
+
+$$\mathrm{upper}_t = \max(H_{t-n+1 \ldots t}), \qquad
+\mathrm{lower}_t = \min(L_{t-n+1 \ldots t}), \qquad
+\mathrm{middle}_t = \frac{\mathrm{upper}_t + \mathrm{lower}_t}{2}$$
+
+A close at the upper edge is a new $n$-bar high — the classic breakout entry of
+the Turtle trading system.
+
+```python
+from polars_ta import donchian
+
+ohlc.with_columns(donchian("high", "low", 20).alias("dc")).unnest("dc")
+```
+
+Returns a **struct** with fields `lower`, `middle`, `upper`, matching the
+`bbands` field naming.
+
+**Warm-up.** $n - 1$ leading nulls. Unlike Bollinger Bands, the two edges come
+from different input columns, so each blanks independently: a null in `high`
+nulls `upper` and `middle` but leaves `lower` intact.
+
+**Implementation.** `rolling_max` and `rolling_min` with `min_samples=window`.
+This is not a TA-Lib function; the TA-Lib equivalents are the separate `MAX`
+and `MIN`.
+
+## SUPERTREND
+
+An ATR band that sits below price in an uptrend and above it in a downtrend,
+flipping when price closes through it. Start from bands around the bar's median
+price:
+
+$$\mathrm{basic}^{\pm}_t = \frac{H_t + L_t}{2} \pm m \cdot \mathrm{ATR}_t$$
+
+with $m$ = `multiplier`. The bands are then **ratcheted**: while the trend
+holds, each band may only move toward price, never away from it. The trend
+flips to up when the close exceeds the previous upper band, and to down when it
+falls below the previous lower band. `supertrend` reports whichever band is
+currently active.
+
+```python
+from polars_ta import supertrend
+
+ohlc.with_columns(supertrend("high", "low", "close", 10, 3.0).alias("st")).unnest("st")
+```
+
+Returns a **struct** with `supertrend` (`Float64`, the active band in price
+units) and `direction` (`Int8`, `1` while rising and `-1` while falling).
+
+**Warm-up.** $n$ leading nulls, inherited from the ATR. The first valid bar is
+seeded as an uptrend by convention.
+
+**Implementation — note the cost.** The ratchet is a genuine sequential
+recursion: each band depends on the previous band *and* on the previous
+direction, which itself depends on the previous band. Unlike the EMA, which maps
+onto Polars' native `ewm_mean`, there is no vectorized primitive for this. It is
+therefore implemented with a Python scan inside `map_batches`. The function
+still returns a `pl.Expr` and still composes inside `with_columns` and
+`LazyFrame`, but the scan runs in Python, so `supertrend` is substantially
+slower than every other indicator here. Avoid calling it in a tight loop over
+many groups.
+
+## ICHIMOKU — Ichimoku Kinko Hyo
+
+Five lines, built from midpoints of rolling high/low ranges rather than from
+averages of closes:
+
+| Field | Japanese name | Definition |
+| ----- | ------------- | ---------- |
+| `conversion` | Tenkan-sen | midpoint of the last `conversion_period` bars |
+| `base` | Kijun-sen | midpoint of the last `base_period` bars |
+| `span_a` | Senkou Span A | $(\text{conversion} + \text{base})/2$, shifted **forward** |
+| `span_b` | Senkou Span B | midpoint of the last `span_b_period` bars, shifted **forward** |
+| `lagging` | Chikou Span | the close, shifted **backward** |
+
+where the midpoint of a window is $\bigl(\max H + \min L\bigr)/2$ and both
+shifts are by `displacement` bars. The region between `span_a` and `span_b` is
+the *cloud* (kumo); price above the cloud is bullish, below is bearish.
+
+```python
+from polars_ta import ichimoku
+
+ohlc.with_columns(ichimoku("high", "low", "close").alias("ich")).unnest("ich")
+```
+
+Defaults are the classic $9, 26, 52$ with a displacement of $26$.
+
+> **Lookahead warning.** `lagging` is the close shifted *backward*, so the value
+> on row $t$ is the close from row $t + \texttt{displacement}$ — data from the
+> future relative to that row. This is correct for plotting, which is what the
+> line is for, but feeding it into a backtest signal without re-shifting it is a
+> lookahead bug that will manufacture profits.
+
+**Warm-up.** Each field carries its own, since they depend on different
+lookbacks: `conversion_period - 1` for `conversion`, `base_period - 1` for
+`base`, and those plus `displacement` for the two spans. `lagging` instead has
+`displacement` **trailing** nulls.
+
+**Truncation.** On a chart the leading spans project `displacement` bars past
+the last candle. A column cannot be longer than its frame, so that projection is
+simply absent here — to see it, extend the frame with empty rows before calling.
+
+**Null handling.** As for any rolling extreme: a null blanks the windows
+overlapping it, per field.
