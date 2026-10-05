@@ -1,4 +1,4 @@
-"""Average Directional Index and the Directional Indicators."""
+"""The directional movement family: DM, DI, DX, ADX, and ADXR."""
 
 from __future__ import annotations
 
@@ -13,58 +13,306 @@ from polars_ta.volatility.atr import _true_range_expr
 ADX_FIELDS = ("adx", "plus_di", "minus_di")
 
 
-def _adx_expr(high: pl.Expr, low: pl.Expr, close: pl.Expr, window: int) -> pl.Expr:
+def _directional_moves(high: pl.Expr, low: pl.Expr) -> tuple[pl.Expr, pl.Expr]:
+    """Raw +DM and -DM: a bar counts toward only the larger outward move."""
     up_move = high - high.shift(1)
     down_move = low.shift(1) - low
-    # A bar counts toward only the larger of the two moves, and only if positive.
-    plus_dm = (
+    plus = (
         pl.when(up_move.is_null())
         .then(None)
         .when((up_move > down_move) & (up_move > 0.0))
         .then(up_move)
         .otherwise(0.0)
     )
-    minus_dm = (
+    minus = (
         pl.when(down_move.is_null())
         .then(None)
         .when((down_move > up_move) & (down_move > 0.0))
         .then(down_move)
         .otherwise(0.0)
     )
+    return plus, minus
 
+
+def _wilder_sum(values: pl.Expr, window: int) -> pl.Expr:
+    """TA-Lib's running Wilder sum, seeded with ``window - 1`` terms.
+
+    The seed deliberately holds one term fewer than the window, which is what
+    gives ``plus_dm`` its ``window - 1`` lookback rather than ``window``.
+    """
+    if window == 1:
+        return values
     smoothing = 1.0 / window
-    smoothed_range = ema(_true_range_expr(high, low, close), window, alpha=smoothing)
-    smoothed_plus = ema(plus_dm, window, alpha=smoothing)
-    smoothed_minus = ema(minus_dm, window, alpha=smoothing)
-    # A null condition would otherwise fall through and emit 0.0, erasing warm-up.
-    known = smoothed_range.is_not_null() & smoothed_plus.is_not_null()
-    plus_di = (
-        pl.when(~known)
+    seed = values.rolling_sum(window_size=window - 1, min_samples=window - 1)
+    complete = seed.is_not_null().cum_sum()
+    seeded = (
+        pl.when(complete == 0)
         .then(None)
-        .when(smoothed_range > 0.0)
-        .then(100.0 * smoothed_plus / smoothed_range)
-        .otherwise(0.0)
+        .when(seed.is_not_null() & (complete == 1))
+        .then(seed * smoothing)
+        .otherwise(values)
     )
-    minus_di = (
+    running = seeded.ewm_mean(
+        alpha=smoothing, adjust=False, ignore_nulls=False, min_samples=1
+    )
+    return window * running
+
+
+def _di_expr(dm_sum: pl.Expr, tr_sum: pl.Expr, window: int) -> pl.Expr:
+    known = dm_sum.is_not_null() & tr_sum.is_not_null()
+    if window > 1:
+        # TA-Lib emits the first DI one bar after the running sums begin.
+        known = known & tr_sum.shift(1).is_not_null()
+    return (
         pl.when(~known)
         .then(None)
-        .when(smoothed_range > 0.0)
-        .then(100.0 * smoothed_minus / smoothed_range)
+        .when(tr_sum > 0.0)
+        .then(100.0 * dm_sum / tr_sum)
         .otherwise(0.0)
     )
 
-    total = plus_di + minus_di
-    directional_index = (
+
+def _di_pair(
+    high: pl.Expr, low: pl.Expr, close: pl.Expr, window: int
+) -> tuple[pl.Expr, pl.Expr]:
+    plus, minus = _directional_moves(high, low)
+    ranges = _wilder_sum(_true_range_expr(high, low, close), window)
+    return (
+        _di_expr(_wilder_sum(plus, window), ranges, window),
+        _di_expr(_wilder_sum(minus, window), ranges, window),
+    )
+
+
+def _dx_expr(positive: pl.Expr, negative: pl.Expr) -> pl.Expr:
+    total = positive + negative
+    return (
         pl.when(total.is_null())
         .then(None)
         .when(total > 0.0)
-        .then(100.0 * (plus_di - minus_di).abs() / total)
+        .then(100.0 * (positive - negative).abs() / total)
         .otherwise(0.0)
     )
+
+
+def _adx_line(high: pl.Expr, low: pl.Expr, close: pl.Expr, window: int) -> pl.Expr:
+    return ema(
+        _dx_expr(*_di_pair(high, low, close, window)), window, alpha=1.0 / window
+    )
+
+
+def _adx_expr(high: pl.Expr, low: pl.Expr, close: pl.Expr, window: int) -> pl.Expr:
+    positive, negative = _di_pair(high, low, close, window)
     return pl.struct(
-        adx=ema(directional_index, window, alpha=smoothing),
-        plus_di=plus_di,
-        minus_di=minus_di,
+        adx=ema(_dx_expr(positive, negative), window, alpha=1.0 / window),
+        plus_di=positive,
+        minus_di=negative,
+    )
+
+
+@overload
+def plus_dm(high: str | pl.Expr, low: str | pl.Expr, window: int = 14) -> pl.Expr: ...
+
+
+@overload
+def plus_dm(high: pl.Series, low: pl.Series, window: int = 14) -> pl.Series: ...
+
+
+def plus_dm(high: IntoColumn, low: IntoColumn, window: int = 14) -> pl.Expr | pl.Series:
+    """Plus Directional Movement: the Wilder-smoothed running sum of ``+DM``.
+
+    A bar contributes its gain in highs only when that gain exceeds the
+    matching loss in lows, so at most one of ``+DM`` and ``-DM`` is non-zero.
+
+    Args:
+        high: Column name, expression, or series of high prices.
+        low: Column name, expression, or series of low prices.
+        window: Number of periods in Wilder's smoothing.
+
+    Returns:
+        A non-negative running sum in price units: a ``pl.Series`` when every
+        input is a series, otherwise a ``pl.Expr``. The first ``window - 1``
+        rows are null, matching TA-Lib, whose seed holds one term fewer than
+        the window.
+
+    Raises:
+        ValueError: If ``window`` is not an integer of at least 1.
+        TypeError: If series inputs are mixed with names or expressions.
+    """
+    validate_window(window)
+    return apply_to_columns(
+        (high, low),
+        lambda h, low_: _wilder_sum(_directional_moves(h, low_)[0], window),
+    )
+
+
+@overload
+def minus_dm(high: str | pl.Expr, low: str | pl.Expr, window: int = 14) -> pl.Expr: ...
+
+
+@overload
+def minus_dm(high: pl.Series, low: pl.Series, window: int = 14) -> pl.Series: ...
+
+
+def minus_dm(high: IntoColumn, low: IntoColumn, window: int = 14) -> pl.Expr | pl.Series:
+    """Minus Directional Movement: the Wilder-smoothed running sum of ``-DM``.
+
+    Args:
+        high: Column name, expression, or series of high prices.
+        low: Column name, expression, or series of low prices.
+        window: Number of periods in Wilder's smoothing.
+
+    Returns:
+        A non-negative running sum in price units: a ``pl.Series`` when every
+        input is a series, otherwise a ``pl.Expr``. The first ``window - 1``
+        rows are null.
+
+    Raises:
+        ValueError: If ``window`` is not an integer of at least 1.
+        TypeError: If series inputs are mixed with names or expressions.
+    """
+    validate_window(window)
+    return apply_to_columns(
+        (high, low),
+        lambda h, low_: _wilder_sum(_directional_moves(h, low_)[1], window),
+    )
+
+
+@overload
+def plus_di(
+    high: str | pl.Expr,
+    low: str | pl.Expr,
+    close: str | pl.Expr,
+    window: int = 14,
+) -> pl.Expr: ...
+
+
+@overload
+def plus_di(
+    high: pl.Series, low: pl.Series, close: pl.Series, window: int = 14
+) -> pl.Series: ...
+
+
+def plus_di(
+    high: IntoColumn,
+    low: IntoColumn,
+    close: IntoColumn,
+    window: int = 14,
+) -> pl.Expr | pl.Series:
+    """Plus Directional Indicator: ``+DM`` as a percentage of the true range.
+
+    Normalizing by range makes the reading comparable across instruments and
+    volatility regimes, which the raw ``+DM`` sum is not.
+
+    Args:
+        high: Column name, expression, or series of high prices.
+        low: Column name, expression, or series of low prices.
+        close: Column name, expression, or series of closing prices.
+        window: Number of periods in Wilder's smoothing.
+
+    Returns:
+        A value in ``[0, 100]``: a ``pl.Series`` when every input is a series,
+        otherwise a ``pl.Expr``. The first ``window`` rows are null, and a
+        window with no range at all reports ``0.0``.
+
+    Raises:
+        ValueError: If ``window`` is not an integer of at least 1.
+        TypeError: If series inputs are mixed with names or expressions.
+    """
+    validate_window(window)
+    return apply_to_columns(
+        (high, low, close),
+        lambda h, low_, c: _di_pair(h, low_, c, window)[0],
+    )
+
+
+@overload
+def minus_di(
+    high: str | pl.Expr,
+    low: str | pl.Expr,
+    close: str | pl.Expr,
+    window: int = 14,
+) -> pl.Expr: ...
+
+
+@overload
+def minus_di(
+    high: pl.Series, low: pl.Series, close: pl.Series, window: int = 14
+) -> pl.Series: ...
+
+
+def minus_di(
+    high: IntoColumn,
+    low: IntoColumn,
+    close: IntoColumn,
+    window: int = 14,
+) -> pl.Expr | pl.Series:
+    """Minus Directional Indicator: ``-DM`` as a percentage of the true range.
+
+    Args:
+        high: Column name, expression, or series of high prices.
+        low: Column name, expression, or series of low prices.
+        close: Column name, expression, or series of closing prices.
+        window: Number of periods in Wilder's smoothing.
+
+    Returns:
+        A value in ``[0, 100]``: a ``pl.Series`` when every input is a series,
+        otherwise a ``pl.Expr``. The first ``window`` rows are null.
+
+    Raises:
+        ValueError: If ``window`` is not an integer of at least 1.
+        TypeError: If series inputs are mixed with names or expressions.
+    """
+    validate_window(window)
+    return apply_to_columns(
+        (high, low, close),
+        lambda h, low_, c: _di_pair(h, low_, c, window)[1],
+    )
+
+
+@overload
+def dx(
+    high: str | pl.Expr,
+    low: str | pl.Expr,
+    close: str | pl.Expr,
+    window: int = 14,
+) -> pl.Expr: ...
+
+
+@overload
+def dx(
+    high: pl.Series, low: pl.Series, close: pl.Series, window: int = 14
+) -> pl.Series: ...
+
+
+def dx(
+    high: IntoColumn,
+    low: IntoColumn,
+    close: IntoColumn,
+    window: int = 14,
+) -> pl.Expr | pl.Series:
+    """Directional Movement Index: the normalized gap between the two indicators.
+
+    The unsmoothed input to :func:`adx`, and correspondingly jumpier.
+
+    Args:
+        high: Column name, expression, or series of high prices.
+        low: Column name, expression, or series of low prices.
+        close: Column name, expression, or series of closing prices.
+        window: Number of periods in Wilder's smoothing.
+
+    Returns:
+        A value in ``[0, 100]``: a ``pl.Series`` when every input is a series,
+        otherwise a ``pl.Expr``. The first ``window`` rows are null, and a bar
+        where neither indicator moved reports ``0.0``.
+
+    Raises:
+        ValueError: If ``window`` is not an integer of at least 1.
+        TypeError: If series inputs are mixed with names or expressions.
+    """
+    validate_window(window)
+    return apply_to_columns(
+        (high, low, close),
+        lambda h, low_, c: _dx_expr(*_di_pair(h, low_, c, window)),
     )
 
 
@@ -116,3 +364,52 @@ def adx(
         (high, low, close),
         lambda h, low_, c: _adx_expr(h, low_, c, window),
     )
+
+
+@overload
+def adxr(
+    high: str | pl.Expr,
+    low: str | pl.Expr,
+    close: str | pl.Expr,
+    window: int = 14,
+) -> pl.Expr: ...
+
+
+@overload
+def adxr(
+    high: pl.Series, low: pl.Series, close: pl.Series, window: int = 14
+) -> pl.Series: ...
+
+
+def adxr(
+    high: IntoColumn,
+    low: IntoColumn,
+    close: IntoColumn,
+    window: int = 14,
+) -> pl.Expr | pl.Series:
+    """Average Directional Index Rating: today's ADX averaged with an older one.
+
+    Averaging across ``window - 1`` bars smooths the ADX further, which makes
+    turns in trend strength easier to read at the cost of more lag.
+
+    Args:
+        high: Column name, expression, or series of high prices.
+        low: Column name, expression, or series of low prices.
+        close: Column name, expression, or series of closing prices.
+        window: Number of periods for the underlying ADX and for the lookback.
+
+    Returns:
+        A value in ``[0, 100]``: a ``pl.Series`` when every input is a series,
+        otherwise a ``pl.Expr``. The first ``3 * window - 2`` rows are null.
+
+    Raises:
+        ValueError: If ``window`` is not an integer of at least 1.
+        TypeError: If series inputs are mixed with names or expressions.
+    """
+    validate_window(window)
+
+    def build(h: pl.Expr, low_: pl.Expr, c: pl.Expr) -> pl.Expr:
+        line = _adx_line(h, low_, c, window)
+        return (line + line.shift(window - 1)) / 2.0
+
+    return apply_to_columns((high, low, close), build)

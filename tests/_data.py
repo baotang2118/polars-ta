@@ -58,6 +58,11 @@ _SPREAD: list[float] = [1.0 + (index % 4) * 0.25 for index in range(LENGTH)]
 
 HIGH: list[float] = [round(close + spread, 4) for close, spread in zip(CLOSE, _SPREAD)]
 LOW: list[float] = [round(close - spread, 4) for close, spread in zip(CLOSE, _SPREAD)]
+# Opens sit inside each bar's range on a repeating 0.5 / 0.0 / -0.5 offset.
+OPEN: list[float] = [
+    round(close + spread * (0.5 - (index % 3) * 0.5), 4)
+    for index, (close, spread) in enumerate(zip(CLOSE, _SPREAD))
+]
 VOLUME: list[float] = [float(100 * (1 + index % 9) + 50) for index in range(LENGTH)]
 
 HAND_CHECKED: list[float] = [
@@ -109,18 +114,22 @@ def frame(
     low: list | None = None,
     close: list | None = None,
     volume: list | None = None,
+    open_: list | None = None,
 ) -> pl.DataFrame:
     """Build an OHLCV frame, substituting the canonical data for any omitted column.
 
     Shorter replacement columns truncate the canonical ones to match, so a test
     can pass a handful of synthetic bars without supplying every column.
     """
-    supplied = [column for column in (high, low, close, volume) if column is not None]
+    supplied = [
+        column for column in (high, low, close, volume, open_) if column is not None
+    ]
     size = min((len(column) for column in supplied), default=LENGTH)
     if size > LENGTH:
         raise ValueError(f"replacement columns may hold at most {LENGTH} bars")
     return pl.DataFrame(
         {
+            "open": OPEN[:size] if open_ is None else open_,
             "high": HIGH[:size] if high is None else high,
             "low": LOW[:size] if low is None else low,
             "close": CLOSE[:size] if close is None else close,
@@ -133,6 +142,7 @@ def frame_from(closes: list[float | None], spread: float = 1.0) -> pl.DataFrame:
     """Build an OHLCV frame whose bars are centred on the given close series."""
     return pl.DataFrame(
         {
+            "open": list(closes),
             "high": [None if c is None else c + spread for c in closes],
             "low": [None if c is None else c - spread for c in closes],
             "close": list(closes),
