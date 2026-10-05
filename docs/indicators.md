@@ -2,26 +2,54 @@
 
 Formulas and conventions for every indicator implemented in `polars_ta`.
 Indicators are grouped by how they are charted: *overlay* indicators share the
-price axis and are drawn on top of the price series, *momentum* oscillators
-occupy a separate pane, and *volatility* indicators measure the size of
-movement rather than its direction. Each group is a subpackage
-(`polars_ta.overlay`, `polars_ta.momentum`, `polars_ta.volatility`), and every
-public indicator is also re-exported from the package root.
+price axis, *momentum* oscillators occupy a separate pane, *volume* indicators
+weight movement by how much traded, *volatility* indicators measure the size of
+movement, and *cycle* indicators measure its rhythm. Each group is a subpackage
+(`polars_ta.overlay`, `polars_ta.momentum`, `polars_ta.volume`,
+`polars_ta.volatility`, `polars_ta.cycle`), and every public indicator is also
+re-exported from the package root.
+
+Every TA-Lib function listed in `indicators.md` at the repository root is
+implemented.
 
 | Indicator | Module | Inputs | Output |
 | --------- | ------ | ------ | ------ |
-| `sma`, `wma`, `ema`, `dema`, `tema` | `overlay.ma` | one column | one `Float64` column |
+| `sma`, `wma`, `ema`, `dema`, `tema`, `trima`, `t3` | `overlay.ma` | one column | one `Float64` column |
+| `kama` | `overlay.adaptive` | one column | one `Float64` column |
+| `mama` | `overlay.adaptive` | one column | struct of two `Float64` fields |
+| `ma`, `mavp` | `overlay.dispatch` | one or two columns | one `Float64` column |
+| `midpoint` | `overlay.midpoint` | one column | one `Float64` column |
+| `midprice` | `overlay.midpoint` | high, low | one `Float64` column |
 | `bbands` | `overlay.bands` | one column | struct of three `Float64` fields |
 | `donchian` | `overlay.channels` | high, low | struct of three `Float64` fields |
+| `keltner` | `overlay.channels` | high, low, close | struct of three `Float64` fields |
+| `sar`, `sarext` | `overlay.sar` | high, low | one `Float64` column |
 | `supertrend` | `overlay.supertrend` | high, low, close | struct of `Float64` and `Int8` |
 | `ichimoku` | `overlay.ichimoku` | high, low, close | struct of five `Float64` fields |
-| `rsi` | `momentum.rsi` | one column | one `Float64` column |
+| `rsi`, `cmo` | `momentum.rsi` | one column | one `Float64` column |
 | `mfi` | `momentum.mfi` | high, low, close, volume | one `Float64` column |
-| `stoch` | `momentum.stoch` | high, low, close | struct of two `Float64` fields |
+| `stoch`, `stochf` | `momentum.stoch` | high, low, close | struct of two `Float64` fields |
+| `stochrsi` | `momentum.stoch` | one column | struct of two `Float64` fields |
+| `willr` | `momentum.stoch` | high, low, close | one `Float64` column |
 | `cci` | `momentum.cci` | high, low, close | one `Float64` column |
-| `macd` | `momentum.macd` | one column | struct of three `Float64` fields |
+| `macd`, `macdext`, `macdfix` | `momentum.macd` | one column | struct of three `Float64` fields |
 | `adx` | `momentum.adx` | high, low, close | struct of three `Float64` fields |
-| `true_range`, `atr` | `volatility.atr` | high, low, close | one `Float64` column |
+| `adxr`, `dx`, `plus_di`, `minus_di` | `momentum.adx` | high, low, close | one `Float64` column |
+| `plus_dm`, `minus_dm` | `momentum.adx` | high, low | one `Float64` column |
+| `aroon` | `momentum.aroon` | high, low | struct of two `Float64` fields |
+| `aroonosc` | `momentum.aroon` | high, low | one `Float64` column |
+| `bop` | `momentum.bop` | open, high, low, close | one `Float64` column |
+| `mom`, `roc`, `rocp`, `rocr`, `rocr100` | `momentum.roc` | one column | one `Float64` column |
+| `apo`, `ppo` | `momentum.price_oscillator` | one column | one `Float64` column |
+| `trix` | `momentum.trix` | one column | one `Float64` column |
+| `ultosc` | `momentum.ultosc` | high, low, close | one `Float64` column |
+| `ad`, `adosc` | `volume.flow` | high, low, close, volume | one `Float64` column |
+| `obv` | `volume.flow` | close, volume | one `Float64` column |
+| `true_range`, `atr`, `natr` | `volatility.atr` | high, low, close | one `Float64` column |
+| `ht_dcperiod`, `ht_dcphase`, `ht_trendline` | `cycle.hilbert` | one column | one `Float64` column |
+| `ht_phasor`, `ht_sine` | `cycle.hilbert` | one column | struct of two `Float64` fields |
+| `ht_trendmode` | `cycle.hilbert` | one column | one `Int8` column |
+
 
 ## Shared Conventions
 
@@ -36,15 +64,31 @@ public indicator is also re-exported from the package root.
 
   | Indicator | Leading nulls |
   | --------- | ------------- |
-  | `sma`, `wma`, `ema`, `bbands`, `cci`, `donchian` | `window - 1` |
+  | `bop`, `ad`, `obv` | none |
+  | `sma`, `wma`, `ema`, `bbands`, `cci`, `donchian`, `midpoint`, `midprice`, `trima`, `willr` | `window - 1` |
+  | `plus_dm`, `minus_dm` | `window - 1` |
   | `dema` | `2 * (window - 1)` |
   | `tema` | `3 * (window - 1)` |
+  | `t3` | `6 * (window - 1)` |
+  | `trix` | `3 * (window - 1) + 1` |
   | `true_range` | `1` |
-  | `rsi`, `mfi`, `atr`, `supertrend` | `window` |
+  | `sar`, `sarext` | `1` |
+  | `rsi`, `cmo`, `mfi`, `atr`, `natr`, `supertrend`, `kama`, `mom`, `roc`, `rocp`, `rocr`, `rocr100` | `window` |
+  | `aroon`, `aroonosc`, `dx` | `window` |
   | `adx` (`plus_di`, `minus_di`) | `window` |
   | `adx` (`adx`) | `2 * window - 1` |
+  | `adxr` | `3 * window - 2` |
   | `stoch` | `(fastk_period - 1) + (slowk_period - 1) + (slowd_period - 1)` |
-  | `macd` | `(slow_period - 1) + (signal_period - 1)` |
+  | `stochf` | `(fastk_period - 1) + (fastd_period - 1)` |
+  | `stochrsi` | `window + (fastk_period - 1) + (fastd_period - 1)` |
+  | `macd`, `macdfix` | `(slow_period - 1) + (signal_period - 1)` |
+  | `macdext`, `apo`, `ppo` | the chosen averages' own lookbacks |
+  | `adosc` | `slow_period - 1` |
+  | `ultosc` | `max(short, medium, long)` |
+  | `mavp` | `max_period - 1` |
+  | `ht_dcperiod`, `ht_phasor`, `mama` | `32` |
+  | `ht_dcphase`, `ht_sine`, `ht_trendmode`, `ht_trendline` | `63` |
+  | `keltner` | per field; see below |
   | `ichimoku` | per field; see below |
 
   There is no `min_periods` parameter, so a simple and an exponential moving
@@ -643,6 +687,50 @@ nulls `upper` and `middle` but leaves `lower` intact.
 This is not a TA-Lib function; the TA-Lib equivalents are the separate `MAX`
 and `MIN`.
 
+## KELTNER — Keltner Channels
+
+An exponential average with an envelope scaled by the Average True Range:
+
+$$\mathrm{middle}_t = \mathrm{EMA}_n(C)_t, \qquad
+\mathrm{upper}_t = \mathrm{middle}_t + k \cdot \mathrm{ATR}_m(H, L, C)_t, \qquad
+\mathrm{lower}_t = \mathrm{middle}_t - k \cdot \mathrm{ATR}_m(H, L, C)_t$$
+
+with $n$ = `window` (default 20), $m$ = `atr_window` (default 10), and $k$ =
+`multiplier` (default 2.0).
+
+```python
+from polars_ta import keltner
+
+ohlc.with_columns(keltner("high", "low", "close", 20).alias("kc")).unnest("kc")
+```
+
+Where Bollinger Bands scale their envelope by the standard deviation of the
+**close**, Keltner scales it by the true range, which includes gaps and the
+full bar. The channel is therefore steadier — it does not pinch shut during a
+run of small closing changes that nonetheless saw wide bars — so a close
+outside it is a stronger breakout signal than a Bollinger touch.
+
+| | Bollinger Bands | Keltner Channels |
+| --- | --- | --- |
+| Centre | SMA of close | EMA of close |
+| Width from | standard deviation of close | Average True Range |
+| Reacts to gaps | no | yes |
+
+**Separate periods.** The centre line and the envelope take independent
+periods, because the smoothing that suits a trend line rarely suits a
+volatility estimate. The defaults follow the common 20/10 convention.
+
+**Warm-up.** Per field, as for `donchian`. `middle` depends only on the close
+and starts after $n - 1$ rows; the two edges also need the ATR and so start
+after $\max(n - 1, m)$ rows.
+
+**Null handling.** Inherited from `ema` and `atr`. A null close blanks all
+three fields; a null high or low blanks only the two edges.
+
+**Implementation.** `_ema_expr` for the centre and the shared `_atr_expr` for
+the width, so Wilder's smoothing stays a single implementation. This is not a
+TA-Lib function.
+
 ## SUPERTREND
 
 An ATR band that sits below price in an uptrend and above it in a downtrend,
@@ -721,3 +809,354 @@ simply absent here — to see it, extend the frame with empty rows before callin
 
 **Null handling.** As for any rolling extreme: a null blanks the windows
 overlapping it, per field.
+
+## TRIMA — Triangular Moving Average
+
+An SMA of an SMA, which convolves two rectangular weightings into a triangular
+one that peaks at the centre of the window:
+
+$$\mathrm{TRIMA}_t = \mathrm{SMA}_{m}\!\left(\mathrm{SMA}_{k}(P)\right)_t$$
+
+For an odd $n$ both passes use $k = m = (n+1)/2$; for an even $n$ they use
+$k = n/2 + 1$ and $m = n/2$. Either way the combined lookback is $n - 1$ and the
+weights rise $1, 2, \dots$ to the middle and fall away again, matching TA-Lib''s
+normalizing factor of $(k)^2$ and $k(k+1)$ respectively.
+
+**Null handling and implementation.** Two chained `sma` passes, so the SMA null
+rule applies twice.
+
+## T3 — Tillson Moving Average
+
+A weighted blend of the third through sixth passes of a repeated EMA:
+
+$$\mathrm{T3}_t = c_1 e^{(6)}_t + c_2 e^{(5)}_t + c_3 e^{(4)}_t + c_4 e^{(3)}_t$$
+
+$$c_1 = -v^3,\quad c_2 = 3v^2 + 3v^3,\quad
+c_3 = -6v^2 - 3v - 3v^3,\quad c_4 = 1 + 3v + 3v^2 + v^3$$
+
+where $v$ is `vfactor`, which must lie in $[0, 1]$. At $v = 0$ the coefficients
+collapse to $c_4 = 1$ and T3 equals the plain triple-smoothed EMA; at $v = 1$ it
+is the most aggressive lag cancellation.
+
+**Warm-up.** $6(n-1)$, from the six chained passes — including at $v = 0$, where
+the sixth pass still gates the output even though its coefficient is zero. This
+matches the TA-Lib lookback, which likewise ignores `vfactor`.
+
+## KAMA — Kaufman Adaptive Moving Average
+
+An EMA whose smoothing factor is chosen bar by bar from an *efficiency ratio*:
+the net move over the window divided by the total distance travelled to achieve
+it.
+
+$$\mathrm{ER}_t = \frac{\left|P_t - P_{t-n}\right|}
+{\sum_{i=0}^{n-1}\left|P_{t-i} - P_{t-i-1}\right|}$$
+
+$$\alpha_t = \left(\mathrm{ER}_t\left(\tfrac{2}{f+1} - \tfrac{2}{s+1}\right)
++ \tfrac{2}{s+1}\right)^{2}, \qquad
+\mathrm{KAMA}_t = \mathrm{KAMA}_{t-1} + \alpha_t\left(P_t - \mathrm{KAMA}_{t-1}\right)$$
+
+with $f$ = `fast_period` (default 2) and $s$ = `slow_period` (default 30). A
+straight-line move scores $\mathrm{ER} = 1$ and smooths at the fast rate; a
+directionless one scores $0$ and nearly freezes. Squaring $\alpha$ biases the
+average strongly toward the slow end unless the move is genuinely efficient.
+
+**Degenerate windows.** TA-Lib treats a move at least as large as the path that
+produced it as perfectly efficient, which also covers zero volatility; both
+report $\mathrm{ER} = 1$.
+
+**Warm-up.** $n$ leading nulls. The recursion is seeded with $P_{n-1}$, the
+value immediately before the first output.
+
+**Implementation.** The efficiency ratio and $\alpha$ are plain expressions, but
+the recursion itself has a *varying* $\alpha$ and so cannot use `ewm_mean`. It
+runs a Python scan inside `map_batches`. A null restarts the recursion rather
+than corrupting it.
+
+## MAMA — MESA Adaptive Moving Average
+
+Ehlers'' adaptive average, driven by the Hilbert transform (see the cycle
+section). The smoothing factor comes from how fast the measured phase is
+turning:
+
+$$\alpha_t = \max\!\left(\frac{\texttt{fast\_limit}}{\Delta\phi_t},\,
+\texttt{slow\_limit}\right), \qquad \Delta\phi_t = \max(\phi_{t-1} - \phi_t,\, 1)$$
+
+$$\mathrm{MAMA}_t = \alpha_t P_t + (1-\alpha_t)\mathrm{MAMA}_{t-1}, \qquad
+\mathrm{FAMA}_t = \tfrac{\alpha_t}{2}\mathrm{MAMA}_t
++ \left(1 - \tfrac{\alpha_t}{2}\right)\mathrm{FAMA}_{t-1}$$
+
+A sharp turn in phase marks a new trend and lets the average jump; a steady
+phase slows it to `slow_limit`. `fama` is the half-speed follower whose
+crossings with `mama` are the usual signal. Returns a struct of `mama`/`fama`.
+
+**Warm-up.** 32 leading nulls, as for every short-lookback Hilbert indicator.
+
+## MA and MAVP — Dispatched Moving Averages
+
+`ma(column, window, ma_type=...)` selects one of `polars_ta.MA_TYPES` at
+runtime: `"sma"`, `"ema"`, `"wma"`, `"dema"`, `"tema"`, `"trima"`, `"kama"`,
+`"mama"`, `"t3"`. Each keeps its own defaults and its own warm-up; `"mama"`
+returns the MAMA line and ignores `window`, as TA-Lib does.
+
+`mavp(column, periods, min_period, max_period, ma_type=...)` reads the period
+from a second column. Each row''s period is truncated to an integer and clamped
+to $[\texttt{min\_period}, \texttt{max\_period}]$. One average is built per
+candidate period and selected row by row, so the expression grows linearly in
+$\texttt{max\_period} - \texttt{min\_period}$ — keep that span small, especially
+for the chained averages. Output starts only once the `max_period` average is
+available, so the warm-up does not change from row to row.
+
+## MIDPOINT and MIDPRICE
+
+$$\mathrm{MIDPOINT}_t = \frac{\max_{i<n} P_{t-i} + \min_{i<n} P_{t-i}}{2},
+\qquad \mathrm{MIDPRICE}_t = \frac{\max_{i<n} H_{t-i} + \min_{i<n} L_{t-i}}{2}$$
+
+Unlike a moving average these ignore everything between the two extremes, so
+they move only when a new extreme enters or an old one leaves the window.
+
+## SAR and SAREXT — Parabolic SAR
+
+A trailing stop that accelerates toward price. While long, the stop rises each
+bar toward the highest high seen in the trade:
+
+$$\mathrm{SAR}_{t+1} = \mathrm{SAR}_t + \mathrm{AF}_t\left(\mathrm{EP}_t - \mathrm{SAR}_t\right)$$
+
+where $\mathrm{EP}$ is the extreme point of the current trade and $\mathrm{AF}$
+starts at `acceleration` and grows by `acceleration` at every new extreme, up to
+`maximum`. The stop is then clamped inside the current and previous bar''s range
+so it can never sit inside the bar it is protecting. When price touches the
+stop, the trade flips: the stop jumps to the old extreme point and the
+acceleration resets.
+
+The opening direction comes from the sign of the first $-\mathrm{DM}$.
+
+`sarext` separates every acceleration parameter for the long and short sides,
+accepts an explicit `start_value` (positive forces a long start, negative a
+short one), widens the stop on a reversal by `offset_on_reverse`, and reports
+short readings **negated** so the sign carries the current side.
+
+**Warm-up.** One leading null; a null high or low ends the scan, leaving every
+later row null.
+
+**Implementation.** A genuine sequential recursion with no Polars primitive, so
+it runs a Python scan inside `map_batches`.
+
+## CMO — Chande Momentum Oscillator
+
+The same Wilder-smoothed gains and losses as the RSI, but centred on zero:
+
+$$\mathrm{CMO}_t = 100 \cdot \frac{\bar{G}_t - \bar{L}_t}{\bar{G}_t + \bar{L}_t}$$
+
+Away from a flat window this is exactly $2\,\mathrm{RSI}_t - 100$. A window with
+neither a gain nor a loss reports **0.0** — note that the RSI reports `50.0` in
+the same situation; both match TA-Lib and should not be harmonized.
+
+## STOCHF, STOCHRSI, and WILLR
+
+`stochf` is the unsmoothed pair: raw fast %K, and a single SMA pass for fast %D.
+`stoch` smooths %K once more before reporting it.
+
+`stochrsi` applies `stochf` to the RSI instead of to price, using the RSI as
+high, low, and close alike. The RSI rarely reaches its own extremes, so reading
+where it sits inside its recent range is far more sensitive than its level.
+
+`willr` is the mirror of raw fast %K on a $[-100, 0]$ scale:
+
+$$\mathrm{WILLR}_t = -100 \cdot
+\frac{\max_{i<n} H_{t-i} - C_t}{\max_{i<n} H_{t-i} - \min_{i<n} L_{t-i}}$$
+
+A flat range reports `0.0`, as in TA-Lib.
+
+## AROON and AROONOSC
+
+$$\mathrm{up}_t = \frac{100}{n}\left(n - \text{bars since the window high}\right),
+\qquad \mathrm{down}_t = \frac{100}{n}\left(n - \text{bars since the window low}\right)$$
+
+The window spans the last $n$ bars **plus** today, so $n+1$ rows. `up` reaches
+`100` on the bar that sets a new high and decays by $100/n$ per bar since. A
+reading says nothing about the size of a move, only its freshness.
+`aroonosc` is `up - down`.
+
+Repeated extremes count from the **most recent** occurrence, matching TA-Lib''s
+`<=`/`>=` tie handling. The implementation finds the distance with a chain of
+$n+1$ shifted equality tests against the rolling extreme, which is exact because
+the rolling extreme is literally one of the values in the window.
+
+## BOP — Balance Of Power
+
+$$\mathrm{BOP}_t = \frac{C_t - O_t}{H_t - L_t}$$
+
+A single-bar measure with no lookback at all: `+1` means the bar opened at its
+low and closed at its high, `-1` the reverse. A bar with no range reports `0.0`.
+
+## MOM, ROC, ROCP, ROCR, ROCR100
+
+All five compare the current value against the one $n$ bars back:
+
+| Function | Formula |
+| -------- | ------- |
+| `mom` | $P_t - P_{t-n}$ |
+| `roc` | $\left(P_t / P_{t-n} - 1\right) \cdot 100$ |
+| `rocp` | $\left(P_t - P_{t-n}\right) / P_{t-n}$ |
+| `rocr` | $P_t / P_{t-n}$ |
+| `rocr100` | $P_t / P_{t-n} \cdot 100$ |
+
+The four ratio forms report **0.0** when the reference value is zero, rather
+than dividing — TA-Lib''s convention. `mom` has no such case.
+
+## APO and PPO — Price Oscillators
+
+$$\mathrm{APO}_t = \mathrm{MA}^{\text{fast}}_t - \mathrm{MA}^{\text{slow}}_t,
+\qquad \mathrm{PPO}_t = 100 \cdot \frac{\mathrm{APO}_t}{\mathrm{MA}^{\text{slow}}_t}$$
+
+The same construction as the MACD line, but with a selectable `ma_type` and no
+signal line. The periods are ordered before use, so swapping them changes
+nothing. Expressing the gap as a percentage makes PPO comparable across
+instruments, which a raw price difference is not. A zero slow average makes PPO
+report `0.0`.
+
+## TRIX
+
+The one-period rate of change of a triple exponential average:
+
+$$\mathrm{TRIX}_t = 100\left(\frac{e^{(3)}_t}{e^{(3)}_{t-1}} - 1\right)$$
+
+Three smoothing passes strip out cycles shorter than `window`, so the remaining
+slope isolates the dominant trend and crosses zero when it turns.
+
+**Warm-up.** $3(n-1) + 1$ — the three EMA passes plus the one-bar difference.
+
+## ULTOSC — Ultimate Oscillator
+
+Buying pressure is measured against the lower of today''s low and yesterday''s
+close, so a gap counts as part of the bar''s range:
+
+$$\mathrm{BP}_t = C_t - \min(L_t, C_{t-1}), \qquad
+\mathrm{TR}_t = \max(H_t, C_{t-1}) - \min(L_t, C_{t-1})$$
+
+$$\mathrm{ULTOSC}_t = \frac{100}{7}\left(
+4\frac{\sum_{i<n_1}\mathrm{BP}_{t-i}}{\sum_{i<n_1}\mathrm{TR}_{t-i}} +
+2\frac{\sum_{i<n_2}\mathrm{BP}_{t-i}}{\sum_{i<n_2}\mathrm{TR}_{t-i}} +
+\frac{\sum_{i<n_3}\mathrm{BP}_{t-i}}{\sum_{i<n_3}\mathrm{TR}_{t-i}}\right)$$
+
+Williams combined three lookbacks precisely to avoid the false divergences a
+single-period oscillator produces. A term whose range summed to zero contributes
+nothing rather than dividing.
+
+## PLUS_DM, MINUS_DM, PLUS_DI, MINUS_DI, DX, ADXR
+
+The directional movement family shares one engine with `adx`. Raw directional
+movement counts a bar toward only the larger outward move:
+
+$$+\mathrm{DM}_t = \begin{cases} H_t - H_{t-1} & \text{if it exceeds } L_{t-1}-L_t \text{ and } 0 \\ 0 & \text{otherwise}\end{cases}$$
+
+Both are accumulated with **Wilder''s running sum**, whose seed deliberately
+holds $n-1$ terms rather than $n$:
+
+$$S_{n-1} = \sum_{i=1}^{n-1} x_i, \qquad S_t = S_{t-1} - \frac{S_{t-1}}{n} + x_t$$
+
+That is what gives `plus_dm` its $n-1$ lookback while `plus_di` has $n$: TA-Lib
+performs one more smoothing step before emitting the first indicator.
+
+$$\pm\mathrm{DI}_t = 100 \cdot \frac{S^{\pm\mathrm{DM}}_t}{S^{\mathrm{TR}}_t},
+\qquad
+\mathrm{DX}_t = 100 \cdot \frac{\left|+\mathrm{DI}_t - -\mathrm{DI}_t\right|}
+{+\mathrm{DI}_t + -\mathrm{DI}_t}$$
+
+`adx` is Wilder''s average of `dx`, and
+
+$$\mathrm{ADXR}_t = \frac{\mathrm{ADX}_t + \mathrm{ADX}_{t-(n-1)}}{2}$$
+
+with a lookback of $3n - 2$.
+
+**Degenerate windows.** A zero range sum makes the indicators report `0.0`.
+TA-Lib instead holds the previous ADX unchanged in that case; this is the one
+deliberate divergence in the family.
+
+**Implementation.** `_wilder_sum` reproduces the $n-1$ seed by rewriting the
+input so that the seed row carries `rolling_sum(n - 1) / n` and then running
+`ewm_mean(alpha=1/n)`, multiplying the result back by $n$. `window == 1` short
+-circuits to the raw movement, matching TA-Lib''s unsmoothed special case.
+
+## MACDEXT and MACDFIX
+
+`macdext` is the MACD with a separately selectable average for each of its three
+passes, through `fast_ma_type`, `slow_ma_type`, and `signal_ma_type` (all
+defaulting to `"sma"`, as in TA-Lib). `macdfix` fixes the periods at the classic
+12 and 26, leaving only the signal period tunable. Both return the same
+`macd`/`signal`/`histogram` struct as `macd`, with all three fields starting on
+the same row.
+
+## AD, ADOSC, and OBV — Volume
+
+Chaikin''s Accumulation/Distribution Line signs each bar''s volume by where the
+close finished inside the bar''s range, then accumulates:
+
+$$\mathrm{AD}_t = \mathrm{AD}_{t-1} +
+\frac{(C_t - L_t) - (H_t - C_t)}{H_t - L_t} V_t$$
+
+A bar with no range contributes nothing. `adosc` is the gap between two
+exponential averages of that line, which turns an open-ended total into a
+bounded oscillation:
+
+$$\mathrm{ADOSC}_t = \mathrm{EMA}^{\text{fast}}(\mathrm{AD})_t
+- \mathrm{EMA}^{\text{slow}}(\mathrm{AD})_t$$
+
+TA-Lib seeds **both** averages with the first A/D reading rather than with an
+SMA, which is `mode="recursive"` here; the warm-up is `slow_period - 1`.
+
+On Balance Volume adds volume on up bars and subtracts it on down bars,
+disregarding the size of the move:
+
+$$\mathrm{OBV}_t = \mathrm{OBV}_{t-1} + \mathrm{sgn}(C_t - C_{t-1})\,V_t$$
+
+The first bar seeds the total with its own volume, as TA-Lib does, and an
+unchanged close contributes nothing.
+
+## NATR — Normalized Average True Range
+
+$$\mathrm{NATR}_t = 100 \cdot \frac{\mathrm{ATR}_t}{C_t}$$
+
+Expressing volatility relative to price makes readings comparable across
+instruments and across long stretches of history, which the raw ATR is not. A
+zero close reports `0.0`. The warm-up matches the ATR''s $n$.
+
+## HT_* — The Hilbert Transform Cycle Indicators
+
+TA-Lib derives `ht_dcperiod`, `ht_dcphase`, `ht_phasor`, `ht_sine`,
+`ht_trendmode`, `ht_trendline`, and `mama` from a single recursion, and so does
+`polars_ta` — `polars_ta/_hilbert.py` runs it once and each public indicator
+selects the series it needs.
+
+The chain is: a four-period weighted smoother of price; a six-tap Hilbert
+transform (coefficients $0.0962$ and $0.5769$, scaled by $0.075\,\text{period}
++ 0.54$) producing the in-phase and quadrature components; a complex
+multiplication against the previous bar''s components to recover the dominant
+cycle period; and a clamp of that period to $[6, 50]$ bars with a maximum
+bar-to-bar change of $\pm 50\%$ before smoothing.
+
+| Indicator | Reports |
+| --------- | ------- |
+| `ht_dcperiod` | the smoothed dominant cycle period, in bars |
+| `ht_phasor` | the `in_phase` and `quadrature` components |
+| `ht_dcphase` | the dominant cycle phase, in degrees, wrapped to end at `315` |
+| `ht_sine` | `sine` and `lead_sine`, the phase and a 45° lead |
+| `ht_trendline` | price averaged over exactly one dominant cycle |
+| `ht_trendmode` | `1` while trending, `0` while cycling |
+
+`ht_trendline` adapts its averaging length to the measured cycle, which is what
+lets it cancel the cycle and leave the trend as the rhythm stretches and
+compresses. `ht_trendmode` combines three tests — a sine/lead-sine crossing, how
+long the current mode has held, and how fast the phase is turning — and then
+overrides them to `1` whenever price has separated from the trendline by more
+than 1.5%.
+
+**Warm-up.** 32 leading nulls for `ht_dcperiod`, `ht_phasor`, and `mama`; 63 for
+the rest, which also need the dominant cycle phase. The scan primes the price
+smoother over the first 12 bars either way.
+
+**Null handling.** The recursion has no way to skip a bar, so a null input ends
+the scan: every row from there on is null.
+
+**Implementation.** A Python scan inside `map_batches`, like `supertrend` and
+`sar`. It is substantially slower than the expression-based indicators.
