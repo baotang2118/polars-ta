@@ -4,13 +4,13 @@ Formulas and conventions for every indicator implemented in `polars_ta`.
 Indicators are grouped by how they are charted: *overlay* indicators share the
 price axis, *momentum* oscillators occupy a separate pane, *volume* indicators
 weight movement by how much traded, *volatility* indicators measure the size of
-movement, and *cycle* indicators measure its rhythm. Each group is a subpackage
-(`polars_ta.overlay`, `polars_ta.momentum`, `polars_ta.volume`,
-`polars_ta.volatility`, `polars_ta.cycle`), and every public indicator is also
+movement, *cycle* indicators measure its rhythm, and *returns* restate price on
+a percentage scale. Each group is a subpackage (`polars_ta.overlay`,
+`polars_ta.momentum`, `polars_ta.volume`, `polars_ta.volatility`,
+`polars_ta.cycle`, `polars_ta.returns`), and every public indicator is also
 re-exported from the package root.
 
-Every TA-Lib function listed in `indicators.md` at the repository root is
-implemented.
+Every indicator listed in `indicators.md` at the repository root is implemented.
 
 | Indicator | Module | Inputs | Output |
 | --------- | ------ | ------ | ------ |
@@ -20,6 +20,9 @@ implemented.
 | `ma`, `mavp` | `overlay.dispatch` | one or two columns | one `Float64` column |
 | `midpoint` | `overlay.midpoint` | one column | one `Float64` column |
 | `midprice` | `overlay.midpoint` | high, low | one `Float64` column |
+| `avgprice` | `overlay.transform` | open, high, low, close | one `Float64` column |
+| `medprice` | `overlay.transform` | high, low | one `Float64` column |
+| `typprice`, `wclprice` | `overlay.transform` | high, low, close | one `Float64` column |
 | `bbands` | `overlay.bands` | one column | struct of three `Float64` fields |
 | `donchian` | `overlay.channels` | high, low | struct of three `Float64` fields |
 | `keltner` | `overlay.channels` | high, low, close | struct of three `Float64` fields |
@@ -40,15 +43,27 @@ implemented.
 | `aroonosc` | `momentum.aroon` | high, low | one `Float64` column |
 | `bop` | `momentum.bop` | open, high, low, close | one `Float64` column |
 | `mom`, `roc`, `rocp`, `rocr`, `rocr100` | `momentum.roc` | one column | one `Float64` column |
-| `apo`, `ppo` | `momentum.price_oscillator` | one column | one `Float64` column |
+| `apo`, `ppo`, `pvo` | `momentum.price_oscillator` | one column | one `Float64` column |
 | `trix` | `momentum.trix` | one column | one `Float64` column |
 | `ultosc` | `momentum.ultosc` | high, low, close | one `Float64` column |
-| `ad`, `adosc` | `volume.flow` | high, low, close, volume | one `Float64` column |
+| `dpo` | `momentum.dpo` | one column | one `Float64` column |
+| `kst` | `momentum.kst` | one column | struct of two `Float64` fields |
+| `stc` | `momentum.stc` | one column | one `Float64` column |
+| `tsi` | `momentum.tsi` | one column | one `Float64` column |
+| `ao` | `momentum.awesome` | high, low | one `Float64` column |
+| `mass` | `momentum.mass` | high, low | one `Float64` column |
+| `vortex` | `momentum.vortex` | high, low, close | struct of two `Float64` fields |
+| `ad`, `adosc`, `cmf` | `volume.flow` | high, low, close, volume | one `Float64` column |
 | `obv` | `volume.flow` | close, volume | one `Float64` column |
+| `fi`, `vpt`, `nvi` | `volume.pressure` | close, volume | one `Float64` column |
+| `eom` | `volume.pressure` | high, low, volume | one `Float64` column |
+| `vwap` | `volume.vwap` | high, low, close, volume | one `Float64` column |
 | `true_range`, `atr`, `natr` | `volatility.atr` | high, low, close | one `Float64` column |
+| `ulcer` | `volatility.ulcer` | one column | one `Float64` column |
 | `ht_dcperiod`, `ht_dcphase`, `ht_trendline` | `cycle.hilbert` | one column | one `Float64` column |
 | `ht_phasor`, `ht_sine` | `cycle.hilbert` | one column | struct of two `Float64` fields |
 | `ht_trendmode` | `cycle.hilbert` | one column | one `Int8` column |
+| `daily_return`, `daily_log_return`, `cumulative_return` | `returns.performance` | one column | one `Float64` column |
 
 
 ## Shared Conventions
@@ -64,17 +79,26 @@ implemented.
 
   | Indicator | Leading nulls |
   | --------- | ------------- |
-  | `bop`, `ad`, `obv` | none |
+  | `bop`, `ad`, `obv`, `vpt`, `nvi`, `cumulative_return` | none |
+  | `avgprice`, `medprice`, `typprice`, `wclprice` | none |
   | `sma`, `wma`, `ema`, `bbands`, `cci`, `donchian`, `midpoint`, `midprice`, `trima`, `willr` | `window - 1` |
   | `plus_dm`, `minus_dm` | `window - 1` |
+  | `cmf`, `vwap` | `window - 1` |
+  | `ao` | `slow_period - 1` |
   | `dema` | `2 * (window - 1)` |
   | `tema` | `3 * (window - 1)` |
   | `t3` | `6 * (window - 1)` |
   | `trix` | `3 * (window - 1) + 1` |
   | `true_range` | `1` |
   | `sar`, `sarext` | `1` |
+  | `daily_return`, `daily_log_return` | `1` |
   | `rsi`, `cmo`, `mfi`, `atr`, `natr`, `supertrend`, `kama`, `mom`, `roc`, `rocp`, `rocr`, `rocr100` | `window` |
   | `aroon`, `aroonosc`, `dx` | `window` |
+  | `fi`, `eom`, `vortex` | `window` |
+  | `ulcer` | `2 * (window - 1)` |
+  | `dpo` | `max(window - 1, window // 2 + 1)` |
+  | `tsi` | `slow_period + fast_period - 1` |
+  | `mass` | `2 * (fast_period - 1) + slow_period - 1` |
   | `adx` (`plus_di`, `minus_di`) | `window` |
   | `adx` (`adx`) | `2 * window - 1` |
   | `adxr` | `3 * window - 2` |
@@ -82,7 +106,7 @@ implemented.
   | `stochf` | `(fastk_period - 1) + (fastd_period - 1)` |
   | `stochrsi` | `window + (fastk_period - 1) + (fastd_period - 1)` |
   | `macd`, `macdfix` | `(slow_period - 1) + (signal_period - 1)` |
-  | `macdext`, `apo`, `ppo` | the chosen averages' own lookbacks |
+  | `macdext`, `apo`, `ppo`, `pvo` | the chosen averages' own lookbacks |
   | `adosc` | `slow_period - 1` |
   | `ultosc` | `max(short, medium, long)` |
   | `mavp` | `max_period - 1` |
@@ -90,6 +114,8 @@ implemented.
   | `ht_dcphase`, `ht_sine`, `ht_trendmode`, `ht_trendline` | `63` |
   | `keltner` | per field; see below |
   | `ichimoku` | per field; see below |
+  | `kst` | per field; see below |
+  | `stc` | the chained averages' own lookbacks |
 
   There is no `min_periods` parameter, so a simple and an exponential moving
   average of the same window line up row for row.
@@ -1160,3 +1186,201 @@ the scan: every row from there on is null.
 
 **Implementation.** A Python scan inside `map_batches`, like `supertrend` and
 `sar`. It is substantially slower than the expression-based indicators.
+
+## AVGPRICE, MEDPRICE, TYPPRICE, WCLPRICE — Price Transforms
+
+Four ways of collapsing a bar into a single number. They are not signals; they
+are the price series other indicators consume in place of the raw close.
+
+$$\mathrm{AVGPRICE}_t = \frac{O_t + H_t + L_t + C_t}{4}, \qquad
+\mathrm{MEDPRICE}_t = \frac{H_t + L_t}{2}$$
+
+$$\mathrm{TYPPRICE}_t = \frac{H_t + L_t + C_t}{3}, \qquad
+\mathrm{WCLPRICE}_t = \frac{H_t + L_t + 2C_t}{4}$$
+
+`typprice` is what `cci`, `mfi`, and `vwap` are built on; `medprice` is what
+`ao` and `midprice` use. There is no warm-up, and any null input nulls the row.
+
+## CMF — Chaikin Money Flow
+
+The same money flow multiplier as `ad`, summed over a window and divided by the
+window's volume:
+
+$$\mathrm{CMF}_t = \frac{\sum_{i<n}
+\frac{(C_{t-i} - L_{t-i}) - (H_{t-i} - C_{t-i})}{H_{t-i} - L_{t-i}} V_{t-i}}
+{\sum_{i<n} V_{t-i}}$$
+
+Normalising by volume bounds the reading to $[-1, 1]$, so it says what
+*fraction* of recent trade was accumulation rather than how much of it there
+was. A window that traded nothing reports `0.0`; a bar with no range contributes
+nothing. The warm-up is $n - 1$; the default $n$ is 20.
+
+## FI, EOM, VPT, NVI — Volume Pressure
+
+**Force Index** multiplies the close-to-close move by the volume behind it, then
+smooths the product, which is far too noisy raw:
+
+$$\mathrm{FI}_t = \mathrm{EMA}_n\left((C_t - C_{t-1}) V_t\right)$$
+
+**Ease of Movement** asks how far the bar's midpoint travelled per unit of
+volume:
+
+$$\mathrm{EMV}_t = \frac{\left(\frac{H_t + L_t}{2} -
+\frac{H_{t-1} + L_{t-1}}{2}\right)(H_t - L_t)}{V_t} \times 10^8,
+\qquad \mathrm{EOM}_t = \mathrm{SMA}_n(\mathrm{EMV})_t$$
+
+The $10^8$ factor is the usual box-ratio convention, which keeps the reading
+legible against raw share volume. `window=1` leaves it unsmoothed, and a bar
+with no volume reports `0.0`.
+
+**Volume-Price Trend** accumulates volume weighted by each bar's *return*, where
+`obv` would add the whole of it:
+
+$$\mathrm{VPT}_t = \mathrm{VPT}_{t-1} + \frac{C_t - C_{t-1}}{C_{t-1}} V_t$$
+
+The first bar has no return and so seeds the total at `0.0`.
+
+**Negative Volume Index** compounds only on bars whose volume fell, on the
+premise that informed money moves quietly:
+
+$$\mathrm{NVI}_t = \begin{cases}
+\mathrm{NVI}_{t-1}\left(1 + \frac{C_t - C_{t-1}}{C_{t-1}}\right)
+& \text{if } V_t < V_{t-1} \\
+\mathrm{NVI}_{t-1} & \text{otherwise}\end{cases}$$
+
+It starts at `start_value` (conventionally 1000) and has no warm-up. A bar whose
+return cannot be computed carries the level forward rather than nulling the rest
+of the index, which a cumulative product would otherwise do.
+
+## VWAP — Volume Weighted Average Price
+
+$$\mathrm{VWAP}_t = \frac{\sum_{i<n} \mathrm{TYPPRICE}_{t-i} V_{t-i}}
+{\sum_{i<n} V_{t-i}}$$
+
+Weighting each bar's typical price by its volume puts the line where most of the
+trade actually happened. This is the **rolling** form, not the session-anchored
+one; set `window` to the number of bars in your session to approximate the
+latter. A window that traded no volume is **null**, not `0.0` — unlike the
+oscillators, a zero here would be a nonsense price. The warm-up is $n - 1$.
+
+## ULCER — Ulcer Index
+
+$$R_t = 100 \cdot \frac{C_t - \max_{i<n} C_{t-i}}{\max_{i<n} C_{t-i}},
+\qquad \mathrm{UI}_t = \sqrt{\frac{1}{n}\sum_{i<n} R_{t-i}^2}$$
+
+Standard deviation punishes upside and downside alike. This only accumulates
+while price sits below its recent high, so it measures how deep and how long the
+pain was. Because the drawdown series needs a full window before the averaging
+starts, the warm-up is $2(n-1)$ rather than $n-1$.
+
+## VORTEX — Vortex Indicator
+
+$$\mathrm{VI}^{+}_t = \frac{\sum_{i<n}\left|H_{t-i} - L_{t-i-1}\right|}
+{\sum_{i<n}\mathrm{TR}_{t-i}}, \qquad
+\mathrm{VI}^{-}_t = \frac{\sum_{i<n}\left|L_{t-i} - H_{t-i-1}\right|}
+{\sum_{i<n}\mathrm{TR}_{t-i}}$$
+
+`plus` measures the ground covered from the previous low up to today's high and
+`minus` the reverse, each against true range, so the lines cross when one
+direction starts covering more ground than the other. Both fields share the
+warm-up of $n$, and a window with no range reports `0.0`.
+
+## MASS — Mass Index
+
+$$\mathrm{MI}_t = \sum_{i<n_{\text{slow}}}
+\frac{\mathrm{EMA}_{n_{\text{fast}}}(H - L)_{t-i}}
+{\mathrm{EMA}_{n_{\text{fast}}}\!\left(\mathrm{EMA}_{n_{\text{fast}}}(H - L)\right)_{t-i}}$$
+
+The ratio rises above one when bars start spanning more than they recently did,
+so the sum looks for a range bulge — often a reversal warning — without caring
+which way price is going. Both averages use `mode="recursive"`, as the common
+reference implementations do, which makes the warm-up
+$2(n_{\text{fast}} - 1) + n_{\text{slow}} - 1$. Defaults are 9 and 25.
+
+## DPO — Detrended Price Oscillator
+
+$$\mathrm{DPO}_t = P_{t - (\lfloor n/2 \rfloor + 1)} - \mathrm{SMA}_n(P)_t$$
+
+Shifting the comparison back half a window *centres* the average rather than
+lagging behind it, which removes the trend and leaves the shorter cycles it was
+hiding. The centring reads a past bar, so the line is a study of past cycle
+length, not a real-time signal.
+
+## KST — Know Sure Thing
+
+$$\mathrm{KST}_t = 100 \sum_{k=1}^{4} k \cdot
+\mathrm{SMA}_{m_k}\!\left(\frac{P_t - P_{t-r_k}}{P_{t-r_k}}\right)_t,
+\qquad \mathrm{signal}_t = \mathrm{SMA}_{n_{\text{sig}}}(\mathrm{KST})_t$$
+
+One rate of change only sees one cycle length. Stacking four, with the slowest
+weighted four times the fastest, gives a reading that turns on short-term
+momentum but stays anchored to the long term. Defaults are $r = (10, 15, 20,
+30)$, $m = (10, 10, 10, 15)$, and a 9-period signal. The two fields keep
+**separate** warm-ups, following `donchian` rather than `macd`, because the
+signal is derived from the line and aligning them would discard good data. A
+zero reference price contributes `0.0`.
+
+## STC — Schaff Trend Cycle
+
+The MACD line put through two stochastic passes:
+
+$$K_t = 100 \cdot \frac{M_t - \min_{i<c} M_{t-i}}
+{\max_{i<c} M_{t-i} - \min_{i<c} M_{t-i}},
+\qquad D_t = \mathrm{EMA}_{k}(K)_t$$
+
+$$\mathrm{STC}_t = \mathrm{EMA}_{d}\!\left(
+100 \cdot \frac{D_t - \min_{i<c} D_{t-i}}{\max_{i<c} D_{t-i} - \min_{i<c} D_{t-i}}
+\right)_t$$
+
+where $M$ is $\mathrm{EMA}_{\text{fast}}(P) - \mathrm{EMA}_{\text{slow}}(P)$.
+The MACD line is unbounded and slow to turn; measuring where it sits inside its
+own recent range, twice over, bounds it to $[0, 100]$ and sharpens the turns
+enough to read as overbought and oversold. Defaults are 23, 50, a cycle of 10,
+and two 3-period smoothings. Every average uses `mode="recursive"`, and a flat
+range reports `0.0`.
+
+## TSI — True Strength Index
+
+$$\mathrm{TSI}_t = 100 \cdot
+\frac{\mathrm{EMA}_{f}\!\left(\mathrm{EMA}_{s}(\Delta P)\right)_t}
+{\mathrm{EMA}_{f}\!\left(\mathrm{EMA}_{s}(\left|\Delta P\right|)\right)_t}$$
+
+Smoothing the raw change twice strips the noise that makes momentum unreadable,
+and dividing by the same smoothing of its absolute value rescales the result to
+$[-100, 100]$ regardless of the instrument's volatility. Defaults are a slow 25
+and a fast 13, giving a warm-up of $s + f - 1$. A window with no movement reports
+`0.0`.
+
+## AO — Awesome Oscillator
+
+$$\mathrm{AO}_t = \mathrm{SMA}_{5}(\mathrm{MEDPRICE})_t
+- \mathrm{SMA}_{34}(\mathrm{MEDPRICE})_t$$
+
+Building on the bar's midpoint rather than its close keeps the reading out of
+the hands of a single print. The warm-up is $n_{\text{slow}} - 1$.
+
+## PVO — Percentage Volume Oscillator
+
+`ppo` read on volume instead of price, so it says whether participation is
+picking up or draining away independently of direction:
+
+$$\mathrm{PVO}_t = 100 \cdot
+\frac{\mathrm{MA}_{\text{fast}}(V)_t - \mathrm{MA}_{\text{slow}}(V)_t}
+{\mathrm{MA}_{\text{slow}}(V)_t}$$
+
+It defaults to `ma_type="ema"`, unlike `ppo`, whose `"sma"` default comes from
+TA-Lib. A zero slow average reports `0.0`.
+
+## DAILY_RETURN, DAILY_LOG_RETURN, CUMULATIVE_RETURN
+
+$$\mathrm{DR}_t = 100\left(\frac{P_t}{P_{t-1}} - 1\right), \qquad
+\mathrm{DLR}_t = 100 \ln\frac{P_t}{P_{t-1}}, \qquad
+\mathrm{CR}_t = 100\left(\frac{P_t}{P_{0}} - 1\right)$$
+
+`daily_return` is `roc` with a window of 1, named for discoverability. Log
+returns add across time, which simple returns do not, so a sum over a period is
+that period's return rather than an approximation of it; they assume positive
+prices, since the logarithm of a sign change is `NaN`. `cumulative_return`
+measures from the first **known** value, so leading nulls do not set the base,
+and has no warm-up. A zero reference price reports `0.0`.
+
