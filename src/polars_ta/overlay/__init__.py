@@ -9,10 +9,12 @@ from polars_ta.overlay.ma import dema, ema, sma, t3, tema, trima, wma
 from polars_ta.overlay.midpoint import midpoint, midprice
 from polars_ta.overlay.sar import sar, sarext
 from polars_ta.overlay.supertrend import supertrend
+from polars_ta.overlay.transform import avgprice, medprice, typprice, wclprice
 
 __all__ = [
     "MA_TYPES",
     "MaType",
+    "avgprice",
     "bbands",
     "dema",
     "donchian",
@@ -23,6 +25,7 @@ __all__ = [
     "ma",
     "mama",
     "mavp",
+    "medprice",
     "midpoint",
     "midprice",
     "sar",
@@ -32,5 +35,7 @@ __all__ = [
     "t3",
     "tema",
     "trima",
+    "typprice",
+    "wclprice",
     "wma",
 ]

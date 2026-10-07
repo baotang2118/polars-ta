@@ -2,7 +2,7 @@ import polars as pl
 from _assertions import IndicatorAssertions
 from _data import CLOSE, HIGH, LOW, VOLUME, constant, frame, ramp_up
 
-from polars_ta import ad, adosc, ema, obv
+from polars_ta import ad, adosc, cmf, ema, obv
 
 LENGTH = 60
 BARS = frame(high=HIGH[:LENGTH], low=LOW[:LENGTH], close=CLOSE[:LENGTH])
@@ -133,3 +133,78 @@ class TestObv(IndicatorAssertions):
         )
         self.assertIsInstance(result, pl.Series)
         self.assertEqual(result.name, "close")
+
+
+def reference_cmf(
+    high: list[float],
+    low: list[float],
+    close: list[float],
+    volume: list[float],
+    window: int,
+) -> list:
+    flows = []
+    for index in range(len(close)):
+        span = high[index] - low[index]
+        multiplier = (
+            ((close[index] - low[index]) - (high[index] - close[index])) / span
+            if span > 0.0
+            else 0.0
+        )
+        flows.append(multiplier * volume[index])
+    result: list = [None] * (window - 1)
+    for index in range(window - 1, len(close)):
+        traded = sum(volume[index - window + 1 : index + 1])
+        moved = sum(flows[index - window + 1 : index + 1])
+        result.append(moved / traded if traded != 0.0 else 0.0)
+    return result
+
+
+class TestCmf(IndicatorAssertions):
+    def test_matches_reference(self) -> None:
+        self.assert_values_equal(
+            column(cmf("high", "low", "close", "volume", 20)),
+            reference_cmf(
+                HIGH[:LENGTH], LOW[:LENGTH], CLOSE[:LENGTH], VOLUME[:LENGTH], 20
+            ),
+        )
+
+    def test_warm_up_is_window_minus_one(self) -> None:
+        for window in (5, 14, 20):
+            with self.subTest(window=window):
+                result = column(cmf("high", "low", "close", "volume", window))
+                self.assertEqual(result[: window - 1], [None] * (window - 1))
+                self.assertIsNotNone(result[window - 1])
+
+    def test_close_at_the_high_reads_one(self) -> None:
+        rising = ramp_up(10)
+        bars = pl.DataFrame(
+            {
+                "high": rising,
+                "low": [value - 1.0 for value in rising],
+                "close": rising,
+                "volume": [100.0] * 10,
+            }
+        )
+        self.assert_values_equal(
+            column(cmf("high", "low", "close", "volume", 4), bars),
+            [None, None, None] + [1.0] * 7,
+        )
+
+    def test_window_with_no_volume_reports_zero(self) -> None:
+        flat = constant(5, 3.0)
+        bars = pl.DataFrame(
+            {
+                "high": [value + 1.0 for value in flat],
+                "low": [value - 1.0 for value in flat],
+                "close": flat,
+                "volume": [0.0] * 5,
+            }
+        )
+        self.assert_values_equal(
+            column(cmf("high", "low", "close", "volume", 3), bars),
+            [None, None, 0.0, 0.0, 0.0],
+        )
+
+    def test_invalid_window_raises(self) -> None:
+        with self.assertRaises(ValueError):
+            cmf("high", "low", "close", "volume", 0)
