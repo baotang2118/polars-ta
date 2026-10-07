@@ -135,6 +135,8 @@ Use these projects to check expected behavior and terminology. Do not copy their
 
 ## Testing Notes
 
+- The README "Quick start" example (install, build an OHLCV frame, add indicators with `with_columns`, `unnest` structs, lazy and `pl.Series` use) was run end to end against the committed code before being documented. Re-run it when changing public signatures or struct field names.
+
 - `tests/` mirrors the source grouping: `tests/overlay/`, `tests/momentum/`, `tests/volume/`, `tests/volatility/`, `tests/cycle/`, and `tests/returns/`. Test modules are named for the *family* they cover, so one file may exercise several related functions (`test_ma_family.py`, `test_directional.py`, `test_stoch_family.py`, `test_aroon_bop.py`, `test_trix_ultosc_macd_variants.py`, `test_vortex_mass.py`, `test_dpo_kst_stc.py`, `test_tsi_awesome_pvo.py`). Each computes expected values with pure-Python reference implementations rather than importing pandas or NumPy.
 - Warm-up assertions are parameterized over several window sizes rather than hard-coding one. This is what caught the `max_horizontal` null bug, which shifted every ATR-derived warm-up by exactly one row.
 - `_data.frame()` with no arguments returns all `LENGTH` (120) canonical bars. A module that slices its inputs to a shorter length must pass at least one sliced column (`frame(close=CLOSE[:60])`), which truncates the rest to match; forgetting this produces a length-mismatch failure in `assert_values_equal` rather than a wrong-value failure.
