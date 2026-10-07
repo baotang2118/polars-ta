@@ -4,53 +4,38 @@ from _data import CLOSE, HIGH, LOW, constant, frame, frame_from, with_null
 
 from polars_ta import atr, true_range
 
+# Frozen expectations: the warm-up plus the first live bars.
+# fmt: off
+TRUE_RANGE: list[float | None] = [
+    None, 2.5, 3.0, 3.5, 2.0, 2.5, 3.0, 3.5, 2.0, 2.5, 3.5, 3.5, 3.0,
+]
+TRUE_RANGE_NULL_HIGH: list[float | None] = [
+    None, 2.5, 3.0, 3.5, None, 2.5, 3.0, 3.5, 2.0, 2.5, 3.5, 3.5, 3.0, 2.5, 3.0, 3.75,
+]
+ATR_5: list[float | None] = [
+    None, None, None, None, None, 2.7, 2.7600000000000002, 2.9080000000000004,
+    2.7264000000000004, 2.6811200000000004, 2.8448960000000003, 2.9759168000000003,
+    2.9807334400000003, 2.884586752, 2.9076694016, 3.0761355212800003,
+    2.8609084170240004,
+]
+# A null high at index 2 delays the seed by one bar.
+ATR_3_NULL_HIGH: list[float | None] = [
+    None, None, None, None, None, 2.6666666666666665, 2.7777777777777772,
+    3.0185185185185177, 2.6790123456790114, 2.6193415637860076, 2.9128943758573382,
+    3.1085962505715585, 3.072397500381039, 2.881598333587359, 2.921065555724906,
+    3.1973770371499377, 2.7982513580999586,
+]
+# fmt: on
+
 
 def evaluate(expr: pl.Expr, data: pl.DataFrame | None = None):
     return (data if data is not None else frame()).select(expr).to_series().to_list()
 
 
-def reference_true_range(high, low, close) -> list[float | None]:
-    result: list[float | None] = [None]
-    for index in range(1, len(close)):
-        previous = close[index - 1]
-        if None in (high[index], low[index], previous):
-            result.append(None)
-            continue
-        result.append(
-            max(
-                high[index] - low[index],
-                abs(high[index] - previous),
-                abs(low[index] - previous),
-            )
-        )
-    return result
-
-
-def reference_atr(high, low, close, window: int) -> list[float | None]:
-    ranges = reference_true_range(high, low, close)
-    result: list[float | None] = [None] * len(ranges)
-    seed_index = None
-    for index in range(window - 1, len(ranges)):
-        chunk = ranges[index + 1 - window : index + 1]
-        if all(v is not None for v in chunk):
-            seed_index = index
-            previous = sum(chunk) / window
-            break
-    if seed_index is None:
-        return result
-    result[seed_index] = previous
-    for index in range(seed_index + 1, len(ranges)):
-        previous = (previous * (window - 1) + ranges[index]) / window
-        result[index] = previous
-    return result
-
-
 class TestTrueRange(IndicatorAssertions):
-    def test_matches_reference(self) -> None:
-        self.assert_values_equal(
-            evaluate(true_range("high", "low", "close")),
-            reference_true_range(HIGH, LOW, CLOSE),
-        )
+    def test_known_values(self) -> None:
+        result = evaluate(true_range("high", "low", "close"))
+        self.assert_values_equal(result[: len(TRUE_RANGE)], TRUE_RANGE)
 
     def test_first_row_is_null(self) -> None:
         self.assertIsNone(evaluate(true_range("high", "low", "close"))[0])
@@ -69,7 +54,9 @@ class TestTrueRange(IndicatorAssertions):
     def test_null_input_propagates(self) -> None:
         high = with_null(HIGH, 4)
         result = evaluate(true_range("high", "low", "close"), frame(high=high))
-        self.assert_values_equal(result, reference_true_range(high, LOW, CLOSE))
+        self.assert_values_equal(
+            result[: len(TRUE_RANGE_NULL_HIGH)], TRUE_RANGE_NULL_HIGH
+        )
 
     def test_names_and_expressions_agree(self) -> None:
         from_names = evaluate(true_range("high", "low", "close"))
@@ -88,10 +75,9 @@ class TestTrueRange(IndicatorAssertions):
 
 
 class TestAtr(IndicatorAssertions):
-    def test_matches_wilder_smoothed_reference(self) -> None:
-        self.assert_values_equal(
-            evaluate(atr("high", "low", "close", 5)), reference_atr(HIGH, LOW, CLOSE, 5)
-        )
+    def test_known_values(self) -> None:
+        result = evaluate(atr("high", "low", "close", 5))
+        self.assert_values_equal(result[: len(ATR_5)], ATR_5)
 
     def test_warm_up_is_window_nulls(self) -> None:
         for window in (3, 5, 7):
@@ -112,14 +98,14 @@ class TestAtr(IndicatorAssertions):
         )
 
     def test_seed_is_the_mean_of_the_first_true_ranges(self) -> None:
-        ranges = reference_true_range(HIGH, LOW, CLOSE)
+        # The first five true ranges are 2.5, 3.0, 3.5, 2.0 and 2.5.
         result = evaluate(atr("high", "low", "close", 5))
-        self.assertAlmostEqual(result[5], sum(ranges[1:6]) / 5, places=10)
+        self.assertAlmostEqual(result[5], 2.7, places=10)
 
     def test_null_input_delays_the_seed(self) -> None:
         high = with_null(HIGH, 2)
         result = evaluate(atr("high", "low", "close", 3), frame(high=high))
-        self.assert_values_equal(result, reference_atr(high, LOW, CLOSE, 3))
+        self.assert_values_equal(result[: len(ATR_3_NULL_HIGH)], ATR_3_NULL_HIGH)
 
     def test_input_shorter_than_warm_up_is_all_null(self) -> None:
         self.assertEqual(
@@ -152,9 +138,7 @@ class TestAtr(IndicatorAssertions):
             .with_columns(atr("high", "low", "close", 5).alias("atr"))
             .collect()
         )
-        self.assert_values_equal(
-            collected["atr"].to_list(), reference_atr(HIGH, LOW, CLOSE, 5)
-        )
+        self.assert_values_equal(collected["atr"].to_list()[: len(ATR_5)], ATR_5)
 
     def test_invalid_window_raises(self) -> None:
         for window in (0, -1, 2.5):

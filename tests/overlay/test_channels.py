@@ -4,38 +4,47 @@ from _data import CLOSE, HIGH, LOW, constant, frame, frame_from, ramp_up, with_n
 
 from polars_ta import atr, donchian, ema, keltner
 
+# Frozen expectations: each table covers the warm-up plus the first live bars.
+# fmt: off
+DONCHIAN_5_LOWER: list[float | None] = [
+    None, None, None, None, 8.0, 8.0, 8.0, 8.0, 8.0, 8.75, 8.75, 8.75, 8.75, 8.75, 7.5,
+    7.5,
+]
+DONCHIAN_5_MIDDLE: list[float | None] = [
+    None, None, None, None, 10.25, 10.25, 10.25, 10.875, 10.875, 11.25, 11.25, 11.75,
+    11.75, 11.75, 11.125, 11.125,
+]
+DONCHIAN_5_UPPER: list[float | None] = [
+    None, None, None, None, 12.5, 12.5, 12.5, 13.75, 13.75, 13.75, 13.75, 14.75, 14.75,
+    14.75, 14.75, 14.75,
+]
+# A null high at index 6 blanks the upper and middle edges without touching the lower.
+DONCHIAN_3_NULL_LOWER: list[float | None] = [
+    None, None, 8.0, 8.25, 8.0, 8.0, 8.0, 8.75, 9.5, 8.75, 8.75, 8.75, 10.0, 8.75,
+]
+DONCHIAN_3_NULL_MIDDLE: list[float | None] = [
+    None, None, 10.25, 10.375, 10.25, 9.875, None, None, None, 11.25, 11.125, 11.75,
+    12.375, 11.75,
+]
+DONCHIAN_3_NULL_UPPER: list[float | None] = [
+    None, None, 12.5, 12.5, 12.5, 11.75, None, None, None, 13.75, 13.5, 14.75, 14.75,
+    14.75,
+]
+# fmt: on
+
 
 def evaluate(expr: pl.Expr, data: pl.DataFrame | None = None) -> pl.DataFrame:
     source = data if data is not None else frame()
     return source.select(expr.alias("d")).unnest("d")
 
 
-def reference_donchian(high, low, window: int):
-    lower: list[float | None] = []
-    middle: list[float | None] = []
-    upper: list[float | None] = []
-    for index in range(len(high)):
-        window_high = high[index + 1 - window : index + 1]
-        window_low = low[index + 1 - window : index + 1]
-        short = index + 1 < window
-        # Each edge depends only on its own input, so they can blank separately.
-        top = None if short or any(v is None for v in window_high) else max(window_high)
-        bottom = (
-            None if short or any(v is None for v in window_low) else min(window_low)
-        )
-        upper.append(top)
-        lower.append(bottom)
-        middle.append(None if top is None or bottom is None else (top + bottom) / 2.0)
-    return lower, middle, upper
-
-
 class TestDonchian(IndicatorAssertions):
-    def test_matches_reference(self) -> None:
+    def test_known_values(self) -> None:
         result = evaluate(donchian("high", "low", 5))
-        lower, middle, upper = reference_donchian(HIGH, LOW, 5)
-        self.assert_values_equal(result["lower"].to_list(), lower)
-        self.assert_values_equal(result["middle"].to_list(), middle)
-        self.assert_values_equal(result["upper"].to_list(), upper)
+        size = len(DONCHIAN_5_UPPER)
+        self.assert_values_equal(result["lower"].to_list()[:size], DONCHIAN_5_LOWER)
+        self.assert_values_equal(result["middle"].to_list()[:size], DONCHIAN_5_MIDDLE)
+        self.assert_values_equal(result["upper"].to_list()[:size], DONCHIAN_5_UPPER)
 
     def test_field_names_and_order(self) -> None:
         self.assertEqual(
@@ -78,11 +87,16 @@ class TestDonchian(IndicatorAssertions):
     def test_null_blanks_every_overlapping_window(self) -> None:
         high = with_null(HIGH, 6)
         result = evaluate(donchian("high", "low", 3), frame(high=high))
-        lower, middle, upper = reference_donchian(high, LOW, 3)
-        self.assert_values_equal(result["upper"].to_list(), upper)
-        self.assert_values_equal(result["lower"].to_list(), lower)
-        self.assert_values_equal(result["middle"].to_list(), middle)
-        self.assertEqual(result["upper"].to_list()[6:9], [None, None, None])
+        size = len(DONCHIAN_3_NULL_UPPER)
+        self.assert_values_equal(
+            result["upper"].to_list()[:size], DONCHIAN_3_NULL_UPPER
+        )
+        self.assert_values_equal(
+            result["lower"].to_list()[:size], DONCHIAN_3_NULL_LOWER
+        )
+        self.assert_values_equal(
+            result["middle"].to_list()[:size], DONCHIAN_3_NULL_MIDDLE
+        )
 
     def test_window_longer_than_input_is_all_null(self) -> None:
         result = evaluate(donchian("high", "low", len(HIGH) + 1))

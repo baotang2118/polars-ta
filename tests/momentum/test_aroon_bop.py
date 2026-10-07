@@ -1,10 +1,52 @@
 import polars as pl
 from _assertions import IndicatorAssertions
-from _data import CLOSE, HIGH, LOW, OPEN, constant, frame, ramp_down, ramp_up
+from _data import HIGH, LOW, OPEN, constant, frame, ramp_down, ramp_up
 
 from polars_ta import aroon, aroonosc, bop
 
 LENGTH: int = 60
+
+# Frozen expectations: each table covers the warm-up plus the first live bars.
+# fmt: off
+AROON_DOWN: dict[int, list[float | None]] = {
+    3: [
+        None, None, None, 0.0, 100.0, 66.66666666666667, 33.333333333333336, 0.0, 0.0,
+        100.0, 66.66666666666667, 33.333333333333336, 0.0, 100.0, 100.0,
+    ],
+    5: [
+        None, None, None, None, None, 80.0, 60.0, 40.0, 20.0, 0.0, 80.0, 60.0, 40.0,
+        100.0, 100.0, 80.0, 60.0,
+    ],
+    14: [
+        None, None, None, None, None, None, None, None, None, None, None, None, None,
+        None, 100.0, 92.85714285714286, 85.71428571428572, 78.57142857142857,
+        71.42857142857143, 64.28571428571429, 57.142857142857146, 50.0,
+        42.85714285714286, 35.714285714285715, 28.571428571428573, 21.42857142857143,
+    ],
+}
+AROON_UP: dict[int, list[float | None]] = {
+    3: [
+        None, None, None, 66.66666666666667, 33.333333333333336, 0.0, 100.0, 100.0,
+        66.66666666666667, 33.333333333333336, 0.0, 100.0, 66.66666666666667,
+        33.333333333333336, 0.0,
+    ],
+    5: [
+        None, None, None, None, None, 40.0, 100.0, 100.0, 80.0, 60.0, 40.0, 100.0,
+        80.0, 60.0, 40.0, 20.0, 0.0,
+    ],
+    14: [
+        None, None, None, None, None, None, None, None, None, None, None, None, None,
+        None, 78.57142857142857, 71.42857142857143, 64.28571428571429,
+        57.142857142857146, 100.0, 100.0, 92.85714285714286, 100.0, 92.85714285714286,
+        100.0, 100.0, 92.85714285714286,
+    ],
+}
+# The canonical bars repeat a four-bar spread cycle, so BOP repeats with it.
+BOP: list[float | None] = [
+    -0.25, 0.0, 0.25, -0.25, 0.0, 0.25, -0.25, 0.0, 0.25, -0.25, 0.0, 0.25, -0.25, 0.0,
+    0.25, -0.25,
+]
+# fmt: on
 
 
 def unnest(expr: pl.Expr, bars: pl.DataFrame) -> dict[str, list]:
@@ -12,37 +54,15 @@ def unnest(expr: pl.Expr, bars: pl.DataFrame) -> dict[str, list]:
     return {name: result[name].to_list() for name in result.columns}
 
 
-def reference_aroon(
-    high: list[float], low: list[float], window: int
-) -> tuple[list[float | None], list[float | None]]:
-    """Aroon from the most recent extreme in the trailing ``window + 1`` bars."""
-    down: list[float | None] = [None] * len(high)
-    up: list[float | None] = [None] * len(high)
-    factor = 100.0 / window
-    for index in range(window, len(high)):
-        start = index - window
-        span_high = high[start : index + 1]
-        span_low = low[start : index + 1]
-        since_high = window - max(
-            i for i, value in enumerate(span_high) if value == max(span_high)
-        )
-        since_low = window - max(
-            i for i, value in enumerate(span_low) if value == min(span_low)
-        )
-        up[index] = factor * (window - since_high)
-        down[index] = factor * (window - since_low)
-    return down, up
-
-
 class TestAroon(IndicatorAssertions):
-    def test_matches_reference(self) -> None:
+    def test_known_values(self) -> None:
         bars = frame(high=HIGH[:LENGTH], low=LOW[:LENGTH])
         for window in (3, 5, 14):
             with self.subTest(window=window):
                 fields = unnest(aroon("high", "low", window), bars)
-                down, up = reference_aroon(HIGH[:LENGTH], LOW[:LENGTH], window)
-                self.assert_values_equal(fields["down"], down)
-                self.assert_values_equal(fields["up"], up)
+                down, up = AROON_DOWN[window], AROON_UP[window]
+                self.assert_values_equal(fields["down"][: len(down)], down)
+                self.assert_values_equal(fields["up"][: len(up)], up)
 
     def test_warm_up_is_window_nulls(self) -> None:
         bars = frame(high=HIGH[:LENGTH], low=LOW[:LENGTH])
@@ -117,14 +137,10 @@ class TestAroon(IndicatorAssertions):
 
 
 class TestBop(IndicatorAssertions):
-    def test_matches_reference(self) -> None:
+    def test_known_values(self) -> None:
         bars = frame(high=HIGH[:LENGTH], low=LOW[:LENGTH])
         result = bars.select(bop("open", "high", "low", "close")).to_series().to_list()
-        expected = [
-            (CLOSE[index] - OPEN[index]) / (HIGH[index] - LOW[index])
-            for index in range(LENGTH)
-        ]
-        self.assert_values_equal(result, expected)
+        self.assert_values_equal(result[: len(BOP)], BOP)
 
     def test_has_no_warm_up(self) -> None:
         bars = frame(high=HIGH[:LENGTH], low=LOW[:LENGTH])

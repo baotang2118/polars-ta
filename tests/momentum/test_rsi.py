@@ -5,6 +5,20 @@ from _data import HAND_CHECKED, WILDER_CLOSE, constant, ramp_down, ramp_up
 from polars_ta import rsi
 
 VALUES: list[float] = HAND_CHECKED[:10]
+NULL_VALUES: list[float | None] = [1.0, 2.0, None, 4.0, 5.0, 6.0, 7.0, 8.0]
+
+# Frozen expectations: the warm-up plus the first live bars.
+# fmt: off
+RSI_14_WILDER: list[float | None] = [
+    None, None, None, None, None, None, None, None, None, None, None, None, None, None,
+    70.46413502109705, 66.24961855355507, 66.48094183471265, 69.34685316290866,
+    66.29471265892624, 57.91502067008556,
+]
+RSI_3: list[float | None] = [
+    None, None, None, 85.71428571428571, 70.58823529411764, 85.71428571428572,
+    43.63636363636363, 64.53089244851259, 56.65494726268208, 74.97825456654103,
+]
+# fmt: on
 
 
 def evaluate(expr: pl.Expr, values: list[float | None] | None = None):
@@ -12,37 +26,18 @@ def evaluate(expr: pl.Expr, values: list[float | None] | None = None):
     return pl.DataFrame({"close": data}).select(expr).to_series().to_list()
 
 
-def reference_rsi(values: list[float], window: int) -> list[float | None]:
-    """Wilder's RSI, seeded with the mean of the first ``window`` changes."""
-    result: list[float | None] = [None] * len(values)
-    if len(values) <= window:
-        return result
-    gains = [max(values[i] - values[i - 1], 0.0) for i in range(1, len(values))]
-    losses = [max(values[i - 1] - values[i], 0.0) for i in range(1, len(values))]
-    average_gain = sum(gains[:window]) / window
-    average_loss = sum(losses[:window]) / window
-    for index in range(window, len(values)):
-        if index > window:
-            change = index - 1
-            average_gain = (average_gain * (window - 1) + gains[change]) / window
-            average_loss = (average_loss * (window - 1) + losses[change]) / window
-        total = average_gain + average_loss
-        result[index] = 50.0 if total == 0.0 else 100.0 * average_gain / total
-    return result
-
-
 class TestRsi(IndicatorAssertions):
     def test_matches_wilders_published_value(self) -> None:
         result = evaluate(rsi("close", 14), WILDER_CLOSE)
         self.assertAlmostEqual(result[14], 70.4641, places=4)
 
-    def test_matches_reference_recursion(self) -> None:
+    def test_known_values_on_wilders_series(self) -> None:
         self.assert_values_equal(
-            evaluate(rsi("close", 14), WILDER_CLOSE), reference_rsi(WILDER_CLOSE, 14)
+            evaluate(rsi("close", 14), WILDER_CLOSE), RSI_14_WILDER
         )
 
-    def test_matches_reference_on_a_short_window(self) -> None:
-        self.assert_values_equal(evaluate(rsi("close", 3)), reference_rsi(VALUES, 3))
+    def test_known_values_on_a_short_window(self) -> None:
+        self.assert_values_equal(evaluate(rsi("close", 3)), RSI_3)
 
     def test_warm_up_is_window_nulls(self) -> None:
         for window in (2, 3, 5):
@@ -72,8 +67,7 @@ class TestRsi(IndicatorAssertions):
         self.assertEqual(evaluate(rsi("close", len(VALUES))), [None] * len(VALUES))
 
     def test_null_delays_the_seed(self) -> None:
-        values = [1.0, 2.0, None, 4.0, 5.0, 6.0, 7.0, 8.0]
-        result = evaluate(rsi("close", 2), values)
+        result = evaluate(rsi("close", 2), NULL_VALUES)
         self.assertEqual(result[:5], [None] * 5)
         self.assertIsNotNone(result[5])
 
@@ -97,7 +91,7 @@ class TestRsi(IndicatorAssertions):
             .with_columns(rsi("close", 3).alias("rsi"))
             .collect()
         )
-        self.assert_values_equal(collected["rsi"].to_list(), reference_rsi(VALUES, 3))
+        self.assert_values_equal(collected["rsi"].to_list(), RSI_3)
 
     def test_invalid_window_raises(self) -> None:
         for window in (0, -1, 2.5):

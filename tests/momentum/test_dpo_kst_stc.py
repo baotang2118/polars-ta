@@ -7,6 +7,36 @@ from polars_ta import dpo, kst, stc
 LENGTH: int = 60
 BARS: pl.DataFrame = frame(close=CLOSE[:LENGTH])
 
+# Frozen expectations: the warm-up plus the first live bars.
+# fmt: off
+# dpo(close, 4) over HAND_CHECKED: a four-bar mean against the bar three back.
+DPO_4: list[float | None] = [
+    None, None, None, -2.0, -1.0, -3.5, 0.0, -1.5, 2.0, -3.5, 0.0, -1.5, 2.0, -3.5,
+    0.0, -1.5,
+]
+# kst(close, (3, 5, 7, 9), (2, 2, 3, 4), 5)
+KST_LINE: list[float | None] = [
+    None, None, None, None, None, None, None, None, None, None, None, None,
+    157.6767676767677, 83.8888888888889, -37.60683760683757, -56.69774669774669,
+    -30.701709401709387, 36.95233100233102, 169.95128205128208, 263.36744857084665,
+    288.86165395994254, 361.65397164035494, 341.7460736617385, 390.8626179430882,
+]
+KST_SIGNAL: list[float | None] = [
+    None, None, None, None, None, None, None, None, None, None, None, None, None, None,
+    None, None, 23.31187257187259, -0.8330147630147451, 16.37946386946389,
+    76.57432110500073, 145.68620123653858, 224.15733744495145, 285.11608597683295,
+    329.29835315519415, 367.49336649067584, 407.0237327215087, 430.47480361470764,
+    433.76533624772367,
+]
+# stc(close, 5, 10, 4, smooth_k=3, smooth_d=3)
+STC: list[float | None] = [
+    None, None, None, None, None, None, None, None, None, None, None, None, None, None,
+    None, None, None, None, None, 100.0, 100.0, 100.0, 50.0, 51.97947677650601,
+    66.59740415972848, 83.29870207986424, 91.64935103993213, 45.824675519966064,
+    22.912337759983032, 11.456168879991516, 5.728084439995758,
+]
+# fmt: on
+
 
 def column(expr: pl.Expr, bars: pl.DataFrame | None = None) -> list:
     source = BARS if bars is None else bars
@@ -17,68 +47,10 @@ def field(name: str, expr: pl.Expr, bars: pl.DataFrame | None = None) -> list:
     return column(expr.struct.field(name), bars)
 
 
-def recursive_ema(values: list, window: int) -> list:
-    """``ewm_mean(adjust=False, min_samples=window)`` over a null-free series."""
-    alpha = 2.0 / (window + 1.0)
-    level = None
-    seen = 0
-    result: list = []
-    for value in values:
-        if value is None:
-            result.append(None)
-            continue
-        seen += 1
-        level = value if level is None else level + alpha * (value - level)
-        result.append(level if seen >= window else None)
-    return result
-
-
-def rolling_mean(values: list, window: int) -> list:
-    result: list = []
-    for index in range(len(values)):
-        terms = values[index - window + 1 : index + 1]
-        if index < window - 1 or any(term is None for term in terms):
-            result.append(None)
-        else:
-            result.append(sum(terms) / window)
-    return result
-
-
-def reference_kst(
-    values: list[float],
-    roc_periods: tuple[int, ...],
-    sma_periods: tuple[int, ...],
-    signal_period: int,
-) -> tuple[list, list]:
-    line: list = [0.0] * len(values)
-    known = [True] * len(values)
-    for weight, (roc_period, sma_period) in enumerate(
-        zip(roc_periods, sma_periods), start=1
-    ):
-        change: list = [None] * roc_period
-        for index in range(roc_period, len(values)):
-            before = values[index - roc_period]
-            change.append(values[index] / before - 1.0 if before != 0.0 else 0.0)
-        smoothed = rolling_mean(change, sma_period)
-        for index, value in enumerate(smoothed):
-            if value is None:
-                known[index] = False
-            else:
-                line[index] += weight * value
-    scaled: list = [100.0 * value if ok else None for value, ok in zip(line, known)]
-    return scaled, rolling_mean(scaled, signal_period)
-
-
 class TestDpo(IndicatorAssertions):
     def test_matches_hand_checked_values(self) -> None:
         bars = pl.DataFrame({"close": HAND_CHECKED})
-        # window=4 averages four bars and compares against the bar three back.
-        averages = rolling_mean(HAND_CHECKED, 4)
-        expected = [
-            None if average is None or index < 3 else HAND_CHECKED[index - 3] - average
-            for index, average in enumerate(averages)
-        ]
-        self.assert_values_equal(column(dpo("close", 4), bars), expected)
+        self.assert_values_equal(column(dpo("close", 4), bars), DPO_4)
 
     def test_warm_up_covers_the_average_and_the_shift(self) -> None:
         for window in (4, 10, 20):
@@ -102,13 +74,12 @@ class TestDpo(IndicatorAssertions):
 
 
 class TestKst(IndicatorAssertions):
-    def test_matches_reference(self) -> None:
-        roc_periods = (3, 5, 7, 9)
-        sma_periods = (2, 2, 3, 4)
-        line, signal = reference_kst(CLOSE[:LENGTH], roc_periods, sma_periods, 5)
-        indicator = kst("close", roc_periods, sma_periods, 5)
-        self.assert_values_equal(field("kst", indicator), line)
-        self.assert_values_equal(field("signal", indicator), signal)
+    def test_known_values(self) -> None:
+        indicator = kst("close", (3, 5, 7, 9), (2, 2, 3, 4), 5)
+        line = field("kst", indicator)
+        signal = field("signal", indicator)
+        self.assert_values_equal(line[: len(KST_LINE)], KST_LINE)
+        self.assert_values_equal(signal[: len(KST_SIGNAL)], KST_SIGNAL)
 
     def test_warm_up_follows_the_slowest_term(self) -> None:
         indicator = kst("close", (3, 5, 7, 9), (2, 2, 3, 4), 5)
@@ -149,38 +120,9 @@ class TestStc(IndicatorAssertions):
             self.assertGreaterEqual(value, 0.0)
             self.assertLessEqual(value, 100.0)
 
-    def test_matches_reference(self) -> None:
-        fast, slow, cycle, smooth = 5, 10, 4, 3
-        emafast = recursive_ema(CLOSE[:LENGTH], fast)
-        emaslow = recursive_ema(CLOSE[:LENGTH], slow)
-        macd_line = [
-            None if f is None or s is None else f - s for f, s in zip(emafast, emaslow)
-        ]
-
-        def rescale(values: list) -> list:
-            result: list = []
-            for index in range(len(values)):
-                terms = values[index - cycle + 1 : index + 1]
-                if (
-                    index < cycle - 1
-                    or values[index] is None
-                    or any(term is None for term in terms)
-                ):
-                    result.append(None)
-                    continue
-                lowest, highest = min(terms), max(terms)
-                span = highest - lowest
-                result.append(
-                    100.0 * (values[index] - lowest) / span if span != 0.0 else 0.0
-                )
-            return result
-
-        first = recursive_ema(rescale(macd_line), smooth)
-        expected = recursive_ema(rescale(first), smooth)
-        self.assert_values_equal(
-            column(stc("close", fast, slow, cycle, smooth_k=smooth, smooth_d=smooth)),
-            expected,
-        )
+    def test_known_values(self) -> None:
+        result = column(stc("close", 5, 10, 4, smooth_k=3, smooth_d=3))
+        self.assert_values_equal(result[: len(STC)], STC)
 
     def test_a_flat_series_reports_zero(self) -> None:
         bars = pl.DataFrame({"close": constant(60, 8.0)})

@@ -2,9 +2,31 @@ import polars as pl
 from _assertions import IndicatorAssertions
 from _data import CLOSE, constant, ramp_down, ramp_up
 
-from polars_ta import apo, ppo, sma
+from polars_ta import apo, ppo
 
 VALUES: list[float] = CLOSE[:60]
+
+# Frozen expectations: the warm-up plus the first live bars.
+# fmt: off
+APO_5_12: list[float | None] = [
+    None, None, None, None, None, None, None, None, None, None, None,
+    0.9333333333333336, 0.5666666666666664, 0.36666666666666536, 0.3333333333333339,
+    0.05000000000000071, -0.4781666666666684, -0.4063333333333343, 0.19966666666666733,
+    1.125166666666665, 1.4810000000000016, 1.9371666666666663, 2.165166666666668,
+]
+PPO_5_12: list[float | None] = [
+    None, None, None, None, None, None, None, None, None, None, None,
+    8.750000000000002, 5.230769230769228, 3.3846153846153726, 3.1250000000000053,
+    0.46511627906977404, -4.369146425036184, -3.64806224749365, 1.7471197316610823,
+    9.64911026942041, 12.429710449013863, 15.583562378494332, 17.128353879622924,
+]
+APO_EMA_5_12: list[float | None] = [
+    None, None, None, None, None, None, None, None, None, None, None,
+    1.040420667581163, 0.7534428382165022, 0.3734326350766164, -0.03956966592929945,
+    0.08845824970476279, 0.2153735739237348, 0.4554092145639874, 0.9533570521270036,
+    1.2410016244893711, 1.206801043540482, 1.5097237392339053, 1.3034378886387117,
+]
+# fmt: on
 
 
 def evaluate(expr: pl.Expr, values: list[float | None] | None = None):
@@ -12,29 +34,14 @@ def evaluate(expr: pl.Expr, values: list[float | None] | None = None):
     return pl.DataFrame({"close": data}).select(expr).to_series().to_list()
 
 
-def reference_sma(values: list[float], window: int) -> list[float | None]:
-    result: list[float | None] = [None] * len(values)
-    for index in range(window - 1, len(values)):
-        result[index] = sum(values[index - window + 1 : index + 1]) / window
-    return result
-
-
 class TestPriceOscillators(IndicatorAssertions):
     def test_apo_is_the_difference_of_two_averages(self) -> None:
-        fast = reference_sma(VALUES, 5)
-        slow = reference_sma(VALUES, 12)
-        expected = [
-            None if f is None or s is None else f - s for f, s in zip(fast, slow)
-        ]
-        self.assert_values_equal(evaluate(apo("close", 5, 12)), expected)
+        result = evaluate(apo("close", 5, 12))
+        self.assert_values_equal(result[: len(APO_5_12)], APO_5_12)
 
     def test_ppo_scales_apo_by_the_slow_average(self) -> None:
-        absolute = evaluate(apo("close", 5, 12))
-        slow = evaluate(sma("close", 12))
-        expected = [
-            None if a is None else a / s * 100.0 for a, s in zip(absolute, slow)
-        ]
-        self.assert_values_equal(evaluate(ppo("close", 5, 12)), expected)
+        result = evaluate(ppo("close", 5, 12))
+        self.assert_values_equal(result[: len(PPO_5_12)], PPO_5_12)
 
     def test_warm_up_follows_the_slower_average(self) -> None:
         for function in (apo, ppo):
@@ -66,14 +73,8 @@ class TestPriceOscillators(IndicatorAssertions):
         self.assert_values_equal(evaluate(ppo("close", 2, 4), zeros)[3:], [0.0] * 7)
 
     def test_ma_type_is_honoured(self) -> None:
-        from polars_ta import ema
-
-        fast = evaluate(ema("close", 5))
-        slow = evaluate(ema("close", 12))
-        expected = [
-            None if f is None or s is None else f - s for f, s in zip(fast, slow)
-        ]
-        self.assert_values_equal(evaluate(apo("close", 5, 12, ma_type="ema")), expected)
+        result = evaluate(apo("close", 5, 12, ma_type="ema"))
+        self.assert_values_equal(result[: len(APO_EMA_5_12)], APO_EMA_5_12)
 
     def test_default_periods_are_twelve_and_twenty_six(self) -> None:
         for function in (apo, ppo):

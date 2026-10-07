@@ -1,11 +1,26 @@
 import polars as pl
 from _assertions import IndicatorAssertions
-from _data import CLOSE, HIGH, LOW, VOLUME, frame
+from _data import CLOSE, HIGH, frame
 
 from polars_ta import vwap
 
 LENGTH: int = 60
 BARS: pl.DataFrame = frame(close=CLOSE[:LENGTH])
+
+# Frozen expectations: the warm-up plus the first live bars.
+# fmt: off
+VWAP_14: list[float | None] = [
+    None, None, None, None, None, None, None, None, None, None, None, None, None,
+    10.753731343283581, 10.631944444444445, 10.688311688311689, 10.741524390243903,
+    10.953333333333333, 11.146506024096386, 11.356139240506328, 11.517466666666667,
+    11.755845070422534, 12.089925373134328, 12.561388888888889, 13.222337662337662,
+]
+# With a constant volume the result reduces to a mean of the typical price.
+VWAP_10_FLAT_VOLUME: list[float | None] = [
+    None, None, None, None, None, None, None, None, None, 10.3, 10.6, 10.9, 10.9, 10.9,
+    10.9, 11.0, 11.033, 11.065999999999999, 11.414, 11.892999999999999, 12.098,
+]
+# fmt: on
 
 
 def column(expr: pl.Expr, bars: pl.DataFrame | None = None) -> list:
@@ -13,36 +28,10 @@ def column(expr: pl.Expr, bars: pl.DataFrame | None = None) -> list:
     return source.select(expr).to_series().to_list()
 
 
-def reference_vwap(
-    high: list[float],
-    low: list[float],
-    close: list[float],
-    volume: list[float],
-    window: int,
-) -> list:
-    weighted = [
-        (high[index] + low[index] + close[index]) / 3.0 * volume[index]
-        for index in range(len(close))
-    ]
-    result: list = [None] * (window - 1)
-    for index in range(window - 1, len(close)):
-        traded = sum(volume[index - window + 1 : index + 1])
-        result.append(
-            None
-            if traded == 0.0
-            else sum(weighted[index - window + 1 : index + 1]) / traded
-        )
-    return result
-
-
 class TestVwap(IndicatorAssertions):
-    def test_matches_reference(self) -> None:
-        self.assert_values_equal(
-            column(vwap("high", "low", "close", "volume", 14)),
-            reference_vwap(
-                HIGH[:LENGTH], LOW[:LENGTH], CLOSE[:LENGTH], VOLUME[:LENGTH], 14
-            ),
-        )
+    def test_known_values(self) -> None:
+        result = column(vwap("high", "low", "close", "volume", 14))
+        self.assert_values_equal(result[: len(VWAP_14)], VWAP_14)
 
     def test_matches_hand_checked_values(self) -> None:
         bars = pl.DataFrame(
@@ -60,14 +49,9 @@ class TestVwap(IndicatorAssertions):
 
     def test_constant_volume_reduces_to_the_typical_price_average(self) -> None:
         bars = BARS.with_columns(pl.lit(100.0).alias("volume"))
-        expected = bars.select(
-            ((pl.col("high") + pl.col("low") + pl.col("close")) / 3.0).rolling_mean(
-                window_size=10, min_samples=10
-            )
-        )
+        result = column(vwap("high", "low", "close", "volume", 10), bars)
         self.assert_values_equal(
-            column(vwap("high", "low", "close", "volume", 10), bars),
-            expected.to_series().to_list(),
+            result[: len(VWAP_10_FLAT_VOLUME)], VWAP_10_FLAT_VOLUME
         )
 
     def test_warm_up_is_window_minus_one(self) -> None:

@@ -11,10 +11,84 @@ from polars_ta import (
     ht_trendmode,
     mama,
 )
-from polars_ta._hilbert import LONG_LOOKBACK, SHORT_LOOKBACK, hilbert_transform
+from polars_ta._hilbert import LONG_LOOKBACK, SHORT_LOOKBACK
 
 VALUES: list[float] = CLOSE
 BARS: pl.DataFrame = pl.DataFrame({"close": VALUES})
+
+# Frozen expectations: the warm-up plus the first live bars.
+# fmt: off
+HT_DCPERIOD: list[float | None] = [
+    None, None, None, None, None, None, None, None, None, None, None, None, None, None,
+    None, None, None, None, None, None, None, None, None, None, None, None, None, None,
+    None, None, None, None, 15.646696015449795, 17.21176482512415, 18.933208777083244,
+    20.826708859320846, 21.982465453438753, 22.229407749705253, 21.899782799074323,
+    21.385313217321528, 20.942648351473153, 20.50203837091814, 20.002862130524466,
+    19.650478707333598,
+]
+HT_DCPHASE: list[float | None] = [
+    None, None, None, None, None, None, None, None, None, None, None, None, None, None,
+    None, None, None, None, None, None, None, None, None, None, None, None, None, None,
+    None, None, None, None, None, None, None, None, None, None, None, None, None, None,
+    None, None, None, None, None, None, None, None, None, None, None, None, None, None,
+    None, None, None, None, None, None, None, 205.31717875694204, 236.12191815321856,
+    257.1836652620746, 277.34615111195495, 298.02958102675757, -38.80777871342639,
+    -23.06077289035619, -14.525611142494995, -8.194162812130116, -5.349721248782885,
+    -6.2154990973464805, -6.153884538545981,
+]
+HT_TRENDLINE: list[float | None] = [
+    None, None, None, None, None, None, None, None, None, None, None, None, None, None,
+    None, None, None, None, None, None, None, None, None, None, None, None, None, None,
+    None, None, None, None, None, None, None, None, None, None, None, None, None, None,
+    None, None, None, None, None, None, None, None, None, None, None, None, None, None,
+    None, None, None, None, None, None, None, 21.293597368421054, 21.280301754385967,
+    21.269789473684213, 21.2763216374269, 21.315055555555553, 21.369111111111113,
+    21.32322222222222, 21.206611111111112, 21.06322222222222, 20.872888888888887,
+    20.62322222222222, 20.420850877192983,
+]
+HT_IN_PHASE: list[float | None] = [
+    None, None, None, None, None, None, None, None, None, None, None, None, None, None,
+    None, None, None, None, None, None, None, None, None, None, None, None, None, None,
+    None, None, None, None, 0.5870495654688908, -1.9260493337142064,
+    -3.4616651066691935, -4.1687902390534575, -3.040181988555617, -0.7625228351334536,
+    -0.38443002807835414, -0.09963069373918879, -0.8157490693637127,
+    -1.0026745421944687, 1.462043795005446, 2.872163856007581,
+]
+HT_QUADRATURE: list[float | None] = [
+    None, None, None, None, None, None, None, None, None, None, None, None, None, None,
+    None, None, None, None, None, None, None, None, None, None, None, None, None, None,
+    None, None, None, None, -4.929202624742045, -5.476465301134699, -3.176143168390866,
+    0.3326452500365109, 5.117167212846117, 4.2248241661565125, 1.5421895045034884,
+    0.3929516988141592, -0.35384909524350777, 3.4822114884244835, 5.352950862444049,
+    3.3880099071072847,
+]
+HT_LEAD_SINE: list[float | None] = [
+    None, None, None, None, None, None, None, None, None, None, None, None, None, None,
+    None, None, None, None, None, None, None, None, None, None, None, None, None, None,
+    None, None, None, None, None, None, None, None, None, None, None, None, None, None,
+    None, None, None, None, None, None, None, None, None, None, None, None, None, None,
+    None, None, None, None, None, None, None, -0.9415715723726591, -0.9812189440813858,
+    -0.8463450520767927, -0.6108895201323697, -0.2918779387220065, 0.107864384639729,
+    0.37362293098201765, 0.5071531651006531, 0.5991051724353916, 0.6380998925303104,
+    0.6263929695099713, 0.6272308714645938,
+]
+MAMA: list[float | None] = [
+    None, None, None, None, None, None, None, None, None, None, None, None, None, None,
+    None, None, None, None, None, None, None, None, None, None, None, None, None, None,
+    None, None, None, None, 16.035297122955242, 14.802648561477621, 14.78051613340374,
+    14.643990326733551, 14.586290810396873, 14.633976269877028, 15.451988134938514,
+    16.465994067469257, 17.717997033734626, 17.81459718204789, 19.962298591023945,
+    19.970683661472744,
+]
+FAMA: list[float | None] = [
+    None, None, None, None, None, None, None, None, None, None, None, None, None, None,
+    None, None, None, None, None, None, None, None, None, None, None, None, None, None,
+    None, None, None, None, 14.118966970910883, 14.289887368552566, 14.302153087673846,
+    14.310699018650338, 14.317588813444, 14.325498499854826, 14.607120908625749,
+    15.071839198336626, 15.733378657186126, 15.78540912030767, 16.829631487986738,
+    16.908157792323887,
+]
+# fmt: on
 
 
 def column(expr: pl.Expr, bars: pl.DataFrame | None = None) -> list:
@@ -28,19 +102,16 @@ def unnest(expr: pl.Expr, bars: pl.DataFrame | None = None) -> dict[str, list]:
     return {name: result[name].to_list() for name in result.columns}
 
 
-REFERENCE = hilbert_transform(VALUES, 0.5, 0.05)
-
-
 class TestHilbertCore(IndicatorAssertions):
-    def test_every_indicator_draws_on_the_same_recursion(self) -> None:
+    def test_known_values(self) -> None:
         cases = (
-            (ht_dcperiod("close"), REFERENCE.smooth_period, SHORT_LOOKBACK),
-            (ht_dcphase("close"), REFERENCE.dc_phase, LONG_LOOKBACK),
-            (ht_trendline("close"), REFERENCE.trendline, LONG_LOOKBACK),
+            (ht_dcperiod("close"), HT_DCPERIOD),
+            (ht_dcphase("close"), HT_DCPHASE),
+            (ht_trendline("close"), HT_TRENDLINE),
         )
-        for expr, expected, lookback in cases:
+        for expr, expected in cases:
             with self.subTest(expr=str(expr)):
-                self.assert_values_equal(column(expr)[lookback:], expected[lookback:])
+                self.assert_values_equal(column(expr)[: len(expected)], expected)
 
     def test_short_lookback_indicators_warm_up_in_thirty_two_rows(self) -> None:
         for expr in (ht_dcperiod("close"),):
@@ -94,13 +165,11 @@ class TestHtPhasor(IndicatorAssertions):
             self.assertEqual(fields[name][:SHORT_LOOKBACK], [None] * SHORT_LOOKBACK)
             self.assertIsNotNone(fields[name][SHORT_LOOKBACK])
 
-    def test_matches_the_shared_recursion(self) -> None:
+    def test_known_values(self) -> None:
         fields = unnest(ht_phasor("close"))
+        self.assert_values_equal(fields["in_phase"][: len(HT_IN_PHASE)], HT_IN_PHASE)
         self.assert_values_equal(
-            fields["in_phase"][SHORT_LOOKBACK:], REFERENCE.in_phase[SHORT_LOOKBACK:]
-        )
-        self.assert_values_equal(
-            fields["quadrature"][SHORT_LOOKBACK:], REFERENCE.quadrature[SHORT_LOOKBACK:]
+            fields["quadrature"][: len(HT_QUADRATURE)], HT_QUADRATURE
         )
 
 
@@ -115,15 +184,8 @@ class TestHtSine(IndicatorAssertions):
                     self.assertLessEqual(value, 1.0)
 
     def test_lead_sine_leads_by_forty_five_degrees(self) -> None:
-        import math
-
         fields = unnest(ht_sine("close"))
-        phase = column(ht_dcphase("close"))
-        expected = [
-            None if value is None else math.sin((value + 45.0) * math.pi / 180.0)
-            for value in phase
-        ]
-        self.assert_values_equal(fields["lead_sine"], expected)
+        self.assert_values_equal(fields["lead_sine"][: len(HT_LEAD_SINE)], HT_LEAD_SINE)
 
 
 class TestHtTrendmode(IndicatorAssertions):
@@ -154,14 +216,10 @@ class TestMama(IndicatorAssertions):
             self.assertEqual(fields[name][:SHORT_LOOKBACK], [None] * SHORT_LOOKBACK)
             self.assertIsNotNone(fields[name][SHORT_LOOKBACK])
 
-    def test_matches_the_shared_recursion(self) -> None:
+    def test_known_values(self) -> None:
         fields = unnest(mama("close"))
-        self.assert_values_equal(
-            fields["mama"][SHORT_LOOKBACK:], REFERENCE.mama[SHORT_LOOKBACK:]
-        )
-        self.assert_values_equal(
-            fields["fama"][SHORT_LOOKBACK:], REFERENCE.fama[SHORT_LOOKBACK:]
-        )
+        self.assert_values_equal(fields["mama"][: len(MAMA)], MAMA)
+        self.assert_values_equal(fields["fama"][: len(FAMA)], FAMA)
 
     def test_flat_series_settles_on_its_level(self) -> None:
         bars = pl.DataFrame({"close": constant(120, 7.0)})

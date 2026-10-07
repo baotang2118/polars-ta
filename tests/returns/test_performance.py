@@ -1,5 +1,3 @@
-import math
-
 import polars as pl
 from _assertions import IndicatorAssertions
 from _data import CLOSE, constant, frame, ramp_up
@@ -42,15 +40,17 @@ class TestDailyReturn(IndicatorAssertions):
 
 class TestDailyLogReturn(IndicatorAssertions):
     def test_matches_hand_checked_values(self) -> None:
+        # 100 * ln(1.2) and 100 * ln(0.5).
         self.assert_values_equal(
             column(daily_log_return("close"), STEPS),
-            [None, 100.0 * math.log(1.2), 100.0 * math.log(0.5), 0.0],
+            [None, 18.232155679395458, -69.31471805599453, 0.0],
         )
 
     def test_sums_to_the_whole_period_return(self) -> None:
         bars = pl.DataFrame({"close": ramp_up(10)})
         total = sum(value for value in column(daily_log_return("close"), bars) if value)
-        self.assertAlmostEqual(total, 100.0 * math.log(10.0 / 1.0))
+        # The series runs from 1 to 10, so the total is 100 * ln(10).
+        self.assertAlmostEqual(total, 230.25850929940458)
 
     def test_first_row_is_null(self) -> None:
         self.assertIsNone(column(daily_log_return("close"))[0])

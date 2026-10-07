@@ -7,6 +7,140 @@ from polars_ta import dema, ema, sma, tema, wma
 # The literal expectations below were worked out against this exact series.
 VALUES: list[float] = HAND_CHECKED[:8]
 LONG_VALUES: list[float] = HAND_CHECKED
+SHORT_VALUES: list[float] = [1.0, 3.0, 2.0, 6.0, 5.0]
+NULL_VALUES: list[float | None] = [1.0, 2.0, None, 4.0, 5.0, 6.0]
+
+SMA_3: list[float | None] = [
+    None,
+    None,
+    2.0,
+    3.6666666666666665,
+    4.333333333333333,
+    6.666666666666667,
+    6.0,
+    7.0,
+]
+EMA_TALIB_3: list[float | None] = [None, None, 2.0, 4.0, 4.5, 6.75, 5.375, 6.6875]
+EMA_TALIB_3_ALPHA_025: list[float | None] = [
+    None,
+    None,
+    2.0,
+    3.0,
+    3.5,
+    4.875,
+    4.65625,
+    5.4921875,
+]
+EMA_RECURSIVE_4: list[float | None] = [
+    None,
+    None,
+    None,
+    3.5280000000000005,
+    4.1168,
+    6.07008,
+    5.2420480000000005,
+    6.345228800000001,
+]
+EMA_ADJUST_4: list[float | None] = [
+    None,
+    None,
+    None,
+    3.9044117647058822,
+    4.3795975017349065,
+    6.318206229860366,
+    5.364218177987306,
+    6.436541826362273,
+]
+WMA_3: list[float | None] = [
+    None,
+    None,
+    2.1666666666666665,
+    4.166666666666667,
+    4.833333333333333,
+    7.166666666666667,
+    5.833333333333333,
+    6.833333333333333,
+]
+WMA_3_SHORT: list[float | None] = [
+    None,
+    None,
+    2.1666666666666665,
+    4.166666666666667,
+    4.833333333333333,
+]
+WMA_3_WITH_NULL: list[float | None] = [None, None, None, None, None, 5.333333333333333]
+DEMA_3: list[float | None] = [
+    None,
+    None,
+    None,
+    None,
+    5.5,
+    8.375,
+    5.5,
+    7.40625,
+    7.28125,
+    10.1796875,
+    7.359375,
+    9.314453125,
+    9.224609375,
+    12.14599609375,
+    9.33984375,
+    11.3033447265625,
+]
+DEMA_3_ALPHA_025: list[float | None] = [
+    None,
+    None,
+    None,
+    None,
+    4.166666666666666,
+    6.40625,
+    5.640625,
+    6.857421875,
+    7.17578125,
+    9.0938720703125,
+    8.10443115234375,
+    9.166343688964844,
+    9.378273010253906,
+    11.223841190338135,
+    10.18548321723938,
+    11.214814156293869,
+]
+TEMA_3: list[float | None] = [
+    None,
+    None,
+    None,
+    None,
+    None,
+    None,
+    5.0,
+    7.453125,
+    7.1640625,
+    10.53125,
+    6.85546875,
+    9.4052734375,
+    9.15771484375,
+    12.53955078125,
+    8.86669921875,
+    11.41510009765625,
+]
+TEMA_3_ALPHA_025: list[float | None] = [
+    None,
+    None,
+    None,
+    None,
+    None,
+    None,
+    6.236111111111111,
+    7.589680989583334,
+    7.6810302734375,
+    9.9493408203125,
+    8.219924926757812,
+    9.46137809753418,
+    9.504980564117432,
+    11.762911558151245,
+    10.043415188789368,
+    11.304559595882893,
+]
 
 
 def evaluate(
@@ -17,98 +151,9 @@ def evaluate(
     return pl.DataFrame({"close": data}).select(expr).to_series().to_list()
 
 
-def reference_sma(values: list[float | None], window: int) -> list[float | None]:
-    result: list[float | None] = []
-    for index in range(len(values)):
-        if index + 1 < window:
-            result.append(None)
-            continue
-        chunk = values[index + 1 - window : index + 1]
-        result.append(None if any(v is None for v in chunk) else sum(chunk) / window)
-    return result
-
-
-def reference_wma(values: list[float | None], window: int) -> list[float | None]:
-    denominator = window * (window + 1) / 2
-    result: list[float | None] = []
-    for index in range(len(values)):
-        if index + 1 < window:
-            result.append(None)
-            continue
-        chunk = values[index + 1 - window : index + 1]
-        if any(v is None for v in chunk):
-            result.append(None)
-            continue
-        weighted = sum((offset + 1) * v for offset, v in enumerate(chunk))
-        result.append(weighted / denominator)
-    return result
-
-
-def reference_ema_talib(values: list[float | None], window: int, alpha: float):
-    """TA-Lib EMA seeded at the first complete, null-free window."""
-    result: list[float | None] = [None] * len(values)
-    seed_index = None
-    for index in range(window - 1, len(values)):
-        chunk = values[index + 1 - window : index + 1]
-        if all(v is not None for v in chunk):
-            seed_index = index
-            previous = sum(chunk) / window
-            break
-    if seed_index is None:
-        return result
-    result[seed_index] = previous
-    for index in range(seed_index + 1, len(values)):
-        previous = alpha * values[index] + (1.0 - alpha) * previous
-        result[index] = previous
-    return result
-
-
-def reference_dema(values: list[float], window: int, alpha: float):
-    first = reference_ema_talib(values, window, alpha)
-    second = reference_ema_talib(first, window, alpha)
-    return [
-        None if a is None or b is None else 2.0 * a - b for a, b in zip(first, second)
-    ]
-
-
-def reference_tema(values: list[float], window: int, alpha: float):
-    first = reference_ema_talib(values, window, alpha)
-    second = reference_ema_talib(first, window, alpha)
-    third = reference_ema_talib(second, window, alpha)
-    return [
-        None if a is None or b is None or c is None else 3.0 * a - 3.0 * b + c
-        for a, b, c in zip(first, second, third)
-    ]
-
-
-def reference_ema_recursive(values: list[float], window: int, alpha: float):
-    result: list[float | None] = []
-    previous = values[0]
-    for index, value in enumerate(values):
-        if index > 0:
-            previous = alpha * value + (1.0 - alpha) * previous
-        result.append(None if index + 1 < window else previous)
-    return result
-
-
-def reference_ema_adjust(values: list[float], window: int, alpha: float):
-    result: list[float | None] = []
-    for index in range(len(values)):
-        weights = [(1.0 - alpha) ** offset for offset in range(index + 1)]
-        numerator = sum(w * values[index - o] for o, w in enumerate(weights))
-        result.append(None if index + 1 < window else numerator / sum(weights))
-    return result
-
-
 class TestSma(IndicatorAssertions):
-    def test_matches_reference_mean(self) -> None:
-        self.assert_values_equal(evaluate(sma("close", 3)), reference_sma(VALUES, 3))
-
     def test_known_values(self) -> None:
-        self.assert_values_equal(
-            evaluate(sma("close", 3)),
-            [None, None, 2.0, 11 / 3, 13 / 3, 20 / 3, 6.0, 7.0],
-        )
+        self.assert_values_equal(evaluate(sma("close", 3)), SMA_3)
 
     def test_warm_up_is_window_minus_one_nulls(self) -> None:
         result = evaluate(sma("close", 4))
@@ -119,9 +164,9 @@ class TestSma(IndicatorAssertions):
         self.assert_values_equal(evaluate(sma("close", 1)), VALUES)
 
     def test_null_blanks_every_overlapping_window(self) -> None:
-        values = [1.0, 2.0, None, 4.0, 5.0, 6.0]
         self.assert_values_equal(
-            evaluate(sma("close", 3), values), [None, None, None, None, None, 5.0]
+            evaluate(sma("close", 3), NULL_VALUES),
+            [None, None, None, None, None, 5.0],
         )
 
     def test_window_longer_than_input_is_all_null(self) -> None:
@@ -139,26 +184,19 @@ class TestSma(IndicatorAssertions):
 
 class TestEma(IndicatorAssertions):
     def test_talib_mode_matches_sma_seeded_recursion(self) -> None:
-        self.assert_values_equal(
-            evaluate(ema("close", 3)), reference_ema_talib(VALUES, 3, 0.5)
-        )
+        self.assert_values_equal(evaluate(ema("close", 3)), EMA_TALIB_3)
 
     def test_recursive_mode_matches_unadjusted_recursion(self) -> None:
         self.assert_values_equal(
-            evaluate(ema("close", 4, mode="recursive")),
-            reference_ema_recursive(VALUES, 4, 0.4),
+            evaluate(ema("close", 4, mode="recursive")), EMA_RECURSIVE_4
         )
 
     def test_adjust_mode_matches_weighted_average(self) -> None:
-        self.assert_values_equal(
-            evaluate(ema("close", 4, mode="adjust")),
-            reference_ema_adjust(VALUES, 4, 0.4),
-        )
+        self.assert_values_equal(evaluate(ema("close", 4, mode="adjust")), EMA_ADJUST_4)
 
     def test_explicit_alpha_overrides_window_default(self) -> None:
         self.assert_values_equal(
-            evaluate(ema("close", 3, alpha=0.25)),
-            reference_ema_talib(VALUES, 3, 0.25),
+            evaluate(ema("close", 3, alpha=0.25)), EMA_TALIB_3_ALPHA_025
         )
 
     def test_default_alpha_is_two_over_window_plus_one(self) -> None:
@@ -174,9 +212,8 @@ class TestEma(IndicatorAssertions):
                 self.assertIsNotNone(result[2])
 
     def test_null_in_seed_window_delays_the_seed(self) -> None:
-        values = [1.0, 2.0, None, 4.0, 5.0, 6.0]
         self.assert_values_equal(
-            evaluate(ema("close", 3, alpha=0.5), values),
+            evaluate(ema("close", 3, alpha=0.5), NULL_VALUES),
             [None, None, None, None, None, 5.0],
         )
 
@@ -201,15 +238,11 @@ class TestEma(IndicatorAssertions):
 
 
 class TestWma(IndicatorAssertions):
-    def test_matches_reference_weighted_mean(self) -> None:
-        self.assert_values_equal(evaluate(wma("close", 3)), reference_wma(VALUES, 3))
+    def test_known_values_over_the_hand_checked_series(self) -> None:
+        self.assert_values_equal(evaluate(wma("close", 3)), WMA_3)
 
     def test_known_values(self) -> None:
-        values = [1.0, 3.0, 2.0, 6.0, 5.0]
-        self.assert_values_equal(
-            evaluate(wma("close", 3), values),
-            [None, None, 13 / 6, 25 / 6, 29 / 6],
-        )
+        self.assert_values_equal(evaluate(wma("close", 3), SHORT_VALUES), WMA_3_SHORT)
 
     def test_weights_favour_the_most_recent_value(self) -> None:
         values = [0.0, 0.0, 3.0]
@@ -224,16 +257,14 @@ class TestWma(IndicatorAssertions):
         self.assert_values_equal(evaluate(wma("close", 1)), VALUES)
 
     def test_null_blanks_every_overlapping_window(self) -> None:
-        values = [1.0, 2.0, None, 4.0, 5.0, 6.0]
         self.assert_values_equal(
-            evaluate(wma("close", 3), values), reference_wma(values, 3)
+            evaluate(wma("close", 3), NULL_VALUES), WMA_3_WITH_NULL
         )
 
     def test_integer_input_matches_float_input(self) -> None:
         integers = pl.DataFrame({"close": [1, 3, 2, 6, 5]})
         self.assert_values_equal(
-            integers.select(wma("close", 3)).to_series().to_list(),
-            reference_wma([1.0, 3.0, 2.0, 6.0, 5.0], 3),
+            integers.select(wma("close", 3)).to_series().to_list(), WMA_3_SHORT
         )
 
     def test_window_longer_than_input_is_all_null(self) -> None:
@@ -246,11 +277,8 @@ class TestWma(IndicatorAssertions):
 
 
 class TestDema(IndicatorAssertions):
-    def test_matches_double_smoothing_reference(self) -> None:
-        self.assert_values_equal(
-            evaluate(dema("close", 3), LONG_VALUES),
-            reference_dema(LONG_VALUES, 3, 0.5),
-        )
+    def test_known_values_over_the_long_series(self) -> None:
+        self.assert_values_equal(evaluate(dema("close", 3), LONG_VALUES), DEMA_3)
 
     def test_known_values(self) -> None:
         result = evaluate(dema("close", 3), LONG_VALUES)
@@ -265,8 +293,7 @@ class TestDema(IndicatorAssertions):
 
     def test_explicit_alpha_overrides_window_default(self) -> None:
         self.assert_values_equal(
-            evaluate(dema("close", 3, alpha=0.25), LONG_VALUES),
-            reference_dema(LONG_VALUES, 3, 0.25),
+            evaluate(dema("close", 3, alpha=0.25), LONG_VALUES), DEMA_3_ALPHA_025
         )
 
     def test_every_mode_is_supported(self) -> None:
@@ -289,11 +316,8 @@ class TestDema(IndicatorAssertions):
 
 
 class TestTema(IndicatorAssertions):
-    def test_matches_triple_smoothing_reference(self) -> None:
-        self.assert_values_equal(
-            evaluate(tema("close", 3), LONG_VALUES),
-            reference_tema(LONG_VALUES, 3, 0.5),
-        )
+    def test_known_values_over_the_long_series(self) -> None:
+        self.assert_values_equal(evaluate(tema("close", 3), LONG_VALUES), TEMA_3)
 
     def test_known_values(self) -> None:
         result = evaluate(tema("close", 3), LONG_VALUES)
@@ -308,8 +332,7 @@ class TestTema(IndicatorAssertions):
 
     def test_explicit_alpha_overrides_window_default(self) -> None:
         self.assert_values_equal(
-            evaluate(tema("close", 3, alpha=0.25), LONG_VALUES),
-            reference_tema(LONG_VALUES, 3, 0.25),
+            evaluate(tema("close", 3, alpha=0.25), LONG_VALUES), TEMA_3_ALPHA_025
         )
 
     def test_every_mode_is_supported(self) -> None:
@@ -353,9 +376,7 @@ class TestInputForms(IndicatorAssertions):
         )
         collected = frame.collect()
         self.assertEqual(collected.columns, ["close", "sma", "ema"])
-        self.assert_values_equal(
-            collected["ema"].to_list(), reference_ema_talib(VALUES, 3, 0.5)
-        )
+        self.assert_values_equal(collected["ema"].to_list(), EMA_TALIB_3)
 
     def test_integer_input_produces_float_output(self) -> None:
         frame = pl.DataFrame({"close": [1, 2, 3, 4]})

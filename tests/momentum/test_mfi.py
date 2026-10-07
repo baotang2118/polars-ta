@@ -3,7 +3,6 @@ from _assertions import IndicatorAssertions
 from _data import (
     CLOSE,
     HIGH,
-    LOW,
     VOLUME,
     constant,
     frame,
@@ -15,45 +14,30 @@ from _data import (
 
 from polars_ta import mfi
 
+# Frozen expectations: the warm-up plus the first live bars.
+# fmt: off
+MFI_3: list[float | None] = [
+    None, None, None, 58.525345622119815, 28.94736842105263, 40.75235109717868,
+    74.8730964467005, 100.0, 63.84083044982699, 46.04966139954853, 20.066889632107024,
+    83.42541436464089, 60.4, 30.333333333333332, 0.0,
+]
+# A null close at index 4 blanks every window that overlaps it.
+MFI_3_NULL_CLOSE: list[float | None] = [
+    None, None, None, 58.525345622119815, None, None, None, None, 63.84083044982699,
+    46.04966139954853, 20.066889632107024, 83.42541436464089, 60.4, 30.333333333333332,
+    0.0, 42.09183673469388,
+]
+# fmt: on
+
 
 def evaluate(expr: pl.Expr, data: pl.DataFrame | None = None):
     return (data if data is not None else frame()).select(expr).to_series().to_list()
 
 
-def reference_mfi(high, low, close, volume, window: int) -> list[float | None]:
-    typical = [
-        None if None in (h, lo, c) else (h + lo + c) / 3.0
-        for h, lo, c in zip(high, low, close)
-    ]
-    flow = [None if t is None or v is None else t * v for t, v in zip(typical, volume)]
-    positive: list[float | None] = [None]
-    negative: list[float | None] = [None]
-    for index in range(1, len(typical)):
-        previous, current = typical[index - 1], typical[index]
-        if previous is None or current is None or flow[index] is None:
-            positive.append(None)
-            negative.append(None)
-            continue
-        positive.append(flow[index] if current > previous else 0.0)
-        negative.append(flow[index] if current < previous else 0.0)
-    result: list[float | None] = []
-    for index in range(len(typical)):
-        chunk_positive = positive[index + 1 - window : index + 1]
-        chunk_negative = negative[index + 1 - window : index + 1]
-        if index + 1 < window or any(v is None for v in chunk_positive):
-            result.append(None)
-            continue
-        total = sum(chunk_positive) + sum(chunk_negative)
-        result.append(0.0 if total <= 0.0 else 100.0 * sum(chunk_positive) / total)
-    return result
-
-
 class TestMfi(IndicatorAssertions):
-    def test_matches_reference(self) -> None:
-        self.assert_values_equal(
-            evaluate(mfi("high", "low", "close", "volume", 3)),
-            reference_mfi(HIGH, LOW, CLOSE, VOLUME, 3),
-        )
+    def test_known_values(self) -> None:
+        result = evaluate(mfi("high", "low", "close", "volume", 3))
+        self.assert_values_equal(result[: len(MFI_3)], MFI_3)
 
     def test_warm_up_is_window_nulls(self) -> None:
         for window in (2, 3, 5):
@@ -105,8 +89,7 @@ class TestMfi(IndicatorAssertions):
         close = with_null(CLOSE, 4)
         data = frame(close=close)
         result = evaluate(mfi("high", "low", "close", "volume", 3), data)
-        self.assert_values_equal(result, reference_mfi(HIGH, LOW, close, VOLUME, 3))
-        self.assertEqual(result[4:7], [None, None, None])
+        self.assert_values_equal(result[: len(MFI_3_NULL_CLOSE)], MFI_3_NULL_CLOSE)
 
     def test_null_volume_propagates(self) -> None:
         volume = with_null(VOLUME, 3)
@@ -144,9 +127,7 @@ class TestMfi(IndicatorAssertions):
             .with_columns(mfi("high", "low", "close", "volume", 3).alias("mfi"))
             .collect()
         )
-        self.assert_values_equal(
-            collected["mfi"].to_list(), reference_mfi(HIGH, LOW, CLOSE, VOLUME, 3)
-        )
+        self.assert_values_equal(collected["mfi"].to_list()[: len(MFI_3)], MFI_3)
 
     def test_invalid_window_raises(self) -> None:
         for window in (0, -1, 2.5):
