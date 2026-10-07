@@ -2,11 +2,11 @@
 
 from __future__ import annotations
 
-from typing import NamedTuple, overload
+from typing import NamedTuple
 
 import polars as pl
 
-from polars_ta._common import IntoColumn, apply_to_columns, validate_positive
+from polars_ta._common import IntoColumn, to_exprs, validate_positive
 
 _RETURN_DTYPE = pl.Float64
 
@@ -113,30 +113,12 @@ def _sar_expr(high: pl.Expr, low: pl.Expr, settings: _Settings) -> pl.Expr:
     return pl.struct(high=high, low=low).map_batches(scan, return_dtype=_RETURN_DTYPE)
 
 
-@overload
-def sar(
-    high: str | pl.Expr,
-    low: str | pl.Expr,
-    acceleration: float = 0.02,
-    maximum: float = 0.2,
-) -> pl.Expr: ...
-
-
-@overload
-def sar(
-    high: pl.Series,
-    low: pl.Series,
-    acceleration: float = 0.02,
-    maximum: float = 0.2,
-) -> pl.Series: ...
-
-
 def sar(
     high: IntoColumn,
     low: IntoColumn,
     acceleration: float = 0.02,
     maximum: float = 0.2,
-) -> pl.Expr | pl.Series:
+) -> pl.Expr:
     """Parabolic SAR: a trailing stop that accelerates toward price.
 
     The stop moves only in the direction of the trade and speeds up each time
@@ -144,19 +126,19 @@ def sar(
     first bar's direction is taken from the sign of the first ``-DM``.
 
     Args:
-        high: Column name, expression, or series of high prices.
-        low: Column name, expression, or series of low prices.
+        high: Column name or expression of high prices.
+        low: Column name or expression of low prices.
         acceleration: Step added to the acceleration factor at each new extreme.
         maximum: Ceiling on the acceleration factor.
 
     Returns:
-        A stop level in price units: a ``pl.Series`` when every input is a
-        series, otherwise a ``pl.Expr``. The first row is null, and a null high
-        or low ends the scan, leaving every later row null.
+        A ``pl.Expr`` yielding a stop level in price units. The first row is
+        null, and a null high or low ends the scan, leaving every later row
+        null.
 
     Raises:
         ValueError: If ``acceleration`` or ``maximum`` is not positive and finite.
-        TypeError: If series inputs are mixed with names or expressions.
+        TypeError: If an input is not a ``str`` or ``pl.Expr``.
     """
     validate_positive("acceleration", acceleration)
     validate_positive("maximum", maximum)
@@ -171,39 +153,7 @@ def sar(
         start_value=0.0,
         signed=False,
     )
-    return apply_to_columns((high, low), lambda h, low_: _sar_expr(h, low_, settings))
-
-
-@overload
-def sarext(
-    high: str | pl.Expr,
-    low: str | pl.Expr,
-    *,
-    start_value: float = 0.0,
-    offset_on_reverse: float = 0.0,
-    acceleration_init_long: float = 0.02,
-    acceleration_long: float = 0.02,
-    acceleration_max_long: float = 0.2,
-    acceleration_init_short: float = 0.02,
-    acceleration_short: float = 0.02,
-    acceleration_max_short: float = 0.2,
-) -> pl.Expr: ...
-
-
-@overload
-def sarext(
-    high: pl.Series,
-    low: pl.Series,
-    *,
-    start_value: float = 0.0,
-    offset_on_reverse: float = 0.0,
-    acceleration_init_long: float = 0.02,
-    acceleration_long: float = 0.02,
-    acceleration_max_long: float = 0.2,
-    acceleration_init_short: float = 0.02,
-    acceleration_short: float = 0.02,
-    acceleration_max_short: float = 0.2,
-) -> pl.Series: ...
+    return _sar_expr(*to_exprs(high, low), settings)
 
 
 def sarext(
@@ -218,7 +168,7 @@ def sarext(
     acceleration_init_short: float = 0.02,
     acceleration_short: float = 0.02,
     acceleration_max_short: float = 0.2,
-) -> pl.Expr | pl.Series:
+) -> pl.Expr:
     """Extended Parabolic SAR: independent settings for each side, signed output.
 
     Long and short trades rarely behave symmetrically, so every acceleration
@@ -226,8 +176,8 @@ def sarext(
     how TA-Lib reports the current side alongside the level.
 
     Args:
-        high: Column name, expression, or series of high prices.
-        low: Column name, expression, or series of low prices.
+        high: Column name or expression of high prices.
+        low: Column name or expression of low prices.
         start_value: Initial stop level. Positive forces a long start, negative
             a short one; ``0`` picks the side from the first ``-DM``.
         offset_on_reverse: Fraction by which the stop is widened on a reversal.
@@ -239,14 +189,13 @@ def sarext(
         acceleration_max_short: Ceiling on the short acceleration factor.
 
     Returns:
-        A signed stop level: positive while long, negative while short. A
-        ``pl.Series`` when every input is a series, otherwise a ``pl.Expr``.
-        The first row is null.
+        A ``pl.Expr`` yielding a signed stop level: positive while long,
+        negative while short. The first row is null.
 
     Raises:
         ValueError: If an acceleration argument is not positive and finite, or
             if ``offset_on_reverse`` is negative.
-        TypeError: If series inputs are mixed with names or expressions.
+        TypeError: If an input is not a ``str`` or ``pl.Expr``.
     """
     accelerations = {
         "acceleration_init_long": acceleration_init_long,
@@ -277,4 +226,4 @@ def sarext(
         start_value=float(start_value),
         signed=True,
     )
-    return apply_to_columns((high, low), lambda h, low_: _sar_expr(h, low_, settings))
+    return _sar_expr(*to_exprs(high, low), settings)

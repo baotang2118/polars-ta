@@ -2,11 +2,9 @@
 
 from __future__ import annotations
 
-from typing import overload
-
 import polars as pl
 
-from polars_ta._common import IntoColumn, apply_to_columns, validate_window
+from polars_ta._common import IntoColumn, to_exprs, validate_window
 
 _WEIGHTS = (4.0, 2.0, 1.0)
 """Weight given to the short, medium, and long averages; they sum to seven."""
@@ -44,28 +42,6 @@ def _ultosc_expr(
     return 100.0 * total / sum(_WEIGHTS)
 
 
-@overload
-def ultosc(
-    high: str | pl.Expr,
-    low: str | pl.Expr,
-    close: str | pl.Expr,
-    short_period: int = 7,
-    medium_period: int = 14,
-    long_period: int = 28,
-) -> pl.Expr: ...
-
-
-@overload
-def ultosc(
-    high: pl.Series,
-    low: pl.Series,
-    close: pl.Series,
-    short_period: int = 7,
-    medium_period: int = 14,
-    long_period: int = 28,
-) -> pl.Series: ...
-
-
 def ultosc(
     high: IntoColumn,
     low: IntoColumn,
@@ -73,7 +49,7 @@ def ultosc(
     short_period: int = 7,
     medium_period: int = 14,
     long_period: int = 28,
-) -> pl.Expr | pl.Series:
+) -> pl.Expr:
     """Ultimate Oscillator: buying pressure blended across three time frames.
 
     Williams combined three lookbacks precisely to avoid the false divergences
@@ -81,25 +57,23 @@ def ultosc(
     the shortest still dominates.
 
     Args:
-        high: Column name, expression, or series of high prices.
-        low: Column name, expression, or series of low prices.
-        close: Column name, expression, or series of closing prices.
+        high: Column name or expression of high prices.
+        low: Column name or expression of low prices.
+        close: Column name or expression of closing prices.
         short_period: Shortest lookback, given weight four.
         medium_period: Middle lookback, given weight two.
         long_period: Longest lookback, given weight one.
 
     Returns:
-        A value in ``[0, 100]``: a ``pl.Series`` when every input is a series,
-        otherwise a ``pl.Expr``. The first ``max(periods)`` rows are null, and
-        a term whose range summed to zero contributes nothing.
+        A ``pl.Expr`` yielding a value in ``[0, 100]``. The first
+        ``max(periods)`` rows are null, and a term whose range summed to zero
+        contributes nothing.
 
     Raises:
         ValueError: If any period is not an integer of at least 1.
-        TypeError: If series inputs are mixed with names or expressions.
+        TypeError: If an input is not a ``str`` or ``pl.Expr``.
     """
     periods = (short_period, medium_period, long_period)
     for window in periods:
         validate_window(window)
-    return apply_to_columns(
-        (high, low, close), lambda h, low_, c: _ultosc_expr(h, low_, c, periods)
-    )
+    return _ultosc_expr(*to_exprs(high, low, close), periods)

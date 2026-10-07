@@ -156,10 +156,9 @@ class TestKama(IndicatorAssertions):
         quick_error = sum(abs(a - b) for a, b in zip(quick[10:], VALUES[10:]))
         self.assertLess(quick_error, slow_error)
 
-    def test_series_input_keeps_its_name(self) -> None:
-        result = kama(pl.Series("close", VALUES), 10)
-        self.assertIsInstance(result, pl.Series)
-        self.assertEqual(result.name, "close")
+    def test_series_input_is_rejected(self) -> None:
+        with self.assertRaises(TypeError):
+            kama(pl.Series("close", VALUES), 10)
 
     def test_invalid_window_raises(self) -> None:
         for window in (0, -1, 2.5):

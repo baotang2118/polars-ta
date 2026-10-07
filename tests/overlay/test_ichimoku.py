@@ -95,22 +95,26 @@ class TestIchimoku(IndicatorAssertions):
             result["conversion"].to_list(), reference_midpoint(high, LOW, 3)
         )
 
-    def test_names_expressions_and_series_agree(self) -> None:
+    def test_names_and_expressions_agree(self) -> None:
         from_names = evaluate(ichimoku("high", "low", "close", 3, 6, 12, 6))[
             "conversion"
         ].to_list()
-        from_series = ichimoku(
-            pl.Series("high", HIGH),
-            pl.Series("low", LOW),
-            pl.Series("close", CLOSE),
-            3,
-            6,
-            12,
-            6,
-        )
-        self.assert_values_equal(
-            from_series.struct.field("conversion").to_list(), from_names
-        )
+        from_exprs = evaluate(
+            ichimoku(pl.col("high"), pl.col("low"), pl.col("close"), 3, 6, 12, 6)
+        )["conversion"].to_list()
+        self.assert_values_equal(from_exprs, from_names)
+
+    def test_series_input_is_rejected(self) -> None:
+        with self.assertRaises(TypeError):
+            ichimoku(
+                pl.Series("high", HIGH),
+                pl.Series("low", LOW),
+                pl.Series("close", CLOSE),
+                3,
+                6,
+                12,
+                6,
+            )
 
     def test_expression_works_in_a_lazy_frame(self) -> None:
         collected = (

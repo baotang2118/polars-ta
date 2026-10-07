@@ -61,12 +61,13 @@ class TestMidpoint(IndicatorAssertions):
             evaluate(midpoint("close")), evaluate(midpoint("close", 14))
         )
 
-    def test_name_expression_and_series_agree(self) -> None:
+    def test_name_and_expression_agree(self) -> None:
         from_name = evaluate(midpoint("close", 5))
         self.assert_values_equal(evaluate(midpoint(pl.col("close"), 5)), from_name)
-        self.assert_values_equal(
-            midpoint(pl.Series("close", VALUES), 5).to_list(), from_name
-        )
+
+    def test_series_input_is_rejected(self) -> None:
+        with self.assertRaises(TypeError):
+            midpoint(pl.Series("close", VALUES), 5)
 
     def test_invalid_window_raises(self) -> None:
         for window in (0, -1, 2.5):
@@ -107,14 +108,9 @@ class TestMidprice(IndicatorAssertions):
             evaluate(midpoint("close", 5)),
         )
 
-    def test_series_input_keeps_its_name(self) -> None:
-        result = midprice(pl.Series("high", HIGH[:40]), pl.Series("low", LOW[:40]), 5)
-        self.assertIsInstance(result, pl.Series)
-        self.assertEqual(result.name, "high")
-
-    def test_mixing_series_with_names_raises(self) -> None:
+    def test_series_input_is_rejected(self) -> None:
         with self.assertRaises(TypeError):
-            midprice(pl.Series("high", HIGH[:40]), "low", 5)
+            midprice(pl.Series("high", HIGH[:40]), pl.Series("low", LOW[:40]), 5)
 
     def test_invalid_window_raises(self) -> None:
         for window in (0, -1, 2.5):

@@ -123,7 +123,7 @@ class TestVortex(IndicatorAssertions):
         with self.assertRaises(ValueError):
             vortex("high", "low", "close", 0)
 
-    def test_mixing_series_with_names_raises(self) -> None:
+    def test_series_input_is_rejected(self) -> None:
         with self.assertRaises(TypeError):
             vortex(pl.Series("high", HIGH[:5]), "low", "close")
 

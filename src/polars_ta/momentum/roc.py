@@ -3,11 +3,10 @@
 from __future__ import annotations
 
 from collections.abc import Callable
-from typing import overload
 
 import polars as pl
 
-from polars_ta._common import IntoColumn, apply_to_column, validate_window
+from polars_ta._common import IntoColumn, to_expr, validate_window
 
 
 def _mom_expr(values: pl.Expr, window: int) -> pl.Expr:
@@ -31,153 +30,102 @@ def _change_expr(
     )
 
 
-@overload
-def mom(column: str | pl.Expr, window: int = 10) -> pl.Expr: ...
-
-
-@overload
-def mom(column: pl.Series, window: int = 10) -> pl.Series: ...
-
-
-def mom(column: IntoColumn, window: int = 10) -> pl.Expr | pl.Series:
+def mom(column: IntoColumn, window: int = 10) -> pl.Expr:
     """Momentum: the absolute change over ``window`` periods.
 
     Args:
-        column: Column name, expression, or series holding the input values.
+        column: Column name or expression holding the input values.
         window: Number of periods to look back.
 
     Returns:
-        ``P_t - P_{t-window}``: a ``pl.Series`` when ``column`` is a series,
-        otherwise a ``pl.Expr``. The first ``window`` rows are null.
+        A ``pl.Expr`` yielding ``P_t - P_{t-window}``. The first ``window``
+        rows are null.
 
     Raises:
         ValueError: If ``window`` is not an integer of at least 1.
+        TypeError: If ``column`` is not a ``str`` or ``pl.Expr``.
     """
     validate_window(window)
-    return apply_to_column(column, lambda values: _mom_expr(values, window))
+    return _mom_expr(to_expr(column), window)
 
 
-@overload
-def roc(column: str | pl.Expr, window: int = 10) -> pl.Expr: ...
-
-
-@overload
-def roc(column: pl.Series, window: int = 10) -> pl.Series: ...
-
-
-def roc(column: IntoColumn, window: int = 10) -> pl.Expr | pl.Series:
+def roc(column: IntoColumn, window: int = 10) -> pl.Expr:
     """Rate of change as a percentage: ``(P_t / P_{t-window} - 1) * 100``.
 
     Args:
-        column: Column name, expression, or series holding the input values.
+        column: Column name or expression holding the input values.
         window: Number of periods to look back.
 
     Returns:
-        A ``pl.Series`` when ``column`` is a series, otherwise a ``pl.Expr``.
-        The first ``window`` rows are null, and a zero reference value reports
-        ``0.0`` rather than dividing.
+        A ``pl.Expr``. The first ``window`` rows are null, and a zero
+        reference value reports ``0.0`` rather than dividing.
 
     Raises:
         ValueError: If ``window`` is not an integer of at least 1.
+        TypeError: If ``column`` is not a ``str`` or ``pl.Expr``.
     """
     validate_window(window)
-    return apply_to_column(
-        column,
-        lambda values: _change_expr(
-            values, window, lambda now, before: (now / before - 1.0) * 100.0
-        ),
+    return _change_expr(
+        to_expr(column), window, lambda now, before: (now / before - 1.0) * 100.0
     )
 
 
-@overload
-def rocp(column: str | pl.Expr, window: int = 10) -> pl.Expr: ...
-
-
-@overload
-def rocp(column: pl.Series, window: int = 10) -> pl.Series: ...
-
-
-def rocp(column: IntoColumn, window: int = 10) -> pl.Expr | pl.Series:
+def rocp(column: IntoColumn, window: int = 10) -> pl.Expr:
     """Rate of change as a fraction: ``(P_t - P_{t-window}) / P_{t-window}``.
 
     Args:
-        column: Column name, expression, or series holding the input values.
+        column: Column name or expression holding the input values.
         window: Number of periods to look back.
 
     Returns:
-        A ``pl.Series`` when ``column`` is a series, otherwise a ``pl.Expr``.
-        The first ``window`` rows are null, and a zero reference value reports
-        ``0.0`` rather than dividing.
+        A ``pl.Expr``. The first ``window`` rows are null, and a zero
+        reference value reports ``0.0`` rather than dividing.
 
     Raises:
         ValueError: If ``window`` is not an integer of at least 1.
+        TypeError: If ``column`` is not a ``str`` or ``pl.Expr``.
     """
     validate_window(window)
-    return apply_to_column(
-        column,
-        lambda values: _change_expr(
-            values, window, lambda now, before: (now - before) / before
-        ),
+    return _change_expr(
+        to_expr(column), window, lambda now, before: (now - before) / before
     )
 
 
-@overload
-def rocr(column: str | pl.Expr, window: int = 10) -> pl.Expr: ...
-
-
-@overload
-def rocr(column: pl.Series, window: int = 10) -> pl.Series: ...
-
-
-def rocr(column: IntoColumn, window: int = 10) -> pl.Expr | pl.Series:
+def rocr(column: IntoColumn, window: int = 10) -> pl.Expr:
     """Rate of change as a ratio: ``P_t / P_{t-window}``.
 
     Args:
-        column: Column name, expression, or series holding the input values.
+        column: Column name or expression holding the input values.
         window: Number of periods to look back.
 
     Returns:
-        A ``pl.Series`` when ``column`` is a series, otherwise a ``pl.Expr``.
-        The first ``window`` rows are null, and a zero reference value reports
-        ``0.0`` rather than dividing.
+        A ``pl.Expr``. The first ``window`` rows are null, and a zero
+        reference value reports ``0.0`` rather than dividing.
 
     Raises:
         ValueError: If ``window`` is not an integer of at least 1.
+        TypeError: If ``column`` is not a ``str`` or ``pl.Expr``.
     """
     validate_window(window)
-    return apply_to_column(
-        column,
-        lambda values: _change_expr(values, window, lambda now, before: now / before),
-    )
+    return _change_expr(to_expr(column), window, lambda now, before: now / before)
 
 
-@overload
-def rocr100(column: str | pl.Expr, window: int = 10) -> pl.Expr: ...
-
-
-@overload
-def rocr100(column: pl.Series, window: int = 10) -> pl.Series: ...
-
-
-def rocr100(column: IntoColumn, window: int = 10) -> pl.Expr | pl.Series:
+def rocr100(column: IntoColumn, window: int = 10) -> pl.Expr:
     """Rate of change as a ratio on a 100 scale: ``P_t / P_{t-window} * 100``.
 
     Args:
-        column: Column name, expression, or series holding the input values.
+        column: Column name or expression holding the input values.
         window: Number of periods to look back.
 
     Returns:
-        A ``pl.Series`` when ``column`` is a series, otherwise a ``pl.Expr``.
-        The first ``window`` rows are null, and a zero reference value reports
-        ``0.0`` rather than dividing.
+        A ``pl.Expr``. The first ``window`` rows are null, and a zero
+        reference value reports ``0.0`` rather than dividing.
 
     Raises:
         ValueError: If ``window`` is not an integer of at least 1.
+        TypeError: If ``column`` is not a ``str`` or ``pl.Expr``.
     """
     validate_window(window)
-    return apply_to_column(
-        column,
-        lambda values: _change_expr(
-            values, window, lambda now, before: now / before * 100.0
-        ),
+    return _change_expr(
+        to_expr(column), window, lambda now, before: now / before * 100.0
     )

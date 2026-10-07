@@ -2,13 +2,13 @@
 
 from __future__ import annotations
 
-from typing import Literal, overload
+from typing import Literal
 
 import polars as pl
 
 from polars_ta._common import (
     IntoColumn,
-    apply_to_column,
+    to_expr,
     validate_alpha,
     validate_window,
 )
@@ -120,51 +120,23 @@ def _resolve_alpha(window: int, alpha: float | None, mode: EmaMode) -> float:
     return alpha
 
 
-@overload
-def sma(column: str | pl.Expr, window: int) -> pl.Expr: ...
-
-
-@overload
-def sma(column: pl.Series, window: int) -> pl.Series: ...
-
-
-def sma(column: IntoColumn, window: int) -> pl.Expr | pl.Series:
+def sma(column: IntoColumn, window: int) -> pl.Expr:
     """Simple moving average: the arithmetic mean of the last ``window`` values.
 
     Args:
-        column: Column name, expression, or series holding the input values.
+        column: Column name or expression holding the input values.
         window: Number of periods in the averaging window; must be at least 1.
 
     Returns:
-        A ``pl.Series`` when ``column`` is a series, otherwise a ``pl.Expr``.
-        The first ``window - 1`` rows are null, as is any row whose window
-        contains a null input.
+        A ``pl.Expr``. The first ``window - 1`` rows are null, as is any row
+        whose window contains a null input.
 
     Raises:
         ValueError: If ``window`` is not an integer of at least 1.
+        TypeError: If ``column`` is not a ``str`` or ``pl.Expr``.
     """
     validate_window(window)
-    return apply_to_column(column, lambda values: _sma_expr(values, window))
-
-
-@overload
-def ema(
-    column: str | pl.Expr,
-    window: int,
-    *,
-    alpha: float | None = None,
-    mode: EmaMode = "talib",
-) -> pl.Expr: ...
-
-
-@overload
-def ema(
-    column: pl.Series,
-    window: int,
-    *,
-    alpha: float | None = None,
-    mode: EmaMode = "talib",
-) -> pl.Series: ...
+    return _sma_expr(to_expr(column), window)
 
 
 def ema(
@@ -173,11 +145,11 @@ def ema(
     *,
     alpha: float | None = None,
     mode: EmaMode = "talib",
-) -> pl.Expr | pl.Series:
+) -> pl.Expr:
     """Exponential moving average weighting recent values most heavily.
 
     Args:
-        column: Column name, expression, or series holding the input values.
+        column: Column name or expression holding the input values.
         window: Number of periods; also sets the smoothing factor and warm-up.
         alpha: Smoothing factor overriding the default ``2 / (window + 1)``.
         mode: Seeding convention. ``"talib"`` seeds the recursion with the
@@ -186,63 +158,33 @@ def ema(
             ``ewm(adjust=False)`` and ``ewm(adjust=True)`` respectively.
 
     Returns:
-        A ``pl.Series`` when ``column`` is a series, otherwise a ``pl.Expr``.
-        The first ``window - 1`` rows are null in every mode.
+        A ``pl.Expr``. The first ``window - 1`` rows are null in every mode.
 
     Raises:
         ValueError: If ``window``, ``alpha``, or ``mode`` is invalid.
+        TypeError: If ``column`` is not a ``str`` or ``pl.Expr``.
     """
     smoothing = _resolve_alpha(window, alpha, mode)
-    return apply_to_column(
-        column, lambda values: _ema_expr(values, window, smoothing, mode)
-    )
+    return _ema_expr(to_expr(column), window, smoothing, mode)
 
 
-@overload
-def wma(column: str | pl.Expr, window: int) -> pl.Expr: ...
-
-
-@overload
-def wma(column: pl.Series, window: int) -> pl.Series: ...
-
-
-def wma(column: IntoColumn, window: int) -> pl.Expr | pl.Series:
+def wma(column: IntoColumn, window: int) -> pl.Expr:
     """Weighted moving average with linearly decaying weights ``window..1``.
 
     Args:
-        column: Column name, expression, or series holding the input values.
+        column: Column name or expression holding the input values.
         window: Number of periods in the averaging window; must be at least 1.
 
     Returns:
-        A ``pl.Series`` when ``column`` is a series, otherwise a ``pl.Expr``.
-        The first ``window - 1`` rows are null, as is any row whose window
-        contains a null input.
+        A ``pl.Expr``. The first ``window - 1`` rows are null, as is any row
+        whose window contains a null input.
 
     Raises:
         ValueError: If ``window`` is not an integer of at least 1.
+        TypeError: If ``column`` is not a ``str`` or ``pl.Expr``.
     """
     validate_window(window)
-    return apply_to_column(column, lambda values: _wma_expr(values, window))
-
-
-@overload
-def dema(
-    column: str | pl.Expr,
-    window: int,
-    *,
-    alpha: float | None = None,
-    mode: EmaMode = "talib",
-) -> pl.Expr: ...
-
-
-@overload
-def dema(
-    column: pl.Series,
-    window: int,
-    *,
-    alpha: float | None = None,
-    mode: EmaMode = "talib",
-) -> pl.Series: ...
+    return _wma_expr(to_expr(column), window)
 
 
 def dema(
@@ -251,49 +193,27 @@ def dema(
     *,
     alpha: float | None = None,
     mode: EmaMode = "talib",
-) -> pl.Expr | pl.Series:
+) -> pl.Expr:
     """Double exponential moving average: ``2 * EMA - EMA(EMA)``.
 
     Removes most of the lag of a plain EMA by subtracting the residual lag of a
     second EMA applied to the first.
 
     Args:
-        column: Column name, expression, or series holding the input values.
+        column: Column name or expression holding the input values.
         window: Number of periods used for both EMA passes.
         alpha: Smoothing factor overriding the default ``2 / (window + 1)``.
         mode: EMA seeding convention; see :func:`ema`.
 
     Returns:
-        A ``pl.Series`` when ``column`` is a series, otherwise a ``pl.Expr``.
-        The first ``2 * (window - 1)`` rows are null.
+        A ``pl.Expr``. The first ``2 * (window - 1)`` rows are null.
 
     Raises:
         ValueError: If ``window``, ``alpha``, or ``mode`` is invalid.
+        TypeError: If ``column`` is not a ``str`` or ``pl.Expr``.
     """
     smoothing = _resolve_alpha(window, alpha, mode)
-    return apply_to_column(
-        column, lambda values: _dema_expr(values, window, smoothing, mode)
-    )
-
-
-@overload
-def tema(
-    column: str | pl.Expr,
-    window: int,
-    *,
-    alpha: float | None = None,
-    mode: EmaMode = "talib",
-) -> pl.Expr: ...
-
-
-@overload
-def tema(
-    column: pl.Series,
-    window: int,
-    *,
-    alpha: float | None = None,
-    mode: EmaMode = "talib",
-) -> pl.Series: ...
+    return _dema_expr(to_expr(column), window, smoothing, mode)
 
 
 def tema(
@@ -302,37 +222,27 @@ def tema(
     *,
     alpha: float | None = None,
     mode: EmaMode = "talib",
-) -> pl.Expr | pl.Series:
+) -> pl.Expr:
     """Triple exponential moving average: ``3 * EMA - 3 * EMA(EMA) + EMA(EMA(EMA))``.
 
     Args:
-        column: Column name, expression, or series holding the input values.
+        column: Column name or expression holding the input values.
         window: Number of periods used for all three EMA passes.
         alpha: Smoothing factor overriding the default ``2 / (window + 1)``.
         mode: EMA seeding convention; see :func:`ema`.
 
     Returns:
-        A ``pl.Series`` when ``column`` is a series, otherwise a ``pl.Expr``.
-        The first ``3 * (window - 1)`` rows are null.
+        A ``pl.Expr``. The first ``3 * (window - 1)`` rows are null.
 
     Raises:
         ValueError: If ``window``, ``alpha``, or ``mode`` is invalid.
+        TypeError: If ``column`` is not a ``str`` or ``pl.Expr``.
     """
     smoothing = _resolve_alpha(window, alpha, mode)
-    return apply_to_column(
-        column, lambda values: _tema_expr(values, window, smoothing, mode)
-    )
+    return _tema_expr(to_expr(column), window, smoothing, mode)
 
 
-@overload
-def trima(column: str | pl.Expr, window: int = 30) -> pl.Expr: ...
-
-
-@overload
-def trima(column: pl.Series, window: int = 30) -> pl.Series: ...
-
-
-def trima(column: IntoColumn, window: int = 30) -> pl.Expr | pl.Series:
+def trima(column: IntoColumn, window: int = 30) -> pl.Expr:
     """Triangular moving average: an SMA of an SMA, weighting the window centre.
 
     The weights rise linearly to the middle of the window and fall away again,
@@ -340,40 +250,18 @@ def trima(column: IntoColumn, window: int = 30) -> pl.Expr | pl.Series:
     extra lag.
 
     Args:
-        column: Column name, expression, or series holding the input values.
+        column: Column name or expression holding the input values.
         window: Number of periods spanned by the triangular weights.
 
     Returns:
-        A ``pl.Series`` when ``column`` is a series, otherwise a ``pl.Expr``.
-        The first ``window - 1`` rows are null.
+        A ``pl.Expr``. The first ``window - 1`` rows are null.
 
     Raises:
         ValueError: If ``window`` is not an integer of at least 1.
+        TypeError: If ``column`` is not a ``str`` or ``pl.Expr``.
     """
     validate_window(window)
-    return apply_to_column(column, lambda values: _trima_expr(values, window))
-
-
-@overload
-def t3(
-    column: str | pl.Expr,
-    window: int = 5,
-    *,
-    vfactor: float = 0.7,
-    alpha: float | None = None,
-    mode: EmaMode = "talib",
-) -> pl.Expr: ...
-
-
-@overload
-def t3(
-    column: pl.Series,
-    window: int = 5,
-    *,
-    vfactor: float = 0.7,
-    alpha: float | None = None,
-    mode: EmaMode = "talib",
-) -> pl.Series: ...
+    return _trima_expr(to_expr(column), window)
 
 
 def t3(
@@ -383,7 +271,7 @@ def t3(
     vfactor: float = 0.7,
     alpha: float | None = None,
     mode: EmaMode = "talib",
-) -> pl.Expr | pl.Series:
+) -> pl.Expr:
     """Tillson's T3: a weighted blend of the third through sixth EMA passes.
 
     ``vfactor`` controls how much lag is cancelled. At ``0.0`` the result is
@@ -391,24 +279,22 @@ def t3(
     which is faster but overshoots more.
 
     Args:
-        column: Column name, expression, or series holding the input values.
+        column: Column name or expression holding the input values.
         window: Number of periods used for all six EMA passes.
         vfactor: Volume factor in ``[0, 1]`` weighting the lag cancellation.
         alpha: Smoothing factor overriding the default ``2 / (window + 1)``.
         mode: EMA seeding convention; see :func:`ema`.
 
     Returns:
-        A ``pl.Series`` when ``column`` is a series, otherwise a ``pl.Expr``.
-        The first ``6 * (window - 1)`` rows are null.
+        A ``pl.Expr``. The first ``6 * (window - 1)`` rows are null.
 
     Raises:
         ValueError: If ``window``, ``vfactor``, ``alpha``, or ``mode`` is invalid.
+        TypeError: If ``column`` is not a ``str`` or ``pl.Expr``.
     """
     smoothing = _resolve_alpha(window, alpha, mode)
     if isinstance(vfactor, bool) or not isinstance(vfactor, (int, float)):
         raise ValueError(f"vfactor must be a float, got {type(vfactor).__name__}")
     if not 0.0 <= vfactor <= 1.0:
         raise ValueError(f"vfactor must satisfy 0 <= vfactor <= 1, got {vfactor}")
-    return apply_to_column(
-        column, lambda values: _t3_expr(values, window, smoothing, mode, float(vfactor))
-    )
+    return _t3_expr(to_expr(column), window, smoothing, mode, float(vfactor))

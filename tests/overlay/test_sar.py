@@ -101,10 +101,9 @@ class TestSar(IndicatorAssertions):
         bars = pl.DataFrame({"high": [2.0], "low": [1.0]})
         self.assertEqual(column(sar("high", "low"), bars), [None])
 
-    def test_series_input_keeps_its_name(self) -> None:
-        result = sar(pl.Series("high", HIGH[:LENGTH]), pl.Series("low", LOW[:LENGTH]))
-        self.assertIsInstance(result, pl.Series)
-        self.assertEqual(result.name, "high")
+    def test_series_input_is_rejected(self) -> None:
+        with self.assertRaises(TypeError):
+            sar(pl.Series("high", HIGH[:LENGTH]), pl.Series("low", LOW[:LENGTH]))
 
     def test_expression_works_in_a_lazy_frame(self) -> None:
         collected = (

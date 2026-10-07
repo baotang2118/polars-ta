@@ -2,13 +2,11 @@
 
 from __future__ import annotations
 
-from typing import overload
-
 import polars as pl
 
 from polars_ta._common import (
     IntoColumn,
-    apply_to_columns,
+    to_exprs,
     validate_positive,
     validate_window,
 )
@@ -70,15 +68,7 @@ def _nvi_expr(close: pl.Expr, volume: pl.Expr, start_value: float) -> pl.Expr:
     return start_value * factor.cum_prod()
 
 
-@overload
-def fi(close: str | pl.Expr, volume: str | pl.Expr, window: int = 13) -> pl.Expr: ...
-
-
-@overload
-def fi(close: pl.Series, volume: pl.Series, window: int = 13) -> pl.Series: ...
-
-
-def fi(close: IntoColumn, volume: IntoColumn, window: int = 13) -> pl.Expr | pl.Series:
+def fi(close: IntoColumn, volume: IntoColumn, window: int = 13) -> pl.Expr:
     """Force Index: the close-to-close move multiplied by the volume behind it.
 
     Price change alone says how far a move went; multiplying by volume says how
@@ -86,41 +76,26 @@ def fi(close: IntoColumn, volume: IntoColumn, window: int = 13) -> pl.Expr | pl.
     is far too noisy to read.
 
     Args:
-        close: Column name, expression, or series of closing prices.
-        volume: Column name, expression, or series of traded volume.
+        close: Column name or expression of closing prices.
+        volume: Column name or expression of traded volume.
         window: Number of periods in the exponential average.
 
     Returns:
-        A value in price-times-volume units: a ``pl.Series`` when every input
-        is a series, otherwise a ``pl.Expr``. The first ``window`` rows are
-        null, one for the difference and ``window - 1`` for the average.
+        A ``pl.Expr`` yielding a value in price-times-volume units. The first
+        ``window`` rows are null, one for the difference and ``window - 1`` for
+        the average.
 
     Raises:
         ValueError: If ``window`` is not an integer of at least 1.
-        TypeError: If series inputs are mixed with names or expressions.
+        TypeError: If an input is not a ``str`` or ``pl.Expr``.
     """
     validate_window(window)
-    return apply_to_columns((close, volume), lambda c, v: _fi_expr(c, v, window))
-
-
-@overload
-def eom(
-    high: str | pl.Expr,
-    low: str | pl.Expr,
-    volume: str | pl.Expr,
-    window: int = 14,
-) -> pl.Expr: ...
-
-
-@overload
-def eom(
-    high: pl.Series, low: pl.Series, volume: pl.Series, window: int = 14
-) -> pl.Series: ...
+    return _fi_expr(*to_exprs(close, volume), window)
 
 
 def eom(
     high: IntoColumn, low: IntoColumn, volume: IntoColumn, window: int = 14
-) -> pl.Expr | pl.Series:
+) -> pl.Expr:
     """Ease of Movement: how far the bar's midpoint travelled per unit of volume.
 
     A large move on light volume reads high, a small move on heavy volume reads
@@ -128,37 +103,26 @@ def eom(
     that direction cost.
 
     Args:
-        high: Column name, expression, or series of high prices.
-        low: Column name, expression, or series of low prices.
-        volume: Column name, expression, or series of traded volume.
+        high: Column name or expression of high prices.
+        low: Column name or expression of low prices.
+        volume: Column name or expression of traded volume.
         window: Number of periods in the simple average; ``1`` leaves the
             reading unsmoothed.
 
     Returns:
-        A ``pl.Series`` when every input is a series, otherwise a ``pl.Expr``.
-        The first ``window`` rows are null. Readings are scaled by ``1e8``, as
-        the usual box-ratio convention does, and a bar with no volume reports
-        ``0.0`` rather than dividing.
+        A ``pl.Expr``. The first ``window`` rows are null. Readings are scaled
+        by ``1e8``, as the usual box-ratio convention does, and a bar with no
+        volume reports ``0.0`` rather than dividing.
 
     Raises:
         ValueError: If ``window`` is not an integer of at least 1.
-        TypeError: If series inputs are mixed with names or expressions.
+        TypeError: If an input is not a ``str`` or ``pl.Expr``.
     """
     validate_window(window)
-    return apply_to_columns(
-        (high, low, volume), lambda h, low_, v: _eom_expr(h, low_, v, window)
-    )
+    return _eom_expr(*to_exprs(high, low, volume), window)
 
 
-@overload
-def vpt(close: str | pl.Expr, volume: str | pl.Expr) -> pl.Expr: ...
-
-
-@overload
-def vpt(close: pl.Series, volume: pl.Series) -> pl.Series: ...
-
-
-def vpt(close: IntoColumn, volume: IntoColumn) -> pl.Expr | pl.Series:
+def vpt(close: IntoColumn, volume: IntoColumn) -> pl.Expr:
     """Volume-Price Trend: a running total of volume scaled by each bar's return.
 
     Where :func:`~polars_ta.volume.obv` adds the whole of a bar's volume on any
@@ -166,56 +130,40 @@ def vpt(close: IntoColumn, volume: IntoColumn) -> pl.Expr | pl.Series:
     counts for more than a marginal one.
 
     Args:
-        close: Column name, expression, or series of closing prices.
-        volume: Column name, expression, or series of traded volume.
+        close: Column name or expression of closing prices.
+        volume: Column name or expression of traded volume.
 
     Returns:
-        A running total: a ``pl.Series`` when every input is a series,
-        otherwise a ``pl.Expr``. There is no warm-up; the first bar has no
-        return and so seeds the total at ``0.0``.
+        A ``pl.Expr`` yielding a running total. There is no warm-up; the first
+        bar has no return and so seeds the total at ``0.0``.
 
     Raises:
-        TypeError: If series inputs are mixed with names or expressions.
+        TypeError: If an input is not a ``str`` or ``pl.Expr``.
     """
-    return apply_to_columns((close, volume), _vpt_expr)
-
-
-@overload
-def nvi(
-    close: str | pl.Expr, volume: str | pl.Expr, *, start_value: float = 1000.0
-) -> pl.Expr: ...
-
-
-@overload
-def nvi(
-    close: pl.Series, volume: pl.Series, *, start_value: float = 1000.0
-) -> pl.Series: ...
+    return _vpt_expr(*to_exprs(close, volume))
 
 
 def nvi(
     close: IntoColumn, volume: IntoColumn, *, start_value: float = 1000.0
-) -> pl.Expr | pl.Series:
+) -> pl.Expr:
     """Negative Volume Index: an index that compounds only on quiet days.
 
     The premise is that informed money moves on light volume, so the index
     takes the day's return when volume fell and holds flat otherwise.
 
     Args:
-        close: Column name, expression, or series of closing prices.
-        volume: Column name, expression, or series of traded volume.
+        close: Column name or expression of closing prices.
+        volume: Column name or expression of traded volume.
         start_value: Level the index starts from, conventionally ``1000``.
 
     Returns:
-        An index level: a ``pl.Series`` when every input is a series, otherwise
-        a ``pl.Expr``. There is no warm-up; the first bar is ``start_value``.
-        A bar whose return cannot be computed carries the level forward rather
-        than nulling the rest of the index.
+        A ``pl.Expr`` yielding an index level. There is no warm-up; the first
+        bar is ``start_value``. A bar whose return cannot be computed carries
+        the level forward rather than nulling the rest of the index.
 
     Raises:
         ValueError: If ``start_value`` is not a positive finite number.
-        TypeError: If series inputs are mixed with names or expressions.
+        TypeError: If an input is not a ``str`` or ``pl.Expr``.
     """
     validate_positive("start_value", start_value)
-    return apply_to_columns(
-        (close, volume), lambda c, v: _nvi_expr(c, v, float(start_value))
-    )
+    return _nvi_expr(*to_exprs(close, volume), float(start_value))

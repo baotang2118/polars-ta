@@ -2,14 +2,12 @@
 
 from __future__ import annotations
 
-from typing import overload
-
 import polars as pl
 
 from polars_ta._common import (
     IntoColumn,
-    apply_to_column,
-    apply_to_columns,
+    to_expr,
+    to_exprs,
     validate_window,
 )
 
@@ -26,66 +24,45 @@ def _midprice_expr(high: pl.Expr, low: pl.Expr, window: int) -> pl.Expr:
     return (highest + lowest) / 2.0
 
 
-@overload
-def midpoint(column: str | pl.Expr, window: int = 14) -> pl.Expr: ...
-
-
-@overload
-def midpoint(column: pl.Series, window: int = 14) -> pl.Series: ...
-
-
-def midpoint(column: IntoColumn, window: int = 14) -> pl.Expr | pl.Series:
+def midpoint(column: IntoColumn, window: int = 14) -> pl.Expr:
     """Midpoint: the average of the highest and lowest value over ``window``.
 
     Unlike a moving average this ignores everything between the two extremes,
     so it only moves when a new extreme enters or an old one leaves.
 
     Args:
-        column: Column name, expression, or series holding the input values.
+        column: Column name or expression holding the input values.
         window: Number of periods in the lookback range.
 
     Returns:
-        A ``pl.Series`` when ``column`` is a series, otherwise a ``pl.Expr``.
-        The first ``window - 1`` rows are null, as is any row whose window
-        contains a null input.
+        A ``pl.Expr``. The first ``window - 1`` rows are null, as is any row
+        whose window contains a null input.
 
     Raises:
         ValueError: If ``window`` is not an integer of at least 1.
+        TypeError: If ``column`` is not a ``str`` or ``pl.Expr``.
     """
     validate_window(window)
-    return apply_to_column(column, lambda values: _midpoint_expr(values, window))
+    return _midpoint_expr(to_expr(column), window)
 
 
-@overload
-def midprice(high: str | pl.Expr, low: str | pl.Expr, window: int = 14) -> pl.Expr: ...
-
-
-@overload
-def midprice(high: pl.Series, low: pl.Series, window: int = 14) -> pl.Series: ...
-
-
-def midprice(
-    high: IntoColumn, low: IntoColumn, window: int = 14
-) -> pl.Expr | pl.Series:
+def midprice(high: IntoColumn, low: IntoColumn, window: int = 14) -> pl.Expr:
     """Midpoint price: the average of the highest high and the lowest low.
 
     The two-column counterpart of :func:`midpoint`, taking the extremes from
     the bar highs and lows rather than from a single series.
 
     Args:
-        high: Column name, expression, or series of high prices.
-        low: Column name, expression, or series of low prices.
+        high: Column name or expression of high prices.
+        low: Column name or expression of low prices.
         window: Number of periods in the lookback range.
 
     Returns:
-        A ``pl.Series`` when every input is a series, otherwise a ``pl.Expr``.
-        The first ``window - 1`` rows are null.
+        A ``pl.Expr``. The first ``window - 1`` rows are null.
 
     Raises:
         ValueError: If ``window`` is not an integer of at least 1.
-        TypeError: If series inputs are mixed with names or expressions.
+        TypeError: If an input is not a ``str`` or ``pl.Expr``.
     """
     validate_window(window)
-    return apply_to_columns(
-        (high, low), lambda h, low_: _midprice_expr(h, low_, window)
-    )
+    return _midprice_expr(*to_exprs(high, low), window)

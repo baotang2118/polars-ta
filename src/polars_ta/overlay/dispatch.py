@@ -2,14 +2,14 @@
 
 from __future__ import annotations
 
-from typing import Literal, get_args, overload
+from typing import Literal, get_args
 
 import polars as pl
 
 from polars_ta._common import (
     IntoColumn,
-    apply_to_column,
-    apply_to_columns,
+    to_expr,
+    to_exprs,
     validate_window,
 )
 from polars_ta.overlay.adaptive import _kama_expr, _mama_expr
@@ -74,21 +74,7 @@ def _mavp_expr(
     return pl.when(longest.is_null() | wanted.is_null()).then(None).otherwise(chosen)
 
 
-@overload
-def ma(
-    column: str | pl.Expr, window: int = 30, *, ma_type: MaType = "sma"
-) -> pl.Expr: ...
-
-
-@overload
-def ma(
-    column: pl.Series, window: int = 30, *, ma_type: MaType = "sma"
-) -> pl.Series: ...
-
-
-def ma(
-    column: IntoColumn, window: int = 30, *, ma_type: MaType = "sma"
-) -> pl.Expr | pl.Series:
+def ma(column: IntoColumn, window: int = 30, *, ma_type: MaType = "sma") -> pl.Expr:
     """Moving average of the requested kind.
 
     A single entry point over :func:`~polars_ta.overlay.ma.sma`,
@@ -99,41 +85,20 @@ def ma(
     at runtime. Each kind keeps its own default parameters and its own warm-up.
 
     Args:
-        column: Column name, expression, or series holding the input values.
+        column: Column name or expression holding the input values.
         window: Number of periods passed to the chosen average.
         ma_type: Which average to apply; one of :data:`MA_TYPES`.
 
     Returns:
-        A ``pl.Series`` when ``column`` is a series, otherwise a ``pl.Expr``.
+        A ``pl.Expr``.
 
     Raises:
         ValueError: If ``window`` is invalid or ``ma_type`` is unknown.
+        TypeError: If ``column`` is not a ``str`` or ``pl.Expr``.
     """
     validate_window(window)
     validate_ma_type(ma_type)
-    return apply_to_column(column, lambda values: _ma_expr(values, window, ma_type))
-
-
-@overload
-def mavp(
-    column: str | pl.Expr,
-    periods: str | pl.Expr,
-    min_period: int = 2,
-    max_period: int = 30,
-    *,
-    ma_type: MaType = "sma",
-) -> pl.Expr: ...
-
-
-@overload
-def mavp(
-    column: pl.Series,
-    periods: pl.Series,
-    min_period: int = 2,
-    max_period: int = 30,
-    *,
-    ma_type: MaType = "sma",
-) -> pl.Series: ...
+    return _ma_expr(to_expr(column), window, ma_type)
 
 
 def mavp(
@@ -143,7 +108,7 @@ def mavp(
     max_period: int = 30,
     *,
     ma_type: MaType = "sma",
-) -> pl.Expr | pl.Series:
+) -> pl.Expr:
     """Moving average whose period is read from a second column, row by row.
 
     Each row's period is truncated to an integer and clamped to
@@ -152,21 +117,20 @@ def mavp(
     span small, especially for the chained averages.
 
     Args:
-        column: Column name, expression, or series holding the input values.
-        periods: Column name, expression, or series of per-row periods.
+        column: Column name or expression holding the input values.
+        periods: Column name or expression of per-row periods.
         min_period: Smallest period a row may request.
         max_period: Largest period a row may request.
         ma_type: Which average to apply; one of :data:`MA_TYPES`.
 
     Returns:
-        A ``pl.Series`` when every input is a series, otherwise a ``pl.Expr``.
-        Output starts only once the ``max_period`` average is available, as in
-        TA-Lib, so the warm-up does not change from row to row.
+        A ``pl.Expr``. Output starts only once the ``max_period`` average is
+        available, as in TA-Lib, so the warm-up does not change from row to row.
 
     Raises:
         ValueError: If a period bound is invalid, ``min_period`` exceeds
             ``max_period``, or ``ma_type`` is unknown.
-        TypeError: If series inputs are mixed with names or expressions.
+        TypeError: If an input is not a ``str`` or ``pl.Expr``.
     """
     validate_window(min_period)
     validate_window(max_period)
@@ -175,9 +139,4 @@ def mavp(
         raise ValueError(
             f"min_period must not exceed max_period, got {min_period} > {max_period}"
         )
-    return apply_to_columns(
-        (column, periods),
-        lambda values, wanted: _mavp_expr(
-            values, wanted, min_period, max_period, ma_type
-        ),
-    )
+    return _mavp_expr(*to_exprs(column, periods), min_period, max_period, ma_type)

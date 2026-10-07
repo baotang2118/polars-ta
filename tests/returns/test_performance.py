@@ -35,10 +35,9 @@ class TestDailyReturn(IndicatorAssertions):
         bars = pl.DataFrame({"close": [0.0, 5.0]})
         self.assert_values_equal(column(daily_return("close"), bars), [None, 0.0])
 
-    def test_series_input_keeps_its_name(self) -> None:
-        result = daily_return(pl.Series("close", CLOSE[:LENGTH]))
-        self.assertIsInstance(result, pl.Series)
-        self.assertEqual(result.name, "close")
+    def test_series_input_is_rejected(self) -> None:
+        with self.assertRaises(TypeError):
+            daily_return(pl.Series("close", CLOSE[:LENGTH]))
 
 
 class TestDailyLogReturn(IndicatorAssertions):

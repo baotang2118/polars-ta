@@ -2,11 +2,9 @@
 
 from __future__ import annotations
 
-from typing import overload
-
 import polars as pl
 
-from polars_ta._common import IntoColumn, apply_to_columns, validate_window
+from polars_ta._common import IntoColumn, to_exprs, validate_window
 from polars_ta.volatility.atr import _true_range_expr
 
 VORTEX_FIELDS = ("plus", "minus")
@@ -33,24 +31,9 @@ def _vortex_expr(high: pl.Expr, low: pl.Expr, close: pl.Expr, window: int) -> pl
     )
 
 
-@overload
-def vortex(
-    high: str | pl.Expr,
-    low: str | pl.Expr,
-    close: str | pl.Expr,
-    window: int = 14,
-) -> pl.Expr: ...
-
-
-@overload
-def vortex(
-    high: pl.Series, low: pl.Series, close: pl.Series, window: int = 14
-) -> pl.Series: ...
-
-
 def vortex(
     high: IntoColumn, low: IntoColumn, close: IntoColumn, window: int = 14
-) -> pl.Expr | pl.Series:
+) -> pl.Expr:
     """Vortex Indicator: upward and downward movement, each against true range.
 
     ``plus`` measures the distance from the previous low up to today's high and
@@ -58,22 +41,19 @@ def vortex(
     lines cross when one direction starts covering more ground than the other.
 
     Args:
-        high: Column name, expression, or series of high prices.
-        low: Column name, expression, or series of low prices.
-        close: Column name, expression, or series of closing prices.
+        high: Column name or expression of high prices.
+        low: Column name or expression of low prices.
+        close: Column name or expression of closing prices.
         window: Number of periods summed.
 
     Returns:
-        A struct with non-negative fields ``plus`` and ``minus``: a
-        ``pl.Series`` when every input is a series, otherwise a ``pl.Expr``.
-        The first ``window`` rows are null, and a window with no range reports
-        ``0.0`` rather than dividing.
+        A ``pl.Expr`` yielding a struct with non-negative fields ``plus`` and
+        ``minus``. The first ``window`` rows are null, and a window with no
+        range reports ``0.0`` rather than dividing.
 
     Raises:
         ValueError: If ``window`` is not an integer of at least 1.
-        TypeError: If series inputs are mixed with names or expressions.
+        TypeError: If an input is not a ``str`` or ``pl.Expr``.
     """
     validate_window(window)
-    return apply_to_columns(
-        (high, low, close), lambda h, low_, c: _vortex_expr(h, low_, c, window)
-    )
+    return _vortex_expr(*to_exprs(high, low, close), window)

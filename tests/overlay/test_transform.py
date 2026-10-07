@@ -32,19 +32,14 @@ class TestAvgprice(IndicatorAssertions):
             [1.75, None, 5.25],
         )
 
-    def test_series_input_keeps_its_name(self) -> None:
-        result = avgprice(
-            pl.Series("open", OPEN[:5]),
-            pl.Series("high", HIGH[:5]),
-            pl.Series("low", LOW[:5]),
-            pl.Series("close", CLOSE[:5]),
-        )
-        self.assertIsInstance(result, pl.Series)
-        self.assertEqual(result.name, "open")
-
-    def test_mixing_series_with_names_raises(self) -> None:
+    def test_series_input_is_rejected(self) -> None:
         with self.assertRaises(TypeError):
-            avgprice(pl.Series("open", OPEN[:5]), "high", "low", "close")
+            avgprice(
+                pl.Series("open", OPEN[:5]),
+                pl.Series("high", HIGH[:5]),
+                pl.Series("low", LOW[:5]),
+                pl.Series("close", CLOSE[:5]),
+            )
 
 
 class TestMedprice(IndicatorAssertions):

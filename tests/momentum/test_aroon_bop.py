@@ -162,6 +162,6 @@ class TestBop(IndicatorAssertions):
         result = bars.select(bop("open", "high", "low", "close")).to_series().to_list()
         self.assertIsNone(result[1])
 
-    def test_mixing_series_with_names_raises(self) -> None:
+    def test_series_input_is_rejected(self) -> None:
         with self.assertRaises(TypeError):
             bop(pl.Series("open", OPEN[:5]), "high", "low", "close")

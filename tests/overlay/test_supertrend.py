@@ -87,16 +87,15 @@ class TestSupertrend(IndicatorAssertions):
         result = evaluate(supertrend("high", "low", "close", len(HIGH), 2.0))
         self.assertEqual(result["supertrend"].to_list(), [None] * len(HIGH))
 
-    def test_series_input_returns_a_struct_series(self) -> None:
-        result = supertrend(
-            pl.Series("high", HIGH),
-            pl.Series("low", LOW),
-            pl.Series("close", CLOSE),
-            5,
-            2.0,
-        )
-        self.assertIsInstance(result, pl.Series)
-        self.assertEqual(result.struct.fields, ["supertrend", "direction"])
+    def test_series_input_is_rejected(self) -> None:
+        with self.assertRaises(TypeError):
+            supertrend(
+                pl.Series("high", HIGH),
+                pl.Series("low", LOW),
+                pl.Series("close", CLOSE),
+                5,
+                2.0,
+            )
 
     def test_expression_works_in_a_lazy_frame(self) -> None:
         collected = (

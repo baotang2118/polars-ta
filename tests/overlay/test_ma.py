@@ -332,24 +332,20 @@ class TestTema(IndicatorAssertions):
 
 
 class TestInputForms(IndicatorAssertions):
-    def test_name_expression_and_series_agree(self) -> None:
-        series = pl.Series("close", LONG_VALUES)
+    def test_name_and_expression_agree(self) -> None:
         for indicator in (sma, ema, wma, dema, tema):
             with self.subTest(indicator=indicator.__name__):
                 from_name = evaluate(indicator("close", 3), LONG_VALUES)
                 from_expr = evaluate(indicator(pl.col("close"), 3), LONG_VALUES)
-                from_series = indicator(series, 3).to_list()
                 self.assert_values_equal(from_expr, from_name)
-                self.assert_values_equal(from_series, from_name)
 
-    def test_series_input_returns_series_keeping_its_name(self) -> None:
-        result = sma(pl.Series("close", VALUES), 3)
-        self.assertIsInstance(result, pl.Series)
-        self.assertEqual(result.name, "close")
-
-    def test_unnamed_series_is_supported(self) -> None:
-        result = sma(pl.Series(VALUES), 3)
-        self.assertEqual(result.name, "")
+    def test_series_input_is_rejected(self) -> None:
+        for indicator in (sma, ema, wma, dema, tema):
+            with (
+                self.subTest(indicator=indicator.__name__),
+                self.assertRaises(TypeError),
+            ):
+                indicator(pl.Series("close", VALUES), 3)
 
     def test_expression_works_in_a_lazy_frame(self) -> None:
         frame = pl.LazyFrame({"close": VALUES}).with_columns(

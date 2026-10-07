@@ -2,11 +2,9 @@
 
 from __future__ import annotations
 
-from typing import overload
-
 import polars as pl
 
-from polars_ta._common import IntoColumn, apply_to_column, validate_window
+from polars_ta._common import IntoColumn, to_expr, validate_window
 from polars_ta._hilbert import SHORT_LOOKBACK, hilbert_transform, mask_lookback
 
 MAMA_FIELDS = ("mama", "fama")
@@ -58,33 +56,13 @@ def _kama_expr(
     )
 
 
-@overload
-def kama(
-    column: str | pl.Expr,
-    window: int = 30,
-    *,
-    fast_period: int = 2,
-    slow_period: int = 30,
-) -> pl.Expr: ...
-
-
-@overload
-def kama(
-    column: pl.Series,
-    window: int = 30,
-    *,
-    fast_period: int = 2,
-    slow_period: int = 30,
-) -> pl.Series: ...
-
-
 def kama(
     column: IntoColumn,
     window: int = 30,
     *,
     fast_period: int = 2,
     slow_period: int = 30,
-) -> pl.Expr | pl.Series:
+) -> pl.Expr:
     """Kaufman's Adaptive Moving Average, which speeds up in a trending market.
 
     Each bar's efficiency ratio compares the net move over ``window`` periods
@@ -93,25 +71,23 @@ def kama(
     and smooths with the ``slow_period`` factor.
 
     Args:
-        column: Column name, expression, or series holding the input values.
+        column: Column name or expression holding the input values.
         window: Number of periods in the efficiency-ratio lookback.
         fast_period: Period behind the fastest permitted smoothing factor.
         slow_period: Period behind the slowest permitted smoothing factor.
 
     Returns:
-        A ``pl.Series`` when ``column`` is a series, otherwise a ``pl.Expr``.
-        The first ``window`` rows are null; the recursion is seeded with the
-        value immediately before the first output.
+        A ``pl.Expr``. The first ``window`` rows are null; the recursion is
+        seeded with the value immediately before the first output.
 
     Raises:
         ValueError: If any period is not an integer of at least 1.
+        TypeError: If ``column`` is not a ``str`` or ``pl.Expr``.
     """
     validate_window(window)
     validate_window(fast_period)
     validate_window(slow_period)
-    return apply_to_column(
-        column, lambda values: _kama_expr(values, window, fast_period, slow_period)
-    )
+    return _kama_expr(to_expr(column), window, fast_period, slow_period)
 
 
 def _mama_expr(values: pl.Expr, fast_limit: float, slow_limit: float) -> pl.Expr:
@@ -134,21 +110,9 @@ def _validate_limit(name: str, value: float) -> None:
         raise ValueError(f"{name} must satisfy 0 < {name} <= 1, got {value}")
 
 
-@overload
-def mama(
-    column: str | pl.Expr, *, fast_limit: float = 0.5, slow_limit: float = 0.05
-) -> pl.Expr: ...
-
-
-@overload
-def mama(
-    column: pl.Series, *, fast_limit: float = 0.5, slow_limit: float = 0.05
-) -> pl.Series: ...
-
-
 def mama(
     column: IntoColumn, *, fast_limit: float = 0.5, slow_limit: float = 0.05
-) -> pl.Expr | pl.Series:
+) -> pl.Expr:
     """Ehlers' MESA Adaptive Moving Average and its following average.
 
     The smoothing factor is driven by how fast the Hilbert transform's phase is
@@ -157,20 +121,19 @@ def mama(
     half-speed pass whose crossings with ``mama`` are the usual signal.
 
     Args:
-        column: Column name, expression, or series holding the input values.
+        column: Column name or expression holding the input values.
         fast_limit: Largest smoothing factor the average may use.
         slow_limit: Smallest smoothing factor the average may use.
 
     Returns:
-        A struct with fields ``mama`` and ``fama``, both in price units: a
-        ``pl.Series`` when ``column`` is a series, otherwise a ``pl.Expr``. The
-        first 32 rows are null, and a null input ends the recursion.
+        A ``pl.Expr`` yielding a struct with fields ``mama`` and ``fama``, both
+        in price units. The first 32 rows are null, and a null input ends the
+        recursion.
 
     Raises:
         ValueError: If a limit is outside ``(0, 1]``.
+        TypeError: If ``column`` is not a ``str`` or ``pl.Expr``.
     """
     _validate_limit("fast_limit", fast_limit)
     _validate_limit("slow_limit", slow_limit)
-    return apply_to_column(
-        column, lambda values: _mama_expr(values, float(fast_limit), float(slow_limit))
-    )
+    return _mama_expr(to_expr(column), float(fast_limit), float(slow_limit))

@@ -2,11 +2,9 @@
 
 from __future__ import annotations
 
-from typing import overload
-
 import polars as pl
 
-from polars_ta._common import IntoColumn, apply_to_columns, validate_window
+from polars_ta._common import IntoColumn, to_exprs, validate_window
 
 
 def _mfi_expr(
@@ -34,33 +32,13 @@ def _mfi_expr(
     )
 
 
-@overload
-def mfi(
-    high: str | pl.Expr,
-    low: str | pl.Expr,
-    close: str | pl.Expr,
-    volume: str | pl.Expr,
-    window: int = 14,
-) -> pl.Expr: ...
-
-
-@overload
-def mfi(
-    high: pl.Series,
-    low: pl.Series,
-    close: pl.Series,
-    volume: pl.Series,
-    window: int = 14,
-) -> pl.Series: ...
-
-
 def mfi(
     high: IntoColumn,
     low: IntoColumn,
     close: IntoColumn,
     volume: IntoColumn,
     window: int = 14,
-) -> pl.Expr | pl.Series:
+) -> pl.Expr:
     """Money Flow Index: a volume-weighted relative strength index.
 
     Each bar's typical price ``(high + low + close) / 3`` is multiplied by
@@ -69,23 +47,19 @@ def mfi(
     positive share of the total flow over ``window`` bars, matching TA-Lib.
 
     Args:
-        high: Column name, expression, or series of high prices.
-        low: Column name, expression, or series of low prices.
-        close: Column name, expression, or series of closing prices.
-        volume: Column name, expression, or series of traded volume.
+        high: Column name or expression of high prices.
+        low: Column name or expression of low prices.
+        close: Column name or expression of closing prices.
+        volume: Column name or expression of traded volume.
         window: Number of bars summed for each side of the flow.
 
     Returns:
-        A value in ``[0, 100]``: a ``pl.Series`` when every input is a series,
-        otherwise a ``pl.Expr``. The first ``window`` rows are null. A window
-        with no money flow at all reports ``0.0``.
+        A ``pl.Expr`` yielding a value in ``[0, 100]``. The first ``window``
+        rows are null. A window with no money flow at all reports ``0.0``.
 
     Raises:
         ValueError: If ``window`` is not an integer of at least 1.
-        TypeError: If series inputs are mixed with names or expressions.
+        TypeError: If an input is not a ``str`` or ``pl.Expr``.
     """
     validate_window(window)
-    return apply_to_columns(
-        (high, low, close, volume),
-        lambda h, low_, c, v: _mfi_expr(h, low_, c, v, window),
-    )
+    return _mfi_expr(*to_exprs(high, low, close, volume), window)

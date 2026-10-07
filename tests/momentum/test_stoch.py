@@ -113,22 +113,23 @@ class TestStoch(IndicatorAssertions):
         result = evaluate(stoch("high", "low", "close", len(HIGH), 3, 3))
         self.assertEqual(result["k"].to_list(), [None] * len(HIGH))
 
-    def test_names_expressions_and_series_agree(self) -> None:
+    def test_names_and_expressions_agree(self) -> None:
         from_names = evaluate(stoch("high", "low", "close", 5, 3, 3))["k"].to_list()
         from_exprs = evaluate(
             stoch(pl.col("high"), pl.col("low"), pl.col("close"), 5, 3, 3)
         )["k"].to_list()
-        from_series = stoch(
-            pl.Series("high", HIGH),
-            pl.Series("low", LOW),
-            pl.Series("close", CLOSE),
-            5,
-            3,
-            3,
-        )
         self.assert_values_equal(from_exprs, from_names)
-        self.assert_values_equal(from_series.struct.field("k").to_list(), from_names)
-        self.assertEqual(from_series.name, "high")
+
+    def test_series_input_is_rejected(self) -> None:
+        with self.assertRaises(TypeError):
+            stoch(
+                pl.Series("high", HIGH),
+                pl.Series("low", LOW),
+                pl.Series("close", CLOSE),
+                5,
+                3,
+                3,
+            )
 
     def test_expression_works_in_a_lazy_frame(self) -> None:
         collected = (

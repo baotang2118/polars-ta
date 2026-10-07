@@ -83,17 +83,13 @@ class TestRsi(IndicatorAssertions):
             evaluate(rsi("close", 14), WILDER_CLOSE),
         )
 
-    def test_name_expression_and_series_agree(self) -> None:
+    def test_name_and_expression_agree(self) -> None:
         from_name = evaluate(rsi("close", 3))
         self.assert_values_equal(evaluate(rsi(pl.col("close"), 3)), from_name)
-        self.assert_values_equal(
-            rsi(pl.Series("close", VALUES), 3).to_list(), from_name
-        )
 
-    def test_series_input_keeps_its_name(self) -> None:
-        result = rsi(pl.Series("close", VALUES), 3)
-        self.assertIsInstance(result, pl.Series)
-        self.assertEqual(result.name, "close")
+    def test_series_input_is_rejected(self) -> None:
+        with self.assertRaises(TypeError):
+            rsi(pl.Series("close", VALUES), 3)
 
     def test_expression_works_in_a_lazy_frame(self) -> None:
         collected = (

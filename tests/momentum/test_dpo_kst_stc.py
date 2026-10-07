@@ -193,7 +193,6 @@ class TestStc(IndicatorAssertions):
         with self.assertRaises(ValueError):
             stc("close", cycle=0)
 
-    def test_series_input_keeps_its_name(self) -> None:
-        result = stc(pl.Series("close", CLOSE[:LENGTH]), 5, 10, 4)
-        self.assertIsInstance(result, pl.Series)
-        self.assertEqual(result.name, "close")
+    def test_series_input_is_rejected(self) -> None:
+        with self.assertRaises(TypeError):
+            stc(pl.Series("close", CLOSE[:LENGTH]), 5, 10, 4)

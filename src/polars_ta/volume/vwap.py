@@ -2,11 +2,9 @@
 
 from __future__ import annotations
 
-from typing import overload
-
 import polars as pl
 
-from polars_ta._common import IntoColumn, apply_to_columns, validate_window
+from polars_ta._common import IntoColumn, to_exprs, validate_window
 from polars_ta.overlay.transform import _typprice_expr
 
 
@@ -24,56 +22,32 @@ def _vwap_expr(
     )
 
 
-@overload
-def vwap(
-    high: str | pl.Expr,
-    low: str | pl.Expr,
-    close: str | pl.Expr,
-    volume: str | pl.Expr,
-    window: int = 14,
-) -> pl.Expr: ...
-
-
-@overload
-def vwap(
-    high: pl.Series,
-    low: pl.Series,
-    close: pl.Series,
-    volume: pl.Series,
-    window: int = 14,
-) -> pl.Series: ...
-
-
 def vwap(
     high: IntoColumn,
     low: IntoColumn,
     close: IntoColumn,
     volume: IntoColumn,
     window: int = 14,
-) -> pl.Expr | pl.Series:
+) -> pl.Expr:
     """Volume Weighted Average Price over a rolling window.
 
     Each bar's typical price is weighted by its volume, so the line sits where
     most of the trade actually happened rather than where the midpoints were.
 
     Args:
-        high: Column name, expression, or series of high prices.
-        low: Column name, expression, or series of low prices.
-        close: Column name, expression, or series of closing prices.
-        volume: Column name, expression, or series of traded volume.
+        high: Column name or expression of high prices.
+        low: Column name or expression of low prices.
+        close: Column name or expression of closing prices.
+        volume: Column name or expression of traded volume.
         window: Number of periods averaged.
 
     Returns:
-        A price: a ``pl.Series`` when every input is a series, otherwise a
-        ``pl.Expr``. The first ``window - 1`` rows are null, as is any window
-        that traded no volume.
+        A ``pl.Expr`` yielding a price. The first ``window - 1`` rows are null,
+        as is any window that traded no volume.
 
     Raises:
         ValueError: If ``window`` is not an integer of at least 1.
-        TypeError: If series inputs are mixed with names or expressions.
+        TypeError: If an input is not a ``str`` or ``pl.Expr``.
     """
     validate_window(window)
-    return apply_to_columns(
-        (high, low, close, volume),
-        lambda h, low_, c, v: _vwap_expr(h, low_, c, v, window),
-    )
+    return _vwap_expr(*to_exprs(high, low, close, volume), window)

@@ -103,11 +103,9 @@ class TestMacd(IndicatorAssertions):
         result = evaluate(macd("close", 3, 6, 4), VALUES[:5])
         self.assertEqual(result["macd"].to_list(), [None] * 5)
 
-    def test_series_input_returns_a_struct_series(self) -> None:
-        result = macd(pl.Series("close", VALUES), 3, 6, 4)
-        self.assertIsInstance(result, pl.Series)
-        self.assertEqual(result.name, "close")
-        self.assertEqual(result.struct.fields, ["macd", "signal", "histogram"])
+    def test_series_input_is_rejected(self) -> None:
+        with self.assertRaises(TypeError):
+            macd(pl.Series("close", VALUES), 3, 6, 4)
 
     def test_expression_works_in_a_lazy_frame(self) -> None:
         collected = (
