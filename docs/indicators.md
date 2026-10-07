@@ -68,12 +68,12 @@ Every indicator listed in `indicators.md` at the repository root is implemented.
 
 ## Shared Conventions
 
-- **Input forms.** Each indicator accepts a column name (`str`), a `pl.Expr`, or
-  a `pl.Series`. Name and expression inputs return a `pl.Expr`, so they compose
-  inside `select`/`with_columns` and run lazily. A series input is evaluated
-  eagerly and returns a `pl.Series` carrying the input series name. For
-  multi-input indicators every argument must be the same kind — mixing a
-  `pl.Series` with a column name raises `TypeError`.
+- **Input forms.** Each indicator accepts a column name (`str`) or a `pl.Expr`,
+  and always returns a `pl.Expr`, so it composes inside `select`/`with_columns`
+  and runs lazily. Series and frame inputs are not supported: passing a
+  `pl.Series`, `pl.DataFrame`, or `pl.LazyFrame` raises `TypeError`. Evaluate
+  the expression on a frame when an eager result is needed, for example
+  `values.to_frame("close").select(sma("close", 3)).to_series()`.
 - **Warm-up.** Every indicator emits exactly the TA-Lib lookback as leading
   nulls:
 
@@ -474,8 +474,8 @@ from polars_ta import mfi
 df.with_columns(mfi("high", "low", "close", "volume", 14).alias("mfi_14"))
 ```
 
-The four inputs are positional, in TA-Lib's order. They may be column names,
-expressions, or series, but not a mixture of series and the other two.
+The four inputs are positional, in TA-Lib's order. They may be column names or
+expressions.
 
 **Warm-up.** $n$ leading nulls, matching the TA-Lib `MFI` lookback.
 

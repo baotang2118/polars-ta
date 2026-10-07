@@ -2,7 +2,7 @@
 
 A Python technical-indicator library designed around Polars and PyArrow.
 
-Indicators are expression-first: they return a `pl.Expr` that composes inside `select`/`with_columns` and runs lazily, and they also accept a `pl.Series` for eager use.
+Indicators are expression-only: every function returns a `pl.Expr` that composes inside `select`/`with_columns` and runs lazily. Series and DataFrame inputs are not accepted — convert them outside the library.
 
 ## Quick start
 
@@ -25,7 +25,9 @@ n = 40
 close = [100 + i * 0.5 + (i % 5) * 1.3 for i in range(n)]
 ohlcv = pl.DataFrame(
     {
-        "date": pl.date_range(pl.date(2024, 1, 1), pl.date(2024, 2, 9), "1d", eager=True),
+        "date": pl.date_range(
+            pl.date(2024, 1, 1), pl.date(2024, 2, 9), "1d", eager=True
+        ),
         "open": [c - 0.4 for c in close],
         "high": [c + 1.0 for c in close],
         "low": [c - 1.0 for c in close],
@@ -65,12 +67,12 @@ Output columns are ordinary Polars columns, so filter, join, or group them as us
 oversold = out.filter((pl.col("rsi_14") < 30) | (pl.col("close") < pl.col("lower")))
 ```
 
-### 5. Go lazy, or use a Series
+### 5. Go lazy
 
 The same expressions work on a `LazyFrame`, which lets Polars optimize the whole query:
 
 ```python
-from polars_ta import ema, supertrend
+from polars_ta import supertrend
 
 result = (
     ohlcv.lazy()
@@ -78,8 +80,6 @@ result = (
     .unnest("st")  # supertrend, direction
     .collect()
 )
-
-ema(ohlcv["close"], 5)  # a pl.Series in, a pl.Series out
 ```
 
 Find the function you need in the [Indicators](#indicators) table below, and see [docs/indicators.md](docs/indicators.md) for formulas and worked examples.
@@ -229,12 +229,24 @@ apo("close", 12, 26, ma_type="ema")
 macdext("close", 12, 26, 9, signal_ma_type="wma")
 ```
 
-Each function takes a column name, a `pl.Expr`, or a `pl.Series`:
+## Inputs are expressions only
+
+Every function takes a column name or a `pl.Expr`, and always returns a `pl.Expr`:
 
 ```python
 sma("close", 3)  # pl.Expr
 sma(pl.col("close"), 3)  # pl.Expr
-sma(pl.Series("close", [1.0, 2.0]), 3)  # pl.Series
+```
+
+There is no eager path. Passing a `pl.Series`, a `pl.DataFrame`, or a `pl.LazyFrame` raises `TypeError`. Keeping one expression-only signature means the whole indicator stays inside a single Polars query, so the optimizer sees it and no intermediate frame is built per call. Evaluate the expression yourself when you need a concrete result:
+
+```python
+# From a frame
+df.select(sma("close", 3))
+df.lazy().select(sma("close", 3)).collect()
+
+# From a bare series
+values.to_frame("close").select(sma("close", 3)).to_series()
 ```
 
 `ema` defaults to the TA-Lib convention, seeding the recursion with the simple moving average of the first complete window. Pass `mode="recursive"` or `mode="adjust"` for the pandas `ewm(adjust=False)` and `ewm(adjust=True)` conventions, or `alpha=` to override the default smoothing factor of `2 / (window + 1)`. `dema`, `tema`, and `macd` chain further EMA passes and accept the same `mode`.
