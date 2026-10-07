@@ -71,12 +71,20 @@ class TestTrueRange(IndicatorAssertions):
         result = evaluate(true_range("high", "low", "close"), frame(high=high))
         self.assert_values_equal(result, reference_true_range(high, LOW, CLOSE))
 
-    def test_names_expressions_and_series_agree(self) -> None:
+    def test_names_and_expressions_agree(self) -> None:
         from_names = evaluate(true_range("high", "low", "close"))
-        from_series = true_range(
-            pl.Series("high", HIGH), pl.Series("low", LOW), pl.Series("close", CLOSE)
+        from_exprs = evaluate(
+            true_range(pl.col("high"), pl.col("low"), pl.col("close"))
         )
-        self.assert_values_equal(from_series.to_list(), from_names)
+        self.assert_values_equal(from_exprs, from_names)
+
+    def test_series_input_is_rejected(self) -> None:
+        with self.assertRaises(TypeError):
+            true_range(
+                pl.Series("high", HIGH),
+                pl.Series("low", LOW),
+                pl.Series("close", CLOSE),
+            )
 
 
 class TestAtr(IndicatorAssertions):
@@ -124,14 +132,19 @@ class TestAtr(IndicatorAssertions):
             evaluate(atr("high", "low", "close", 14)),
         )
 
-    def test_names_expressions_and_series_agree(self) -> None:
+    def test_names_and_expressions_agree(self) -> None:
         from_names = evaluate(atr("high", "low", "close", 5))
         from_exprs = evaluate(atr(pl.col("high"), pl.col("low"), pl.col("close"), 5))
-        from_series = atr(
-            pl.Series("high", HIGH), pl.Series("low", LOW), pl.Series("close", CLOSE), 5
-        )
         self.assert_values_equal(from_exprs, from_names)
-        self.assert_values_equal(from_series.to_list(), from_names)
+
+    def test_series_input_is_rejected(self) -> None:
+        with self.assertRaises(TypeError):
+            atr(
+                pl.Series("high", HIGH),
+                pl.Series("low", LOW),
+                pl.Series("close", CLOSE),
+                5,
+            )
 
     def test_expression_works_in_a_lazy_frame(self) -> None:
         collected = (

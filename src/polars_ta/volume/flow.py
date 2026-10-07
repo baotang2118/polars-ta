@@ -2,11 +2,9 @@
 
 from __future__ import annotations
 
-from typing import overload
-
 import polars as pl
 
-from polars_ta._common import IntoColumn, apply_to_columns, validate_window
+from polars_ta._common import IntoColumn, to_exprs, validate_window
 from polars_ta.overlay.ma import ema
 
 
@@ -74,24 +72,9 @@ def _obv_expr(close: pl.Expr, volume: pl.Expr) -> pl.Expr:
     ).cum_sum()
 
 
-@overload
-def ad(
-    high: str | pl.Expr,
-    low: str | pl.Expr,
-    close: str | pl.Expr,
-    volume: str | pl.Expr,
-) -> pl.Expr: ...
-
-
-@overload
-def ad(
-    high: pl.Series, low: pl.Series, close: pl.Series, volume: pl.Series
-) -> pl.Series: ...
-
-
 def ad(
     high: IntoColumn, low: IntoColumn, close: IntoColumn, volume: IntoColumn
-) -> pl.Expr | pl.Series:
+) -> pl.Expr:
     """Chaikin Accumulation/Distribution Line.
 
     Each bar's volume is signed by where the close finished inside the bar's
@@ -99,42 +82,19 @@ def ad(
     accumulation, a close at the low the full volume as distribution.
 
     Args:
-        high: Column name, expression, or series of high prices.
-        low: Column name, expression, or series of low prices.
-        close: Column name, expression, or series of closing prices.
-        volume: Column name, expression, or series of traded volume.
+        high: Column name or expression of high prices.
+        low: Column name or expression of low prices.
+        close: Column name or expression of closing prices.
+        volume: Column name or expression of traded volume.
 
     Returns:
-        A running total in volume units: a ``pl.Series`` when every input is a
-        series, otherwise a ``pl.Expr``. There is no warm-up, and a bar with no
-        range contributes nothing.
+        A ``pl.Expr`` yielding a running total in volume units. There is no
+        warm-up, and a bar with no range contributes nothing.
 
     Raises:
-        TypeError: If series inputs are mixed with names or expressions.
+        TypeError: If an input is not a ``str`` or ``pl.Expr``.
     """
-    return apply_to_columns((high, low, close, volume), _ad_expr)
-
-
-@overload
-def adosc(
-    high: str | pl.Expr,
-    low: str | pl.Expr,
-    close: str | pl.Expr,
-    volume: str | pl.Expr,
-    fast_period: int = 3,
-    slow_period: int = 10,
-) -> pl.Expr: ...
-
-
-@overload
-def adosc(
-    high: pl.Series,
-    low: pl.Series,
-    close: pl.Series,
-    volume: pl.Series,
-    fast_period: int = 3,
-    slow_period: int = 10,
-) -> pl.Series: ...
+    return _ad_expr(*to_exprs(high, low, close, volume))
 
 
 def adosc(
@@ -144,46 +104,35 @@ def adosc(
     volume: IntoColumn,
     fast_period: int = 3,
     slow_period: int = 10,
-) -> pl.Expr | pl.Series:
+) -> pl.Expr:
     """Chaikin A/D Oscillator: a MACD built on the A/D line instead of price.
 
     Turning the open-ended :func:`ad` total into the gap between two of its own
     averages gives a bounded, oscillating reading of buying pressure.
 
     Args:
-        high: Column name, expression, or series of high prices.
-        low: Column name, expression, or series of low prices.
-        close: Column name, expression, or series of closing prices.
-        volume: Column name, expression, or series of traded volume.
+        high: Column name or expression of high prices.
+        low: Column name or expression of low prices.
+        close: Column name or expression of closing prices.
+        volume: Column name or expression of traded volume.
         fast_period: Period of the faster exponential average.
         slow_period: Period of the slower exponential average.
 
     Returns:
-        A ``pl.Series`` when every input is a series, otherwise a ``pl.Expr``.
-        The first ``slow_period - 1`` rows are null. Both averages are seeded
-        with the first A/D reading, as TA-Lib does, rather than with an SMA.
+        A ``pl.Expr``. The first ``slow_period - 1`` rows are null. Both
+        averages are seeded with the first A/D reading, as TA-Lib does, rather
+        than with an SMA.
 
     Raises:
         ValueError: If a period is not an integer of at least 1.
-        TypeError: If series inputs are mixed with names or expressions.
+        TypeError: If an input is not a ``str`` or ``pl.Expr``.
     """
     validate_window(fast_period)
     validate_window(slow_period)
-    return apply_to_columns(
-        (high, low, close, volume),
-        lambda h, low_, c, v: _adosc_expr(h, low_, c, v, fast_period, slow_period),
-    )
+    return _adosc_expr(*to_exprs(high, low, close, volume), fast_period, slow_period)
 
 
-@overload
-def obv(close: str | pl.Expr, volume: str | pl.Expr) -> pl.Expr: ...
-
-
-@overload
-def obv(close: pl.Series, volume: pl.Series) -> pl.Series: ...
-
-
-def obv(close: IntoColumn, volume: IntoColumn) -> pl.Expr | pl.Series:
+def obv(close: IntoColumn, volume: IntoColumn) -> pl.Expr:
     """On Balance Volume: volume added on up bars and subtracted on down bars.
 
     Only the sign of the close-to-close change matters, so the line measures
@@ -191,38 +140,17 @@ def obv(close: IntoColumn, volume: IntoColumn) -> pl.Expr | pl.Series:
     volume, as TA-Lib does.
 
     Args:
-        close: Column name, expression, or series of closing prices.
-        volume: Column name, expression, or series of traded volume.
+        close: Column name or expression of closing prices.
+        volume: Column name or expression of traded volume.
 
     Returns:
-        A running total in volume units: a ``pl.Series`` when every input is a
-        series, otherwise a ``pl.Expr``. There is no warm-up, and an unchanged
-        close contributes nothing.
+        A ``pl.Expr`` yielding a running total in volume units. There is no
+        warm-up, and an unchanged close contributes nothing.
 
     Raises:
-        TypeError: If series inputs are mixed with names or expressions.
+        TypeError: If an input is not a ``str`` or ``pl.Expr``.
     """
-    return apply_to_columns((close, volume), _obv_expr)
-
-
-@overload
-def cmf(
-    high: str | pl.Expr,
-    low: str | pl.Expr,
-    close: str | pl.Expr,
-    volume: str | pl.Expr,
-    window: int = 20,
-) -> pl.Expr: ...
-
-
-@overload
-def cmf(
-    high: pl.Series,
-    low: pl.Series,
-    close: pl.Series,
-    volume: pl.Series,
-    window: int = 20,
-) -> pl.Series: ...
+    return _obv_expr(*to_exprs(close, volume))
 
 
 def cmf(
@@ -231,7 +159,7 @@ def cmf(
     close: IntoColumn,
     volume: IntoColumn,
     window: int = 20,
-) -> pl.Expr | pl.Series:
+) -> pl.Expr:
     """Chaikin Money Flow: :func:`ad` over a window, divided by that window's volume.
 
     Normalising by volume turns the open-ended A/D total into a bounded ratio,
@@ -239,23 +167,20 @@ def cmf(
     than how much of it there was.
 
     Args:
-        high: Column name, expression, or series of high prices.
-        low: Column name, expression, or series of low prices.
-        close: Column name, expression, or series of closing prices.
-        volume: Column name, expression, or series of traded volume.
+        high: Column name or expression of high prices.
+        low: Column name or expression of low prices.
+        close: Column name or expression of closing prices.
+        volume: Column name or expression of traded volume.
         window: Number of periods summed.
 
     Returns:
-        A ratio in ``[-1, 1]``: a ``pl.Series`` when every input is a series,
-        otherwise a ``pl.Expr``. The first ``window - 1`` rows are null, and a
-        window with no volume reports ``0.0`` rather than dividing.
+        A ``pl.Expr`` yielding a ratio in ``[-1, 1]``. The first ``window - 1``
+        rows are null, and a window with no volume reports ``0.0`` rather than
+        dividing.
 
     Raises:
         ValueError: If ``window`` is not an integer of at least 1.
-        TypeError: If series inputs are mixed with names or expressions.
+        TypeError: If an input is not a ``str`` or ``pl.Expr``.
     """
     validate_window(window)
-    return apply_to_columns(
-        (high, low, close, volume),
-        lambda h, low_, c, v: _cmf_expr(h, low_, c, v, window),
-    )
+    return _cmf_expr(*to_exprs(high, low, close, volume), window)

@@ -2,11 +2,9 @@
 
 from __future__ import annotations
 
-from typing import overload
-
 import polars as pl
 
-from polars_ta._common import IntoColumn, apply_to_columns, validate_window
+from polars_ta._common import IntoColumn, to_exprs, validate_window
 
 AROON_FIELDS = ("down", "up")
 
@@ -40,15 +38,7 @@ def _aroonosc_expr(high: pl.Expr, low: pl.Expr, window: int) -> pl.Expr:
     return up - down
 
 
-@overload
-def aroon(high: str | pl.Expr, low: str | pl.Expr, window: int = 14) -> pl.Expr: ...
-
-
-@overload
-def aroon(high: pl.Series, low: pl.Series, window: int = 14) -> pl.Series: ...
-
-
-def aroon(high: IntoColumn, low: IntoColumn, window: int = 14) -> pl.Expr | pl.Series:
+def aroon(high: IntoColumn, low: IntoColumn, window: int = 14) -> pl.Expr:
     """Aroon: how recently the window's high and low were set.
 
     ``up`` reaches ``100`` on the bar that sets a new window high and decays by
@@ -56,51 +46,38 @@ def aroon(high: IntoColumn, low: IntoColumn, window: int = 14) -> pl.Expr | pl.S
     A reading says nothing about the size of a move, only its freshness.
 
     Args:
-        high: Column name, expression, or series of high prices.
-        low: Column name, expression, or series of low prices.
+        high: Column name or expression of high prices.
+        low: Column name or expression of low prices.
         window: Number of periods looked back, in addition to the current bar.
 
     Returns:
-        A struct with fields ``down`` and ``up``, each in ``[0, 100]``: a
-        ``pl.Series`` when every input is a series, otherwise a ``pl.Expr``.
-        The first ``window`` rows are null. Repeated extremes count from the
-        most recent occurrence, as in TA-Lib.
+        A ``pl.Expr`` yielding a struct with fields ``down`` and ``up``, each
+        in ``[0, 100]``. The first ``window`` rows are null. Repeated extremes
+        count from the most recent occurrence, as in TA-Lib.
 
     Raises:
         ValueError: If ``window`` is not an integer of at least 1.
-        TypeError: If series inputs are mixed with names or expressions.
+        TypeError: If an input is not a ``str`` or ``pl.Expr``.
     """
     validate_window(window)
-    return apply_to_columns((high, low), lambda h, low_: _aroon_expr(h, low_, window))
+    return _aroon_expr(*to_exprs(high, low), window)
 
 
-@overload
-def aroonosc(high: str | pl.Expr, low: str | pl.Expr, window: int = 14) -> pl.Expr: ...
-
-
-@overload
-def aroonosc(high: pl.Series, low: pl.Series, window: int = 14) -> pl.Series: ...
-
-
-def aroonosc(
-    high: IntoColumn, low: IntoColumn, window: int = 14
-) -> pl.Expr | pl.Series:
+def aroonosc(high: IntoColumn, low: IntoColumn, window: int = 14) -> pl.Expr:
     """Aroon Oscillator: the Aroon up line minus the down line.
 
     Args:
-        high: Column name, expression, or series of high prices.
-        low: Column name, expression, or series of low prices.
+        high: Column name or expression of high prices.
+        low: Column name or expression of low prices.
         window: Number of periods looked back, in addition to the current bar.
 
     Returns:
-        A value in ``[-100, 100]``: a ``pl.Series`` when every input is a
-        series, otherwise a ``pl.Expr``. The first ``window`` rows are null.
+        A ``pl.Expr`` yielding a value in ``[-100, 100]``. The first
+        ``window`` rows are null.
 
     Raises:
         ValueError: If ``window`` is not an integer of at least 1.
-        TypeError: If series inputs are mixed with names or expressions.
+        TypeError: If an input is not a ``str`` or ``pl.Expr``.
     """
     validate_window(window)
-    return apply_to_columns(
-        (high, low), lambda h, low_: _aroonosc_expr(h, low_, window)
-    )
+    return _aroonosc_expr(*to_exprs(high, low), window)

@@ -82,10 +82,9 @@ class TestPriceOscillators(IndicatorAssertions):
                     evaluate(function("close")), evaluate(function("close", 12, 26))
                 )
 
-    def test_series_input_keeps_its_name(self) -> None:
-        result = apo(pl.Series("close", VALUES), 5, 12)
-        self.assertIsInstance(result, pl.Series)
-        self.assertEqual(result.name, "close")
+    def test_series_input_is_rejected(self) -> None:
+        with self.assertRaises(TypeError):
+            apo(pl.Series("close", VALUES), 5, 12)
 
     def test_invalid_arguments_raise(self) -> None:
         with self.assertRaises(ValueError):

@@ -197,4 +197,8 @@ class TestMacdVariants(IndicatorAssertions):
         with self.assertRaises(ValueError):
             macdext("close", 5, 12, 4, fast_ma_type="mesa")
         with self.assertRaises(ValueError):
-            macdfix(pl.Series("close", HAND_CHECKED), 0)
+            macdfix("close", 0)
+
+    def test_series_input_is_rejected(self) -> None:
+        with self.assertRaises(TypeError):
+            macdfix(pl.Series("close", HAND_CHECKED))

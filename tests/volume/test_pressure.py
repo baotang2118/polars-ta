@@ -99,12 +99,12 @@ class TestVpt(IndicatorAssertions):
         bars = pl.DataFrame({"close": constant(5, 3.0), "volume": [90.0] * 5})
         self.assert_values_equal(column(vpt("close", "volume"), bars), [0.0] * 5)
 
-    def test_series_input_keeps_its_name(self) -> None:
-        result = vpt(
-            pl.Series("close", CLOSE[:LENGTH]), pl.Series("volume", VOLUME[:LENGTH])
-        )
-        self.assertIsInstance(result, pl.Series)
-        self.assertEqual(result.name, "close")
+    def test_series_input_is_rejected(self) -> None:
+        with self.assertRaises(TypeError):
+            vpt(
+                pl.Series("close", CLOSE[:LENGTH]),
+                pl.Series("volume", VOLUME[:LENGTH]),
+            )
 
 
 class TestNvi(IndicatorAssertions):

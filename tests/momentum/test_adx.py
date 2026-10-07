@@ -96,16 +96,21 @@ class TestAdx(IndicatorAssertions):
         self.assertEqual(default["plus_di"].null_count(), 14)
         self.assert_values_equal(default["adx"].to_list(), explicit["adx"].to_list())
 
-    def test_names_expressions_and_series_agree(self) -> None:
+    def test_names_and_expressions_agree(self) -> None:
         from_names = evaluate(adx("high", "low", "close", 5))["adx"].to_list()
         from_exprs = evaluate(adx(pl.col("high"), pl.col("low"), pl.col("close"), 5))[
             "adx"
         ].to_list()
-        from_series = adx(
-            pl.Series("high", HIGH), pl.Series("low", LOW), pl.Series("close", CLOSE), 5
-        )
         self.assert_values_equal(from_exprs, from_names)
-        self.assert_values_equal(from_series.struct.field("adx").to_list(), from_names)
+
+    def test_series_input_is_rejected(self) -> None:
+        with self.assertRaises(TypeError):
+            adx(
+                pl.Series("high", HIGH),
+                pl.Series("low", LOW),
+                pl.Series("close", CLOSE),
+                5,
+            )
 
     def test_expression_works_in_a_lazy_frame(self) -> None:
         collected = (

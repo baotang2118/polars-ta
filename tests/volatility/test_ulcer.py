@@ -63,7 +63,6 @@ class TestUlcer(IndicatorAssertions):
         with self.assertRaises(ValueError):
             ulcer("close", 0)
 
-    def test_series_input_keeps_its_name(self) -> None:
-        result = ulcer(pl.Series("close", CLOSE[:LENGTH]), 14)
-        self.assertIsInstance(result, pl.Series)
-        self.assertEqual(result.name, "close")
+    def test_series_input_is_rejected(self) -> None:
+        with self.assertRaises(TypeError):
+            ulcer(pl.Series("close", CLOSE[:LENGTH]), 14)

@@ -2,13 +2,11 @@
 
 from __future__ import annotations
 
-from typing import overload
-
 import polars as pl
 
 from polars_ta._common import (
     IntoColumn,
-    apply_to_column,
+    to_expr,
     validate_positive,
     validate_window,
 )
@@ -28,50 +26,30 @@ def _bbands_expr(values: pl.Expr, window: int, num_std: float, ddof: int) -> pl.
     )
 
 
-@overload
-def bbands(
-    column: str | pl.Expr,
-    window: int = 20,
-    *,
-    num_std: float = 2.0,
-    ddof: int = 0,
-) -> pl.Expr: ...
-
-
-@overload
-def bbands(
-    column: pl.Series,
-    window: int = 20,
-    *,
-    num_std: float = 2.0,
-    ddof: int = 0,
-) -> pl.Series: ...
-
-
 def bbands(
     column: IntoColumn,
     window: int = 20,
     *,
     num_std: float = 2.0,
     ddof: int = 0,
-) -> pl.Expr | pl.Series:
+) -> pl.Expr:
     """Bollinger Bands: an SMA with standard-deviation envelopes above and below.
 
     Args:
-        column: Column name, expression, or series holding the input values.
+        column: Column name or expression holding the input values.
         window: Number of periods for the moving average and deviation.
         num_std: Width of the envelope in standard deviations.
         ddof: Delta degrees of freedom for the deviation. ``0`` is the
             population deviation used by TA-Lib; ``1`` is the sample deviation.
 
     Returns:
-        A struct with fields ``lower``, ``middle``, and ``upper``: a
-        ``pl.Series`` when ``column`` is a series, otherwise a ``pl.Expr``.
-        The first ``window - 1`` rows are null, as is any row whose window
-        contains a null input.
+        A ``pl.Expr`` yielding a struct with fields ``lower``, ``middle``, and
+        ``upper``. The first ``window - 1`` rows are null, as is any row whose
+        window contains a null input.
 
     Raises:
         ValueError: If ``window``, ``num_std``, or ``ddof`` is invalid.
+        TypeError: If ``column`` is not a ``str`` or ``pl.Expr``.
     """
     validate_window(window)
     validate_positive("num_std", num_std)
@@ -79,6 +57,4 @@ def bbands(
         raise ValueError(f"ddof must be an int, got {type(ddof).__name__}")
     if not 0 <= ddof < window:
         raise ValueError(f"ddof must satisfy 0 <= ddof < window, got {ddof}")
-    return apply_to_column(
-        column, lambda values: _bbands_expr(values, window, num_std, ddof)
-    )
+    return _bbands_expr(to_expr(column), window, num_std, ddof)

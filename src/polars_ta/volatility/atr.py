@@ -2,11 +2,9 @@
 
 from __future__ import annotations
 
-from typing import overload
-
 import polars as pl
 
-from polars_ta._common import IntoColumn, apply_to_columns, validate_window
+from polars_ta._common import IntoColumn, to_exprs, validate_window
 from polars_ta.overlay.ma import ema
 
 
@@ -42,50 +40,22 @@ def _natr_expr(high: pl.Expr, low: pl.Expr, close: pl.Expr, window: int) -> pl.E
     )
 
 
-@overload
-def true_range(
-    high: str | pl.Expr, low: str | pl.Expr, close: str | pl.Expr
-) -> pl.Expr: ...
-
-
-@overload
-def true_range(high: pl.Series, low: pl.Series, close: pl.Series) -> pl.Series: ...
-
-
-def true_range(
-    high: IntoColumn, low: IntoColumn, close: IntoColumn
-) -> pl.Expr | pl.Series:
+def true_range(high: IntoColumn, low: IntoColumn, close: IntoColumn) -> pl.Expr:
     """True Range: the widest of today's span and either gap from yesterday's close.
 
     Args:
-        high: Column name, expression, or series of high prices.
-        low: Column name, expression, or series of low prices.
-        close: Column name, expression, or series of closing prices.
+        high: Column name or expression of high prices.
+        low: Column name or expression of low prices.
+        close: Column name or expression of closing prices.
 
     Returns:
-        A non-negative range: a ``pl.Series`` when every input is a series,
-        otherwise a ``pl.Expr``. The first row is null, since it has no
-        previous close.
+        A ``pl.Expr`` yielding a non-negative range. The first row is null,
+        since it has no previous close.
 
     Raises:
-        TypeError: If series inputs are mixed with names or expressions.
+        TypeError: If an input is not a ``str`` or ``pl.Expr``.
     """
-    return apply_to_columns((high, low, close), _true_range_expr)
-
-
-@overload
-def atr(
-    high: str | pl.Expr,
-    low: str | pl.Expr,
-    close: str | pl.Expr,
-    window: int = 14,
-) -> pl.Expr: ...
-
-
-@overload
-def atr(
-    high: pl.Series, low: pl.Series, close: pl.Series, window: int = 14
-) -> pl.Series: ...
+    return _true_range_expr(*to_exprs(high, low, close))
 
 
 def atr(
@@ -93,44 +63,25 @@ def atr(
     low: IntoColumn,
     close: IntoColumn,
     window: int = 14,
-) -> pl.Expr | pl.Series:
+) -> pl.Expr:
     """Average True Range: Wilder-smoothed true range, a pure volatility measure.
 
     Args:
-        high: Column name, expression, or series of high prices.
-        low: Column name, expression, or series of low prices.
-        close: Column name, expression, or series of closing prices.
+        high: Column name or expression of high prices.
+        low: Column name or expression of low prices.
+        close: Column name or expression of closing prices.
         window: Number of periods to smooth over.
 
     Returns:
-        A non-negative volatility measure in price units: a ``pl.Series`` when
-        every input is a series, otherwise a ``pl.Expr``. The first ``window``
-        rows are null.
+        A ``pl.Expr`` yielding a non-negative volatility measure in price
+        units. The first ``window`` rows are null.
 
     Raises:
         ValueError: If ``window`` is not an integer of at least 1.
-        TypeError: If series inputs are mixed with names or expressions.
+        TypeError: If an input is not a ``str`` or ``pl.Expr``.
     """
     validate_window(window)
-    return apply_to_columns(
-        (high, low, close),
-        lambda h, low_, c: _atr_expr(h, low_, c, window),
-    )
-
-
-@overload
-def natr(
-    high: str | pl.Expr,
-    low: str | pl.Expr,
-    close: str | pl.Expr,
-    window: int = 14,
-) -> pl.Expr: ...
-
-
-@overload
-def natr(
-    high: pl.Series, low: pl.Series, close: pl.Series, window: int = 14
-) -> pl.Series: ...
+    return _atr_expr(*to_exprs(high, low, close), window)
 
 
 def natr(
@@ -138,29 +89,25 @@ def natr(
     low: IntoColumn,
     close: IntoColumn,
     window: int = 14,
-) -> pl.Expr | pl.Series:
+) -> pl.Expr:
     """Normalized Average True Range: the ATR as a percentage of the close.
 
     Expressing volatility relative to price makes readings comparable across
     instruments and across long stretches of history, which the raw ATR is not.
 
     Args:
-        high: Column name, expression, or series of high prices.
-        low: Column name, expression, or series of low prices.
-        close: Column name, expression, or series of closing prices.
+        high: Column name or expression of high prices.
+        low: Column name or expression of low prices.
+        close: Column name or expression of closing prices.
         window: Number of periods to smooth over.
 
     Returns:
-        A non-negative percentage: a ``pl.Series`` when every input is a
-        series, otherwise a ``pl.Expr``. The first ``window`` rows are null,
-        and a zero close reports ``0.0`` rather than dividing.
+        A ``pl.Expr`` yielding a non-negative percentage. The first ``window``
+        rows are null, and a zero close reports ``0.0`` rather than dividing.
 
     Raises:
         ValueError: If ``window`` is not an integer of at least 1.
-        TypeError: If series inputs are mixed with names or expressions.
+        TypeError: If an input is not a ``str`` or ``pl.Expr``.
     """
     validate_window(window)
-    return apply_to_columns(
-        (high, low, close),
-        lambda h, low_, c: _natr_expr(h, low_, c, window),
-    )
+    return _natr_expr(*to_exprs(high, low, close), window)

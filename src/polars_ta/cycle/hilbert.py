@@ -2,11 +2,9 @@
 
 from __future__ import annotations
 
-from typing import overload
-
 import polars as pl
 
-from polars_ta._common import IntoColumn, apply_to_column
+from polars_ta._common import IntoColumn, to_expr
 from polars_ta._hilbert import (
     LONG_LOOKBACK,
     SHORT_LOOKBACK,
@@ -48,100 +46,65 @@ def _pair(first: str, second: str, lookback: int, dtype: pl.DataType) -> object:
     return scan
 
 
-@overload
-def ht_dcperiod(column: str | pl.Expr) -> pl.Expr: ...
-
-
-@overload
-def ht_dcperiod(column: pl.Series) -> pl.Series: ...
-
-
-def ht_dcperiod(column: IntoColumn) -> pl.Expr | pl.Series:
+def ht_dcperiod(column: IntoColumn) -> pl.Expr:
     """Hilbert Transform Dominant Cycle Period: the length of the current cycle.
 
     The measured period is clamped to ``[6, 50]`` bars and smoothed, so it
     drifts rather than jumping when the market changes rhythm.
 
     Args:
-        column: Column name, expression, or series holding the input values.
+        column: Column name or expression holding the input values.
 
     Returns:
-        A period in bars: a ``pl.Series`` when ``column`` is a series,
-        otherwise a ``pl.Expr``. The first 32 rows are null, and a null input
-        ends the recursion, leaving every later row null.
+        A ``pl.Expr`` yielding a period in bars. The first 32 rows are null,
+        and a null input ends the recursion, leaving every later row null.
+
+    Raises:
+        TypeError: If ``column`` is not a ``str`` or ``pl.Expr``.
     """
-    return apply_to_column(
-        column,
-        lambda values: values.map_batches(
-            _single("smooth_period", SHORT_LOOKBACK, _FLOAT), return_dtype=_FLOAT
-        ),
+    return to_expr(column).map_batches(
+        _single("smooth_period", SHORT_LOOKBACK, _FLOAT), return_dtype=_FLOAT
     )
 
 
-@overload
-def ht_dcphase(column: str | pl.Expr) -> pl.Expr: ...
-
-
-@overload
-def ht_dcphase(column: pl.Series) -> pl.Series: ...
-
-
-def ht_dcphase(column: IntoColumn) -> pl.Expr | pl.Series:
+def ht_dcphase(column: IntoColumn) -> pl.Expr:
     """Hilbert Transform Dominant Cycle Phase: where in its cycle price sits.
 
     Args:
-        column: Column name, expression, or series holding the input values.
+        column: Column name or expression holding the input values.
 
     Returns:
-        A phase in degrees, wrapped to end at ``315``: a ``pl.Series`` when
-        ``column`` is a series, otherwise a ``pl.Expr``. The first 63 rows are
-        null.
+        A ``pl.Expr`` yielding a phase in degrees, wrapped to end at ``315``.
+        The first 63 rows are null.
+
+    Raises:
+        TypeError: If ``column`` is not a ``str`` or ``pl.Expr``.
     """
-    return apply_to_column(
-        column,
-        lambda values: values.map_batches(
-            _single("dc_phase", LONG_LOOKBACK, _FLOAT), return_dtype=_FLOAT
-        ),
+    return to_expr(column).map_batches(
+        _single("dc_phase", LONG_LOOKBACK, _FLOAT), return_dtype=_FLOAT
     )
 
 
-@overload
-def ht_phasor(column: str | pl.Expr) -> pl.Expr: ...
-
-
-@overload
-def ht_phasor(column: pl.Series) -> pl.Series: ...
-
-
-def ht_phasor(column: IntoColumn) -> pl.Expr | pl.Series:
+def ht_phasor(column: IntoColumn) -> pl.Expr:
     """Hilbert Transform Phasor Components: the real and imaginary cycle parts.
 
     Args:
-        column: Column name, expression, or series holding the input values.
+        column: Column name or expression holding the input values.
 
     Returns:
-        A struct with fields ``in_phase`` and ``quadrature``: a ``pl.Series``
-        when ``column`` is a series, otherwise a ``pl.Expr``. The first 32 rows
-        are null.
+        A ``pl.Expr`` yielding a struct with fields ``in_phase`` and
+        ``quadrature``. The first 32 rows are null.
+
+    Raises:
+        TypeError: If ``column`` is not a ``str`` or ``pl.Expr``.
     """
-    return apply_to_column(
-        column,
-        lambda values: values.map_batches(
-            _pair("in_phase", "quadrature", SHORT_LOOKBACK, _PHASOR_DTYPE),
-            return_dtype=_PHASOR_DTYPE,
-        ),
+    return to_expr(column).map_batches(
+        _pair("in_phase", "quadrature", SHORT_LOOKBACK, _PHASOR_DTYPE),
+        return_dtype=_PHASOR_DTYPE,
     )
 
 
-@overload
-def ht_sine(column: str | pl.Expr) -> pl.Expr: ...
-
-
-@overload
-def ht_sine(column: pl.Series) -> pl.Series: ...
-
-
-def ht_sine(column: IntoColumn) -> pl.Expr | pl.Series:
+def ht_sine(column: IntoColumn) -> pl.Expr:
     """Hilbert Transform SineWave: the cycle phase as a sine and a lead sine.
 
     The two lines cross a quarter-cycle apart, which marks cycle turns well
@@ -149,31 +112,22 @@ def ht_sine(column: IntoColumn) -> pl.Expr | pl.Series:
     cycle rather than a trend, which is what :func:`ht_trendmode` reports.
 
     Args:
-        column: Column name, expression, or series holding the input values.
+        column: Column name or expression holding the input values.
 
     Returns:
-        A struct with fields ``sine`` and ``lead_sine``, each in ``[-1, 1]``: a
-        ``pl.Series`` when ``column`` is a series, otherwise a ``pl.Expr``. The
-        first 63 rows are null.
+        A ``pl.Expr`` yielding a struct with fields ``sine`` and ``lead_sine``,
+        each in ``[-1, 1]``. The first 63 rows are null.
+
+    Raises:
+        TypeError: If ``column`` is not a ``str`` or ``pl.Expr``.
     """
-    return apply_to_column(
-        column,
-        lambda values: values.map_batches(
-            _pair("sine", "lead_sine", LONG_LOOKBACK, _SINE_DTYPE),
-            return_dtype=_SINE_DTYPE,
-        ),
+    return to_expr(column).map_batches(
+        _pair("sine", "lead_sine", LONG_LOOKBACK, _SINE_DTYPE),
+        return_dtype=_SINE_DTYPE,
     )
 
 
-@overload
-def ht_trendmode(column: str | pl.Expr) -> pl.Expr: ...
-
-
-@overload
-def ht_trendmode(column: pl.Series) -> pl.Series: ...
-
-
-def ht_trendmode(column: IntoColumn) -> pl.Expr | pl.Series:
+def ht_trendmode(column: IntoColumn) -> pl.Expr:
     """Hilbert Transform Trend versus Cycle Mode.
 
     Reports ``1`` when the market is trending and ``0`` when it is cycling,
@@ -181,30 +135,22 @@ def ht_trendmode(column: IntoColumn) -> pl.Expr | pl.Series:
     should be trusted.
 
     Args:
-        column: Column name, expression, or series holding the input values.
+        column: Column name or expression holding the input values.
 
     Returns:
-        An ``Int8`` of ``0`` or ``1``: a ``pl.Series`` when ``column`` is a
-        series, otherwise a ``pl.Expr``. The first 63 rows are null.
+        A ``pl.Expr`` yielding an ``Int8`` of ``0`` or ``1``. The first 63 rows
+        are null.
+
+    Raises:
+        TypeError: If ``column`` is not a ``str`` or ``pl.Expr``.
     """
-    return apply_to_column(
-        column,
-        lambda values: values.map_batches(
-            _single("trend_mode", LONG_LOOKBACK, _MODE_DTYPE),
-            return_dtype=_MODE_DTYPE,
-        ),
+    return to_expr(column).map_batches(
+        _single("trend_mode", LONG_LOOKBACK, _MODE_DTYPE),
+        return_dtype=_MODE_DTYPE,
     )
 
 
-@overload
-def ht_trendline(column: str | pl.Expr) -> pl.Expr: ...
-
-
-@overload
-def ht_trendline(column: pl.Series) -> pl.Series: ...
-
-
-def ht_trendline(column: IntoColumn) -> pl.Expr | pl.Series:
+def ht_trendline(column: IntoColumn) -> pl.Expr:
     """Hilbert Transform Instantaneous Trendline.
 
     Averages price over exactly one dominant cycle, which cancels the cycle
@@ -212,15 +158,15 @@ def ht_trendline(column: IntoColumn) -> pl.Expr | pl.Series:
     property as the cycle stretches or compresses.
 
     Args:
-        column: Column name, expression, or series holding the input values.
+        column: Column name or expression holding the input values.
 
     Returns:
-        A level in price units: a ``pl.Series`` when ``column`` is a series,
-        otherwise a ``pl.Expr``. The first 63 rows are null.
+        A ``pl.Expr`` yielding a level in price units. The first 63 rows are
+        null.
+
+    Raises:
+        TypeError: If ``column`` is not a ``str`` or ``pl.Expr``.
     """
-    return apply_to_column(
-        column,
-        lambda values: values.map_batches(
-            _single("trendline", LONG_LOOKBACK, _FLOAT), return_dtype=_FLOAT
-        ),
+    return to_expr(column).map_batches(
+        _single("trendline", LONG_LOOKBACK, _FLOAT), return_dtype=_FLOAT
     )

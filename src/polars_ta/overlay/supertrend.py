@@ -2,13 +2,11 @@
 
 from __future__ import annotations
 
-from typing import overload
-
 import polars as pl
 
 from polars_ta._common import (
     IntoColumn,
-    apply_to_columns,
+    to_exprs,
     validate_positive,
     validate_window,
 )
@@ -69,33 +67,13 @@ def _supertrend_expr(
     ).map_batches(_supertrend_scan, return_dtype=_RETURN_DTYPE)
 
 
-@overload
-def supertrend(
-    high: str | pl.Expr,
-    low: str | pl.Expr,
-    close: str | pl.Expr,
-    window: int = 10,
-    multiplier: float = 3.0,
-) -> pl.Expr: ...
-
-
-@overload
-def supertrend(
-    high: pl.Series,
-    low: pl.Series,
-    close: pl.Series,
-    window: int = 10,
-    multiplier: float = 3.0,
-) -> pl.Series: ...
-
-
 def supertrend(
     high: IntoColumn,
     low: IntoColumn,
     close: IntoColumn,
     window: int = 10,
     multiplier: float = 3.0,
-) -> pl.Expr | pl.Series:
+) -> pl.Expr:
     """Supertrend: an ATR band that flips sides when price closes through it.
 
     Bands are drawn ``multiplier`` ATRs either side of the bar's median price,
@@ -103,25 +81,21 @@ def supertrend(
     holds. Closing beyond the opposite band flips the trend.
 
     Args:
-        high: Column name, expression, or series of high prices.
-        low: Column name, expression, or series of low prices.
-        close: Column name, expression, or series of closing prices.
+        high: Column name or expression of high prices.
+        low: Column name or expression of low prices.
+        close: Column name or expression of closing prices.
         window: Number of periods for the ATR.
         multiplier: Band width in ATRs.
 
     Returns:
-        A struct with fields ``supertrend`` (the active band, in price units)
-        and ``direction`` (``1`` while rising, ``-1`` while falling): a
-        ``pl.Series`` when every input is a series, otherwise a ``pl.Expr``.
-        The first ``window`` rows are null, following the ATR.
+        A ``pl.Expr`` yielding a struct with fields ``supertrend`` (the active
+        band, in price units) and ``direction`` (``1`` while rising, ``-1``
+        while falling). The first ``window`` rows are null, following the ATR.
 
     Raises:
         ValueError: If ``window`` or ``multiplier`` is invalid.
-        TypeError: If series inputs are mixed with names or expressions.
+        TypeError: If an input is not a ``str`` or ``pl.Expr``.
     """
     validate_window(window)
     validate_positive("multiplier", multiplier)
-    return apply_to_columns(
-        (high, low, close),
-        lambda h, low_, c: _supertrend_expr(h, low_, c, window, multiplier),
-    )
+    return _supertrend_expr(*to_exprs(high, low, close), window, multiplier)

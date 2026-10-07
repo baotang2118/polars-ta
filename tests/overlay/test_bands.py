@@ -98,11 +98,9 @@ class TestBbands(IndicatorAssertions):
             evaluate(bbands("close"), values)["middle"].to_list()[:19], [None] * 19
         )
 
-    def test_series_input_returns_a_struct_series(self) -> None:
-        result = bbands(pl.Series("close", VALUES), 3)
-        self.assertIsInstance(result, pl.Series)
-        self.assertEqual(result.name, "close")
-        self.assertEqual(result.struct.fields, ["lower", "middle", "upper"])
+    def test_series_input_is_rejected(self) -> None:
+        with self.assertRaises(TypeError):
+            bbands(pl.Series("close", VALUES), 3)
 
     def test_expression_works_in_a_lazy_frame(self) -> None:
         collected = (

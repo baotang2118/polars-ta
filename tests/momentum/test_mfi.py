@@ -127,23 +127,14 @@ class TestMfi(IndicatorAssertions):
             evaluate(mfi("high", "low", "close", "volume", 14)),
         )
 
-    def test_names_expressions_and_series_agree(self) -> None:
+    def test_names_and_expressions_agree(self) -> None:
         from_names = evaluate(mfi("high", "low", "close", "volume", 3))
         from_exprs = evaluate(
             mfi(pl.col("high"), pl.col("low"), pl.col("close"), pl.col("volume"), 3)
         )
-        from_series = mfi(
-            pl.Series("high", HIGH),
-            pl.Series("low", LOW),
-            pl.Series("close", CLOSE),
-            pl.Series("volume", VOLUME),
-            3,
-        )
         self.assert_values_equal(from_exprs, from_names)
-        self.assert_values_equal(from_series.to_list(), from_names)
-        self.assertEqual(from_series.name, "high")
 
-    def test_mixing_series_with_names_raises(self) -> None:
+    def test_series_input_is_rejected(self) -> None:
         with self.assertRaises(TypeError):
             mfi(pl.Series("high", HIGH), "low", "close", "volume", 3)
 

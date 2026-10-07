@@ -75,7 +75,7 @@ class TestAd(IndicatorAssertions):
             column(ad("high", "low", "close", "volume"), bars), [0.0] * 6
         )
 
-    def test_mixing_series_with_names_raises(self) -> None:
+    def test_series_input_is_rejected(self) -> None:
         with self.assertRaises(TypeError):
             ad(pl.Series("high", HIGH[:5]), "low", "close", "volume")
 
@@ -127,12 +127,12 @@ class TestObv(IndicatorAssertions):
         bars = pl.DataFrame({"close": constant(5, 2.0), "volume": [30.0] * 5})
         self.assert_values_equal(column(obv("close", "volume"), bars), [30.0] * 5)
 
-    def test_series_input_keeps_its_name(self) -> None:
-        result = obv(
-            pl.Series("close", CLOSE[:LENGTH]), pl.Series("volume", VOLUME[:LENGTH])
-        )
-        self.assertIsInstance(result, pl.Series)
-        self.assertEqual(result.name, "close")
+    def test_series_input_is_rejected(self) -> None:
+        with self.assertRaises(TypeError):
+            obv(
+                pl.Series("close", CLOSE[:LENGTH]),
+                pl.Series("volume", VOLUME[:LENGTH]),
+            )
 
 
 def reference_cmf(

@@ -2,11 +2,9 @@
 
 from __future__ import annotations
 
-from typing import overload
-
 import polars as pl
 
-from polars_ta._common import IntoColumn, apply_to_columns
+from polars_ta._common import IntoColumn, to_exprs
 
 
 def _avgprice_expr(
@@ -27,125 +25,78 @@ def _wclprice_expr(high: pl.Expr, low: pl.Expr, close: pl.Expr) -> pl.Expr:
     return (high + low + 2.0 * close) / 4.0
 
 
-@overload
-def avgprice(
-    open_: str | pl.Expr,
-    high: str | pl.Expr,
-    low: str | pl.Expr,
-    close: str | pl.Expr,
-) -> pl.Expr: ...
-
-
-@overload
-def avgprice(
-    open_: pl.Series, high: pl.Series, low: pl.Series, close: pl.Series
-) -> pl.Series: ...
-
-
 def avgprice(
     open_: IntoColumn, high: IntoColumn, low: IntoColumn, close: IntoColumn
-) -> pl.Expr | pl.Series:
+) -> pl.Expr:
     """Average Price: the mean of the four OHLC values.
 
     Args:
-        open_: Column name, expression, or series of opening prices.
-        high: Column name, expression, or series of high prices.
-        low: Column name, expression, or series of low prices.
-        close: Column name, expression, or series of closing prices.
+        open_: Column name or expression of opening prices.
+        high: Column name or expression of high prices.
+        low: Column name or expression of low prices.
+        close: Column name or expression of closing prices.
 
     Returns:
-        A price: a ``pl.Series`` when every input is a series, otherwise a
-        ``pl.Expr``. There is no warm-up, and any null input nulls the row.
+        A ``pl.Expr`` yielding a price. There is no warm-up, and any null
+        input nulls the row.
 
     Raises:
-        TypeError: If series inputs are mixed with names or expressions.
+        TypeError: If an input is not a ``str`` or ``pl.Expr``.
     """
-    return apply_to_columns((open_, high, low, close), _avgprice_expr)
+    return _avgprice_expr(*to_exprs(open_, high, low, close))
 
 
-@overload
-def medprice(high: str | pl.Expr, low: str | pl.Expr) -> pl.Expr: ...
-
-
-@overload
-def medprice(high: pl.Series, low: pl.Series) -> pl.Series: ...
-
-
-def medprice(high: IntoColumn, low: IntoColumn) -> pl.Expr | pl.Series:
+def medprice(high: IntoColumn, low: IntoColumn) -> pl.Expr:
     """Median Price: the midpoint of the bar's range.
 
     Args:
-        high: Column name, expression, or series of high prices.
-        low: Column name, expression, or series of low prices.
+        high: Column name or expression of high prices.
+        low: Column name or expression of low prices.
 
     Returns:
-        A price: a ``pl.Series`` when every input is a series, otherwise a
-        ``pl.Expr``. There is no warm-up, and any null input nulls the row.
+        A ``pl.Expr`` yielding a price. There is no warm-up, and any null
+        input nulls the row.
 
     Raises:
-        TypeError: If series inputs are mixed with names or expressions.
+        TypeError: If an input is not a ``str`` or ``pl.Expr``.
     """
-    return apply_to_columns((high, low), _medprice_expr)
+    return _medprice_expr(*to_exprs(high, low))
 
 
-@overload
-def typprice(
-    high: str | pl.Expr, low: str | pl.Expr, close: str | pl.Expr
-) -> pl.Expr: ...
-
-
-@overload
-def typprice(high: pl.Series, low: pl.Series, close: pl.Series) -> pl.Series: ...
-
-
-def typprice(
-    high: IntoColumn, low: IntoColumn, close: IntoColumn
-) -> pl.Expr | pl.Series:
+def typprice(high: IntoColumn, low: IntoColumn, close: IntoColumn) -> pl.Expr:
     """Typical Price: the mean of high, low, and close.
 
     This is the price series that :func:`~polars_ta.momentum.cci`,
     :func:`~polars_ta.momentum.mfi`, and :func:`~polars_ta.volume.vwap` consume.
 
     Args:
-        high: Column name, expression, or series of high prices.
-        low: Column name, expression, or series of low prices.
-        close: Column name, expression, or series of closing prices.
+        high: Column name or expression of high prices.
+        low: Column name or expression of low prices.
+        close: Column name or expression of closing prices.
 
     Returns:
-        A price: a ``pl.Series`` when every input is a series, otherwise a
-        ``pl.Expr``. There is no warm-up, and any null input nulls the row.
+        A ``pl.Expr`` yielding a price. There is no warm-up, and any null
+        input nulls the row.
 
     Raises:
-        TypeError: If series inputs are mixed with names or expressions.
+        TypeError: If an input is not a ``str`` or ``pl.Expr``.
     """
-    return apply_to_columns((high, low, close), _typprice_expr)
+    return _typprice_expr(*to_exprs(high, low, close))
 
 
-@overload
-def wclprice(
-    high: str | pl.Expr, low: str | pl.Expr, close: str | pl.Expr
-) -> pl.Expr: ...
-
-
-@overload
-def wclprice(high: pl.Series, low: pl.Series, close: pl.Series) -> pl.Series: ...
-
-
-def wclprice(
-    high: IntoColumn, low: IntoColumn, close: IntoColumn
-) -> pl.Expr | pl.Series:
+def wclprice(high: IntoColumn, low: IntoColumn, close: IntoColumn) -> pl.Expr:
     """Weighted Close Price: :func:`typprice` with the close counted twice.
 
     Args:
-        high: Column name, expression, or series of high prices.
-        low: Column name, expression, or series of low prices.
-        close: Column name, expression, or series of closing prices.
+        high: Column name or expression of high prices.
+        low: Column name or expression of low prices.
+        close: Column name or expression of closing prices.
 
     Returns:
-        A price: a ``pl.Series`` when every input is a series, otherwise a
-        ``pl.Expr``. There is no warm-up, and any null input nulls the row.
+        A ``pl.Expr`` yielding a price. There is no warm-up, and any null
+        input nulls the row.
 
     Raises:
-        TypeError: If series inputs are mixed with names or expressions.
+        TypeError: If an input is not a ``str`` or ``pl.Expr``.
     """
-    return apply_to_columns((high, low, close), _wclprice_expr)
+    return _wclprice_expr(*to_exprs(high, low, close))

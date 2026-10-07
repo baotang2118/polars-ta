@@ -93,16 +93,16 @@ class TestDonchian(IndicatorAssertions):
         result = evaluate(donchian("high", "low"), frame(values, values))
         self.assertEqual(result["upper"].to_list()[:19], [None] * 19)
 
-    def test_names_expressions_and_series_agree(self) -> None:
+    def test_names_and_expressions_agree(self) -> None:
         from_names = evaluate(donchian("high", "low", 5))["upper"].to_list()
         from_exprs = evaluate(donchian(pl.col("high"), pl.col("low"), 5))[
             "upper"
         ].to_list()
-        from_series = donchian(pl.Series("high", HIGH), pl.Series("low", LOW), 5)
         self.assert_values_equal(from_exprs, from_names)
-        self.assert_values_equal(
-            from_series.struct.field("upper").to_list(), from_names
-        )
+
+    def test_series_input_is_rejected(self) -> None:
+        with self.assertRaises(TypeError):
+            donchian(pl.Series("high", HIGH), pl.Series("low", LOW), 5)
 
     def test_expression_works_in_a_lazy_frame(self) -> None:
         collected = (
@@ -215,18 +215,12 @@ class TestKeltner(IndicatorAssertions):
             )["upper"].to_list(),
         )
 
-    def test_names_expressions_and_series_agree(self) -> None:
+    def test_names_and_expressions_agree(self) -> None:
         from_names = evaluate(keltner("high", "low", "close", 5))["upper"].to_list()
         from_exprs = evaluate(
             keltner(pl.col("high"), pl.col("low"), pl.col("close"), 5)
         )["upper"].to_list()
-        from_series = keltner(
-            pl.Series("high", HIGH), pl.Series("low", LOW), pl.Series("close", CLOSE), 5
-        )
         self.assert_values_equal(from_exprs, from_names)
-        self.assert_values_equal(
-            from_series.struct.field("upper").to_list(), from_names
-        )
 
     def test_expression_works_in_a_lazy_frame(self) -> None:
         collected = (
@@ -236,7 +230,7 @@ class TestKeltner(IndicatorAssertions):
         )
         self.assertEqual(collected.columns[-1], "k")
 
-    def test_mixing_series_with_names_raises(self) -> None:
+    def test_series_input_is_rejected(self) -> None:
         with self.assertRaises(TypeError):
             keltner(pl.Series("high", HIGH), "low", "close")
 

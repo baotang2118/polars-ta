@@ -112,7 +112,7 @@ class TestAo(IndicatorAssertions):
         with self.assertRaises(ValueError):
             ao("high", "low", 0)
 
-    def test_mixing_series_with_names_raises(self) -> None:
+    def test_series_input_is_rejected(self) -> None:
         with self.assertRaises(TypeError):
             ao(pl.Series("high", HIGH[:5]), "low")
 
@@ -137,10 +137,9 @@ class TestPvo(IndicatorAssertions):
         with self.assertRaises(ValueError):
             pvo("volume", 0)
 
-    def test_series_input_keeps_its_name(self) -> None:
-        result = pvo(pl.Series("volume", VOLUME[:LENGTH]), 5, 10)
-        self.assertIsInstance(result, pl.Series)
-        self.assertEqual(result.name, "volume")
+    def test_series_input_is_rejected(self) -> None:
+        with self.assertRaises(TypeError):
+            pvo(pl.Series("volume", VOLUME[:LENGTH]), 5, 10)
 
 
 class TestAoAgainstLow(IndicatorAssertions):

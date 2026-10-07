@@ -2,11 +2,9 @@
 
 from __future__ import annotations
 
-from typing import overload
-
 import polars as pl
 
-from polars_ta._common import IntoColumn, apply_to_column, validate_window
+from polars_ta._common import IntoColumn, to_expr, validate_window
 
 
 def _ulcer_expr(values: pl.Expr, window: int) -> pl.Expr:
@@ -22,15 +20,7 @@ def _ulcer_expr(values: pl.Expr, window: int) -> pl.Expr:
     return squared.rolling_mean(window_size=window, min_samples=window).sqrt()
 
 
-@overload
-def ulcer(column: str | pl.Expr, window: int = 14) -> pl.Expr: ...
-
-
-@overload
-def ulcer(column: pl.Series, window: int = 14) -> pl.Series: ...
-
-
-def ulcer(column: IntoColumn, window: int = 14) -> pl.Expr | pl.Series:
+def ulcer(column: IntoColumn, window: int = 14) -> pl.Expr:
     """Ulcer Index: the root mean square drawdown from the window's peak.
 
     Unlike standard deviation, which punishes upside and downside alike, this
@@ -38,16 +28,17 @@ def ulcer(column: IntoColumn, window: int = 14) -> pl.Expr | pl.Series:
     how deep and how long the pain was rather than how much price moved.
 
     Args:
-        column: Column name, expression, or series holding the input values.
+        column: Column name or expression holding the input values.
         window: Number of periods used for both the peak and the average.
 
     Returns:
-        A non-negative percentage: a ``pl.Series`` when ``column`` is a series,
-        otherwise a ``pl.Expr``. The first ``2 * (window - 1)`` rows are null,
-        since the drawdown series itself needs a full window first.
+        A ``pl.Expr`` yielding a non-negative percentage. The first
+        ``2 * (window - 1)`` rows are null, since the drawdown series itself
+        needs a full window first.
 
     Raises:
         ValueError: If ``window`` is not an integer of at least 1.
+        TypeError: If ``column`` is not a ``str`` or ``pl.Expr``.
     """
     validate_window(window)
-    return apply_to_column(column, lambda values: _ulcer_expr(values, window))
+    return _ulcer_expr(to_expr(column), window)

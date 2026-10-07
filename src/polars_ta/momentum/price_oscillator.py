@@ -2,11 +2,9 @@
 
 from __future__ import annotations
 
-from typing import overload
-
 import polars as pl
 
-from polars_ta._common import IntoColumn, apply_to_column, validate_window
+from polars_ta._common import IntoColumn, to_expr, validate_window
 from polars_ta.overlay.dispatch import MaType, _ma_expr, validate_ma_type
 
 
@@ -35,33 +33,13 @@ def _po_expr(
     )
 
 
-@overload
-def apo(
-    column: str | pl.Expr,
-    fast_period: int = 12,
-    slow_period: int = 26,
-    *,
-    ma_type: MaType = "sma",
-) -> pl.Expr: ...
-
-
-@overload
-def apo(
-    column: pl.Series,
-    fast_period: int = 12,
-    slow_period: int = 26,
-    *,
-    ma_type: MaType = "sma",
-) -> pl.Series: ...
-
-
 def apo(
     column: IntoColumn,
     fast_period: int = 12,
     slow_period: int = 26,
     *,
     ma_type: MaType = "sma",
-) -> pl.Expr | pl.Series:
+) -> pl.Expr:
     """Absolute Price Oscillator: the gap between a fast and a slow average.
 
     The same construction as the MACD line, but with a selectable average and
@@ -69,46 +47,23 @@ def apo(
     changes nothing.
 
     Args:
-        column: Column name, expression, or series holding the input values.
+        column: Column name or expression holding the input values.
         fast_period: Period of the faster average.
         slow_period: Period of the slower average.
         ma_type: Which average to apply; see :func:`~polars_ta.overlay.ma`.
 
     Returns:
-        A difference in price units: a ``pl.Series`` when ``column`` is a
-        series, otherwise a ``pl.Expr``. Output starts once the slower average
-        does.
+        A ``pl.Expr`` yielding a difference in price units. Output starts once
+        the slower average does.
 
     Raises:
         ValueError: If a period is invalid or ``ma_type`` is unknown.
+        TypeError: If ``column`` is not a ``str`` or ``pl.Expr``.
     """
     validate_window(fast_period)
     validate_window(slow_period)
     validate_ma_type(ma_type)
-    return apply_to_column(
-        column,
-        lambda values: _po_expr(values, fast_period, slow_period, ma_type, False),
-    )
-
-
-@overload
-def ppo(
-    column: str | pl.Expr,
-    fast_period: int = 12,
-    slow_period: int = 26,
-    *,
-    ma_type: MaType = "sma",
-) -> pl.Expr: ...
-
-
-@overload
-def ppo(
-    column: pl.Series,
-    fast_period: int = 12,
-    slow_period: int = 26,
-    *,
-    ma_type: MaType = "sma",
-) -> pl.Series: ...
+    return _po_expr(to_expr(column), fast_period, slow_period, ma_type, False)
 
 
 def ppo(
@@ -117,52 +72,30 @@ def ppo(
     slow_period: int = 26,
     *,
     ma_type: MaType = "sma",
-) -> pl.Expr | pl.Series:
+) -> pl.Expr:
     """Percentage Price Oscillator: :func:`apo` scaled by the slow average.
 
     Expressing the gap as a percentage makes readings comparable across
     instruments and across time, which a raw price difference is not.
 
     Args:
-        column: Column name, expression, or series holding the input values.
+        column: Column name or expression holding the input values.
         fast_period: Period of the faster average.
         slow_period: Period of the slower average.
         ma_type: Which average to apply; see :func:`~polars_ta.overlay.ma`.
 
     Returns:
-        A percentage: a ``pl.Series`` when ``column`` is a series, otherwise a
-        ``pl.Expr``. A zero slow average reports ``0.0`` rather than dividing.
+        A ``pl.Expr`` yielding a percentage. A zero slow average reports
+        ``0.0`` rather than dividing.
 
     Raises:
         ValueError: If a period is invalid or ``ma_type`` is unknown.
+        TypeError: If ``column`` is not a ``str`` or ``pl.Expr``.
     """
     validate_window(fast_period)
     validate_window(slow_period)
     validate_ma_type(ma_type)
-    return apply_to_column(
-        column,
-        lambda values: _po_expr(values, fast_period, slow_period, ma_type, True),
-    )
-
-
-@overload
-def pvo(
-    column: str | pl.Expr,
-    fast_period: int = 12,
-    slow_period: int = 26,
-    *,
-    ma_type: MaType = "ema",
-) -> pl.Expr: ...
-
-
-@overload
-def pvo(
-    column: pl.Series,
-    fast_period: int = 12,
-    slow_period: int = 26,
-    *,
-    ma_type: MaType = "ema",
-) -> pl.Series: ...
+    return _po_expr(to_expr(column), fast_period, slow_period, ma_type, True)
 
 
 def pvo(
@@ -171,7 +104,7 @@ def pvo(
     slow_period: int = 26,
     *,
     ma_type: MaType = "ema",
-) -> pl.Expr | pl.Series:
+) -> pl.Expr:
     """Percentage Volume Oscillator: :func:`ppo` applied to volume.
 
     The same construction read on volume instead of price, so it says whether
@@ -179,22 +112,20 @@ def pvo(
     price went. It defaults to exponential averages, unlike :func:`ppo`.
 
     Args:
-        column: Column name, expression, or series holding traded volume.
+        column: Column name or expression holding traded volume.
         fast_period: Period of the faster average.
         slow_period: Period of the slower average.
         ma_type: Which average to apply; see :func:`~polars_ta.overlay.ma`.
 
     Returns:
-        A percentage: a ``pl.Series`` when ``column`` is a series, otherwise a
-        ``pl.Expr``. A zero slow average reports ``0.0`` rather than dividing.
+        A ``pl.Expr`` yielding a percentage. A zero slow average reports
+        ``0.0`` rather than dividing.
 
     Raises:
         ValueError: If a period is invalid or ``ma_type`` is unknown.
+        TypeError: If ``column`` is not a ``str`` or ``pl.Expr``.
     """
     validate_window(fast_period)
     validate_window(slow_period)
     validate_ma_type(ma_type)
-    return apply_to_column(
-        column,
-        lambda values: _po_expr(values, fast_period, slow_period, ma_type, True),
-    )
+    return _po_expr(to_expr(column), fast_period, slow_period, ma_type, True)

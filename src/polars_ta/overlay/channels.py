@@ -2,13 +2,11 @@
 
 from __future__ import annotations
 
-from typing import overload
-
 import polars as pl
 
 from polars_ta._common import (
     IntoColumn,
-    apply_to_columns,
+    to_exprs,
     validate_positive,
     validate_window,
 )
@@ -40,64 +38,25 @@ def _keltner_expr(
     return pl.struct(lower=middle - offset, middle=middle, upper=middle + offset)
 
 
-@overload
-def donchian(high: str | pl.Expr, low: str | pl.Expr, window: int = 20) -> pl.Expr: ...
-
-
-@overload
-def donchian(high: pl.Series, low: pl.Series, window: int = 20) -> pl.Series: ...
-
-
-def donchian(
-    high: IntoColumn, low: IntoColumn, window: int = 20
-) -> pl.Expr | pl.Series:
+def donchian(high: IntoColumn, low: IntoColumn, window: int = 20) -> pl.Expr:
     """Donchian Channels: the highest high and lowest low of the last ``window`` bars.
 
     Args:
-        high: Column name, expression, or series of high prices.
-        low: Column name, expression, or series of low prices.
+        high: Column name or expression of high prices.
+        low: Column name or expression of low prices.
         window: Number of bars spanned by the channel.
 
     Returns:
-        A struct with fields ``lower``, ``middle``, and ``upper``: a
-        ``pl.Series`` when every input is a series, otherwise a ``pl.Expr``.
-        The first ``window - 1`` rows are null, as is any row whose window
-        contains a null input.
+        A ``pl.Expr`` yielding a struct with fields ``lower``, ``middle``, and
+        ``upper``. The first ``window - 1`` rows are null, as is any row whose
+        window contains a null input.
 
     Raises:
         ValueError: If ``window`` is not an integer of at least 1.
-        TypeError: If series inputs are mixed with names or expressions.
+        TypeError: If an input is not a ``str`` or ``pl.Expr``.
     """
     validate_window(window)
-    return apply_to_columns(
-        (high, low), lambda h, low_: _donchian_expr(h, low_, window)
-    )
-
-
-@overload
-def keltner(
-    high: str | pl.Expr,
-    low: str | pl.Expr,
-    close: str | pl.Expr,
-    window: int = 20,
-    *,
-    atr_window: int = 10,
-    multiplier: float = 2.0,
-    mode: EmaMode = "talib",
-) -> pl.Expr: ...
-
-
-@overload
-def keltner(
-    high: pl.Series,
-    low: pl.Series,
-    close: pl.Series,
-    window: int = 20,
-    *,
-    atr_window: int = 10,
-    multiplier: float = 2.0,
-    mode: EmaMode = "talib",
-) -> pl.Series: ...
+    return _donchian_expr(*to_exprs(high, low), window)
 
 
 def keltner(
@@ -109,7 +68,7 @@ def keltner(
     atr_window: int = 10,
     multiplier: float = 2.0,
     mode: EmaMode = "talib",
-) -> pl.Expr | pl.Series:
+) -> pl.Expr:
     """Keltner Channels: an exponential average with an ATR envelope.
 
     Where Bollinger Bands scale their envelope by the standard deviation of the
@@ -118,31 +77,32 @@ def keltner(
     channel steadier, and a close outside it a stronger breakout signal.
 
     Args:
-        high: Column name, expression, or series of high prices.
-        low: Column name, expression, or series of low prices.
-        close: Column name, expression, or series of closing prices.
+        high: Column name or expression of high prices.
+        low: Column name or expression of low prices.
+        close: Column name or expression of closing prices.
         window: Number of periods in the exponential average centre line.
         atr_window: Number of periods in the ATR setting the channel width.
         multiplier: Channel half-width in ATRs.
         mode: EMA seeding convention; see :func:`polars_ta.overlay.ma.ema`.
 
     Returns:
-        A struct with fields ``lower``, ``middle``, and ``upper``: a
-        ``pl.Series`` when every input is a series, otherwise a ``pl.Expr``.
-        ``middle`` depends only on the close and starts after ``window - 1``
-        rows; the two edges also need the ATR and so start after
+        A ``pl.Expr`` yielding a struct with fields ``lower``, ``middle``, and
+        ``upper``. ``middle`` depends only on the close and starts after
+        ``window - 1`` rows; the two edges also need the ATR and so start after
         ``max(window - 1, atr_window)`` rows.
 
     Raises:
         ValueError: If a window, ``multiplier``, or ``mode`` is invalid.
-        TypeError: If series inputs are mixed with names or expressions.
+        TypeError: If an input is not a ``str`` or ``pl.Expr``.
     """
     smoothing = _resolve_alpha(window, None, mode)
     validate_window(atr_window)
     validate_positive("multiplier", multiplier)
-    return apply_to_columns(
-        (high, low, close),
-        lambda h, low_, c: _keltner_expr(
-            h, low_, c, window, smoothing, mode, atr_window, float(multiplier)
-        ),
+    return _keltner_expr(
+        *to_exprs(high, low, close),
+        window,
+        smoothing,
+        mode,
+        atr_window,
+        float(multiplier),
     )

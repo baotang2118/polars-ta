@@ -94,6 +94,6 @@ class TestVwap(IndicatorAssertions):
         with self.assertRaises(ValueError):
             vwap("high", "low", "close", "volume", 0)
 
-    def test_mixing_series_with_names_raises(self) -> None:
+    def test_series_input_is_rejected(self) -> None:
         with self.assertRaises(TypeError):
             vwap(pl.Series("high", HIGH[:5]), "low", "close", "volume")
