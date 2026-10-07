@@ -76,7 +76,7 @@ Calling an indicator does **not** compute anything. It builds a `pl.Expr`, a rec
 | `lf.with_columns(sma("close", 3))` | `pl.LazyFrame` | No — still a plan |
 | `lf.with_columns(...).collect()` | `pl.DataFrame` | Yes, on `collect()` |
 
-So you only ever get values out of a `pl.DataFrame`; an `pl.Expr` on its own holds no data, and a `pl.LazyFrame` holds none until you call `.collect()`.
+So an expression must be evaluated against a frame before it yields values: a `pl.Expr` on its own holds no data, and a `pl.LazyFrame` holds none until you call `.collect()`.
 
 ### 4. The same query, lazily
 
@@ -385,6 +385,7 @@ Tests use `unittest.TestCase` assertions and are executed with pytest. Module-le
 
 ## Project References
 
-- [docs/indicators.md](docs/indicators.md): indicator formulas, conventions, and null handling.
+- [docs/indicators.md](docs/indicators.md): shared conventions, the indicator index, and the overlay formulas.
+- [docs/indicators-oscillators.md](docs/indicators-oscillators.md): momentum, volume, volatility, cycle, and returns formulas.
 - [KNOWLEDGE.md](KNOWLEDGE.md): package structure, design principles, and dependency guidance.
 - [AGENTS.md](AGENTS.md): repository-wide development and validation requirements.
