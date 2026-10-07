@@ -65,4 +65,5 @@ def midprice(high: IntoColumn, low: IntoColumn, window: int = 14) -> pl.Expr:
         TypeError: If an input is not a ``str`` or ``pl.Expr``.
     """
     validate_window(window)
-    return _midprice_expr(*to_exprs(high, low), window)
+    high_expr, low_expr = to_exprs(high, low)
+    return _midprice_expr(high_expr, low_expr, window)

@@ -90,7 +90,8 @@ def fi(close: IntoColumn, volume: IntoColumn, window: int = 13) -> pl.Expr:
         TypeError: If an input is not a ``str`` or ``pl.Expr``.
     """
     validate_window(window)
-    return _fi_expr(*to_exprs(close, volume), window)
+    close_expr, volume_expr = to_exprs(close, volume)
+    return _fi_expr(close_expr, volume_expr, window)
 
 
 def eom(
@@ -119,7 +120,8 @@ def eom(
         TypeError: If an input is not a ``str`` or ``pl.Expr``.
     """
     validate_window(window)
-    return _eom_expr(*to_exprs(high, low, volume), window)
+    high_expr, low_expr, volume_expr = to_exprs(high, low, volume)
+    return _eom_expr(high_expr, low_expr, volume_expr, window)
 
 
 def vpt(close: IntoColumn, volume: IntoColumn) -> pl.Expr:
@@ -166,4 +168,5 @@ def nvi(
         TypeError: If an input is not a ``str`` or ``pl.Expr``.
     """
     validate_positive("start_value", start_value)
-    return _nvi_expr(*to_exprs(close, volume), float(start_value))
+    close_expr, volume_expr = to_exprs(close, volume)
+    return _nvi_expr(close_expr, volume_expr, float(start_value))

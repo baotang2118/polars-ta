@@ -98,4 +98,5 @@ def supertrend(
     """
     validate_window(window)
     validate_positive("multiplier", multiplier)
-    return _supertrend_expr(*to_exprs(high, low, close), window, multiplier)
+    high_expr, low_expr, close_expr = to_exprs(high, low, close)
+    return _supertrend_expr(high_expr, low_expr, close_expr, window, multiplier)

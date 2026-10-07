@@ -139,4 +139,5 @@ def mavp(
         raise ValueError(
             f"min_period must not exceed max_period, got {min_period} > {max_period}"
         )
-    return _mavp_expr(*to_exprs(column, periods), min_period, max_period, ma_type)
+    values_expr, periods_expr = to_exprs(column, periods)
+    return _mavp_expr(values_expr, periods_expr, min_period, max_period, ma_type)

@@ -129,7 +129,10 @@ def adosc(
     """
     validate_window(fast_period)
     validate_window(slow_period)
-    return _adosc_expr(*to_exprs(high, low, close, volume), fast_period, slow_period)
+    high_expr, low_expr, close_expr, volume_expr = to_exprs(high, low, close, volume)
+    return _adosc_expr(
+        high_expr, low_expr, close_expr, volume_expr, fast_period, slow_period
+    )
 
 
 def obv(close: IntoColumn, volume: IntoColumn) -> pl.Expr:
@@ -183,4 +186,5 @@ def cmf(
         TypeError: If an input is not a ``str`` or ``pl.Expr``.
     """
     validate_window(window)
-    return _cmf_expr(*to_exprs(high, low, close, volume), window)
+    high_expr, low_expr, close_expr, volume_expr = to_exprs(high, low, close, volume)
+    return _cmf_expr(high_expr, low_expr, close_expr, volume_expr, window)

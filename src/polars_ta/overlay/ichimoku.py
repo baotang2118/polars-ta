@@ -72,8 +72,11 @@ def ichimoku(
     validate_window(base_period)
     validate_window(span_b_period)
     validate_window(displacement)
+    high_expr, low_expr, close_expr = to_exprs(high, low, close)
     return _ichimoku_expr(
-        *to_exprs(high, low, close),
+        high_expr,
+        low_expr,
+        close_expr,
         conversion_period,
         base_period,
         span_b_period,

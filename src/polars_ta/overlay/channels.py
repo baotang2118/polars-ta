@@ -56,7 +56,8 @@ def donchian(high: IntoColumn, low: IntoColumn, window: int = 20) -> pl.Expr:
         TypeError: If an input is not a ``str`` or ``pl.Expr``.
     """
     validate_window(window)
-    return _donchian_expr(*to_exprs(high, low), window)
+    high_expr, low_expr = to_exprs(high, low)
+    return _donchian_expr(high_expr, low_expr, window)
 
 
 def keltner(
@@ -98,8 +99,11 @@ def keltner(
     smoothing = _resolve_alpha(window, None, mode)
     validate_window(atr_window)
     validate_positive("multiplier", multiplier)
+    high_expr, low_expr, close_expr = to_exprs(high, low, close)
     return _keltner_expr(
-        *to_exprs(high, low, close),
+        high_expr,
+        low_expr,
+        close_expr,
         window,
         smoothing,
         mode,

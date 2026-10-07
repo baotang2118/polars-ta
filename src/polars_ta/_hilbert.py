@@ -45,7 +45,18 @@ class HilbertSeries(NamedTuple):
 
 
 def _empty(size: int) -> HilbertSeries:
-    return HilbertSeries(*([None] * size for _ in range(len(HilbertSeries._fields))))
+    return HilbertSeries(
+        smooth_period=[None] * size,
+        in_phase=[None] * size,
+        quadrature=[None] * size,
+        dc_phase=[None] * size,
+        sine=[None] * size,
+        lead_sine=[None] * size,
+        trend_mode=[None] * size,
+        trendline=[None] * size,
+        mama=[None] * size,
+        fama=[None] * size,
+    )
 
 
 class _Quadrature:
@@ -86,24 +97,29 @@ def hilbert_transform(
     trailing_index = 0
     today = 0
     first = values[today]
+    assert first is not None
     today += 1
     wma_sub = first
     wma_sum = first
     second = values[today]
+    assert second is not None
     today += 1
     wma_sub += second
     wma_sum += second * 2.0
     third = values[today]
+    assert third is not None
     today += 1
     wma_sub += third
     wma_sum += third * 3.0
     trailing_value = 0.0
     for _ in range(9):
         price = values[today]
+        assert price is not None
         today += 1
         wma_sub += price - trailing_value
         wma_sum += price * 4.0
         trailing_value = values[trailing_index]
+        assert trailing_value is not None
         trailing_index += 1
         wma_sum -= wma_sub
 
@@ -128,9 +144,11 @@ def hilbert_transform(
     while today < usable:
         scale = 0.075 * period + 0.54
         price = values[today]
+        assert price is not None
         wma_sub += price - trailing_value
         wma_sum += price * 4.0
         trailing_value = values[trailing_index]
+        assert trailing_value is not None
         trailing_index += 1
         smoothed = wma_sum * 0.1
         wma_sum -= wma_sub
@@ -214,7 +232,9 @@ def hilbert_transform(
         total = 0.0
         for step in range(min(cycle_length, _SMOOTH_BUFFER)):
             if today - step >= 0:
-                total += values[today - step]
+                sampled_price = values[today - step]
+                assert sampled_price is not None
+                total += sampled_price
         if cycle_length > 0:
             total /= cycle_length
         trendline = (4.0 * total + 3.0 * trend1 + 2.0 * trend2 + trend3) / 10.0
