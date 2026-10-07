@@ -14,12 +14,126 @@ The library requires Python 3.10+ and depends on `polars` and `pyarrow`. From a 
 uv sync        # or: pip install .
 ```
 
-### 2. Prepare your data
+### 2. A complete example
 
-Indicators read plain columns, so any DataFrame with the right price columns works. OHLCV data normally has `open`, `high`, `low`, `close`, and `volume`, sorted oldest to newest:
+Indicators read plain columns, so any DataFrame with the right price columns works. The script below is saved as [examples/quickstart.py](examples/quickstart.py) — run it with `uv run python examples/quickstart.py`:
 
 ```python
 import polars as pl
+
+from polars_ta import ema, sma
+
+# 1. Build a frame. In practice use pl.read_csv("prices.csv") or pl.read_parquet(...).
+prices = pl.DataFrame(
+    {
+        "date": pl.date_range(
+            pl.date(2024, 1, 1), pl.date(2024, 1, 10), "1d", eager=True
+        ),
+        "close": [10.0, 11.0, 12.0, 11.5, 13.0, 14.0, 13.5, 15.0, 16.0, 15.5],
+    }
+)
+
+# 2. Add indicators as new columns. Each call is an expression; .alias names the result.
+out = prices.with_columns(
+    sma("close", 3).alias("sma_3"),
+    ema("close", 3).alias("ema_3"),
+)
+
+# 3. Print. `out` is an ordinary pl.DataFrame.
+print(out)
+```
+
+```text
+shape: (10, 4)
+┌────────────┬───────┬───────────┬───────────┐
+│ date       ┆ close ┆ sma_3     ┆ ema_3     │
+│ ---        ┆ ---   ┆ ---       ┆ ---       │
+│ date       ┆ f64   ┆ f64       ┆ f64       │
+╞════════════╪═══════╪═══════════╪═══════════╡
+│ 2024-01-01 ┆ 10.0  ┆ null      ┆ null      │
+│ 2024-01-02 ┆ 11.0  ┆ null      ┆ null      │
+│ 2024-01-03 ┆ 12.0  ┆ 11.0      ┆ 11.0      │
+│ 2024-01-04 ┆ 11.5  ┆ 11.5      ┆ 11.25     │
+│ 2024-01-05 ┆ 13.0  ┆ 12.166667 ┆ 12.125    │
+│ 2024-01-06 ┆ 14.0  ┆ 12.833333 ┆ 13.0625   │
+│ 2024-01-07 ┆ 13.5  ┆ 13.5      ┆ 13.28125  │
+│ 2024-01-08 ┆ 15.0  ┆ 14.166667 ┆ 14.140625 │
+│ 2024-01-09 ┆ 16.0  ┆ 14.833333 ┆ 15.070312 │
+│ 2024-01-10 ┆ 15.5  ┆ 15.5      ┆ 15.285156 │
+└────────────┴───────┴───────────┴───────────┘
+```
+
+The first rows are `null` while the indicator warms up: a 3-period average needs 3 bars, so rows 1 and 2 are null. See [Missing values](#missing-values-null-and-nan).
+
+### 3. What each call returns
+
+Calling an indicator does **not** compute anything. It builds a `pl.Expr`, a recipe. The frame you pass it to decides when it runs and what you get back:
+
+| Expression | Type | Computed? |
+| ---------- | ---- | --------- |
+| `sma("close", 3)` | `pl.Expr` | No — just a recipe |
+| `df.with_columns(sma("close", 3))` | `pl.DataFrame` | Yes, immediately |
+| `lf.with_columns(sma("close", 3))` | `pl.LazyFrame` | No — still a plan |
+| `lf.with_columns(...).collect()` | `pl.DataFrame` | Yes, on `collect()` |
+
+So you only ever get values out of a `pl.DataFrame`; an `pl.Expr` on its own holds no data, and a `pl.LazyFrame` holds none until you call `.collect()`.
+
+### 4. The same query, lazily
+
+Swap `prices` for `prices.lazy()` and add `.collect()` at the end. Polars then optimizes the whole query before running it. Saved as [examples/quickstart_lazy.py](examples/quickstart_lazy.py) — run it with `uv run python examples/quickstart_lazy.py`:
+
+```python
+import polars as pl
+
+from polars_ta import ema, sma
+
+# Build a lazy frame. In practice use pl.scan_csv(...) or pl.scan_parquet(...).
+prices = pl.LazyFrame(
+    {
+        "date": pl.date_range(
+            pl.date(2024, 1, 1), pl.date(2024, 1, 10), "1d", eager=True
+        ),
+        "close": [10.0, 11.0, 12.0, 11.5, 13.0, 14.0, 13.5, 15.0, 16.0, 15.5],
+    }
+)
+
+# Nothing is computed yet; this only extends the query plan.
+query = prices.with_columns(
+    sma("close", 3).alias("sma_3"),
+    ema("close", 3).alias("ema_3"),
+)
+print("before collect:", type(query).__name__)
+
+# collect() optimizes and runs the whole plan, returning a pl.DataFrame.
+out = query.collect()
+print("after collect: ", type(out).__name__)
+print(out.tail(3))
+```
+
+```text
+before collect: LazyFrame
+after collect:  DataFrame
+shape: (3, 4)
+┌────────────┬───────┬───────────┬───────────┐
+│ date       ┆ close ┆ sma_3     ┆ ema_3     │
+│ ---        ┆ ---   ┆ ---       ┆ ---       │
+│ date       ┆ f64   ┆ f64       ┆ f64       │
+╞════════════╪═══════╪═══════════╪═══════════╡
+│ 2024-01-08 ┆ 15.0  ┆ 14.166667 ┆ 14.140625 │
+│ 2024-01-09 ┆ 16.0  ┆ 14.833333 ┆ 15.070312 │
+│ 2024-01-10 ┆ 15.5  ┆ 15.5      ┆ 15.285156 │
+└────────────┴───────┴───────────┴───────────┘
+```
+
+The values are identical to the eager version; only the execution strategy differs. Note that the indicator calls are unchanged — the same `sma("close", 3)` expression works in both.
+
+### 5. More indicators, and struct outputs
+
+Indicators needing several price columns take them positionally in TA-Lib's order, and a few return a struct holding more than one line. Use `.unnest()` to spread a struct into separate columns:
+
+```python
+import polars as pl
+from polars_ta import atr, bbands, macd, rsi, sma
 
 n = 40
 close = [100 + i * 0.5 + (i % 5) * 1.3 for i in range(n)]
@@ -35,16 +149,6 @@ ohlcv = pl.DataFrame(
         "volume": [1000.0 + 10 * i for i in range(n)],
     }
 )
-```
-
-In practice, load your own data instead, for example `pl.read_csv("prices.csv")` or `pl.read_parquet("prices.parquet")`.
-
-### 3. Add indicators as columns
-
-Import indicators from `polars_ta` and pass column names. Each call returns an expression, so put it inside `with_columns` (keep the original columns) or `select` (only the new ones) and use `.alias` to name the result:
-
-```python
-from polars_ta import atr, bbands, macd, rsi, sma
 
 out = ohlcv.with_columns(
     sma("close", 5).alias("sma_5"),
@@ -57,32 +161,53 @@ out = ohlcv.with_columns(
 print(out.select("date", "close", "sma_5", "rsi_14", "lower", "upper", "macd").tail(3))
 ```
 
-The first rows of an indicator are `null` while it warms up; for example `rsi("close", 14)` is null for the first 14 rows. See [Missing values](#missing-values-null-and-nan).
-
-### 4. Use the results
-
 Output columns are ordinary Polars columns, so filter, join, or group them as usual:
 
 ```python
 oversold = out.filter((pl.col("rsi_14") < 30) | (pl.col("close") < pl.col("lower")))
 ```
 
-### 5. Go lazy
+Find the function you need in the [Indicators](#indicators) table below, and see [docs/indicators.md](docs/indicators.md) for formulas and worked examples.
 
-The same expressions work on a `LazyFrame`, which lets Polars optimize the whole query:
+## Inputs are expressions only
+
+Every indicator accepts a column name or a `pl.Expr`, and nothing else:
 
 ```python
-from polars_ta import supertrend
-
-result = (
-    ohlcv.lazy()
-    .with_columns(supertrend("high", "low", "close", 10, 3.0).alias("st"))
-    .unnest("st")  # supertrend, direction
-    .collect()
-)
+sma("close", 3)  # pl.Expr
+sma(pl.col("close"), 3)  # pl.Expr
 ```
 
-Find the function you need in the [Indicators](#indicators) table below, and see [docs/indicators.md](docs/indicators.md) for formulas and worked examples.
+Passing a `pl.Series`, a `pl.DataFrame`, or a `pl.LazyFrame` raises `TypeError` at call time, not later at `collect()`:
+
+```python
+sma(pl.Series("close", [10.0, 11.0, 12.0]), 3)
+# TypeError: pl.Series input is not supported; pass a column name or pl.Expr and
+# evaluate the result on a frame, e.g. series.to_frame().select(...)
+```
+
+A single expression-only signature keeps the whole indicator inside one Polars query, so the optimizer sees it and nothing is materialized per call.
+
+If you are holding a bare `pl.Series`, give it a frame to be evaluated against. `to_frame()` reuses the series name, so an unnamed series needs one supplied. Saved as [examples/quickstart_series.py](examples/quickstart_series.py):
+
+```python
+close = pl.Series("close", [10.0, 11.0, 12.0, 11.5, 13.0, 14.0])
+close.to_frame().select(sma("close", 3)).to_series()
+# shape: (6,) Series: 'close' [f64] - [null, null, 11.0, 11.5, 12.166667, 12.833333]
+
+unnamed = pl.Series([10.0, 11.0, 12.0, 11.5, 13.0, 14.0])
+unnamed.to_frame("close").select(sma("close", 3)).to_series()
+```
+
+Because indicators are expressions, they compose: feed one into another, or into any Polars expression, without evaluating in between.
+
+```python
+ohlcv.with_columns(
+    sma(rsi("close", 14), 5).alias("smoothed_rsi"),  # an indicator of an indicator
+    (sma("close", 5) - sma("close", 20)).alias("ma_spread"),
+    sma(pl.col("high") - pl.col("low"), 10).alias("avg_range"),
+)
+```
 
 ## Indicators
 
@@ -227,26 +352,6 @@ A few indicators take a runtime-selected average through `ma_type`, which accept
 ma("close", 20, ma_type="trima")
 apo("close", 12, 26, ma_type="ema")
 macdext("close", 12, 26, 9, signal_ma_type="wma")
-```
-
-## Inputs are expressions only
-
-Every function takes a column name or a `pl.Expr`, and always returns a `pl.Expr`:
-
-```python
-sma("close", 3)  # pl.Expr
-sma(pl.col("close"), 3)  # pl.Expr
-```
-
-There is no eager path. Passing a `pl.Series`, a `pl.DataFrame`, or a `pl.LazyFrame` raises `TypeError`. Keeping one expression-only signature means the whole indicator stays inside a single Polars query, so the optimizer sees it and no intermediate frame is built per call. Evaluate the expression yourself when you need a concrete result:
-
-```python
-# From a frame
-df.select(sma("close", 3))
-df.lazy().select(sma("close", 3)).collect()
-
-# From a bare series
-values.to_frame("close").select(sma("close", 3)).to_series()
 ```
 
 `ema` defaults to the TA-Lib convention, seeding the recursion with the simple moving average of the first complete window. Pass `mode="recursive"` or `mode="adjust"` for the pandas `ewm(adjust=False)` and `ewm(adjust=True)` conventions, or `alpha=` to override the default smoothing factor of `2 / (window + 1)`. `dema`, `tema`, and `macd` chain further EMA passes and accept the same `mode`.
