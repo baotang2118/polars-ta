@@ -143,3 +143,58 @@ def ppo(
         column,
         lambda values: _po_expr(values, fast_period, slow_period, ma_type, True),
     )
+
+
+@overload
+def pvo(
+    column: str | pl.Expr,
+    fast_period: int = 12,
+    slow_period: int = 26,
+    *,
+    ma_type: MaType = "ema",
+) -> pl.Expr: ...
+
+
+@overload
+def pvo(
+    column: pl.Series,
+    fast_period: int = 12,
+    slow_period: int = 26,
+    *,
+    ma_type: MaType = "ema",
+) -> pl.Series: ...
+
+
+def pvo(
+    column: IntoColumn,
+    fast_period: int = 12,
+    slow_period: int = 26,
+    *,
+    ma_type: MaType = "ema",
+) -> pl.Expr | pl.Series:
+    """Percentage Volume Oscillator: :func:`ppo` applied to volume.
+
+    The same construction read on volume instead of price, so it says whether
+    participation is picking up or draining away, independently of which way
+    price went. It defaults to exponential averages, unlike :func:`ppo`.
+
+    Args:
+        column: Column name, expression, or series holding traded volume.
+        fast_period: Period of the faster average.
+        slow_period: Period of the slower average.
+        ma_type: Which average to apply; see :func:`~polars_ta.overlay.ma`.
+
+    Returns:
+        A percentage: a ``pl.Series`` when ``column`` is a series, otherwise a
+        ``pl.Expr``. A zero slow average reports ``0.0`` rather than dividing.
+
+    Raises:
+        ValueError: If a period is invalid or ``ma_type`` is unknown.
+    """
+    validate_window(fast_period)
+    validate_window(slow_period)
+    validate_ma_type(ma_type)
+    return apply_to_column(
+        column,
+        lambda values: _po_expr(values, fast_period, slow_period, ma_type, True),
+    )

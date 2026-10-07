@@ -1,4 +1,4 @@
-"""Accumulation/Distribution and On Balance Volume."""
+"""Accumulation/Distribution, On Balance Volume, and Chaikin Money Flow."""
 
 from __future__ import annotations
 
@@ -10,17 +10,36 @@ from polars_ta._common import IntoColumn, apply_to_columns, validate_window
 from polars_ta.overlay.ma import ema
 
 
-def _ad_expr(high: pl.Expr, low: pl.Expr, close: pl.Expr, volume: pl.Expr) -> pl.Expr:
+def _money_flow_multiplier(high: pl.Expr, low: pl.Expr, close: pl.Expr) -> pl.Expr:
+    """Where the close finished inside the bar, scaled to ``[-1, 1]``."""
     span = high - low
     # A bar with no range contributes nothing rather than dividing by zero.
-    flow = (
-        pl.when(span.is_null() | close.is_null() | volume.is_null())
+    return (
+        pl.when(span.is_null() | close.is_null())
         .then(None)
         .when(span > 0.0)
-        .then(((close - low) - (high - close)) / span * volume)
+        .then(((close - low) - (high - close)) / span)
         .otherwise(0.0)
     )
-    return flow.cum_sum()
+
+
+def _ad_expr(high: pl.Expr, low: pl.Expr, close: pl.Expr, volume: pl.Expr) -> pl.Expr:
+    return (_money_flow_multiplier(high, low, close) * volume).cum_sum()
+
+
+def _cmf_expr(
+    high: pl.Expr, low: pl.Expr, close: pl.Expr, volume: pl.Expr, window: int
+) -> pl.Expr:
+    flow = _money_flow_multiplier(high, low, close) * volume
+    flow_sum = flow.rolling_sum(window_size=window, min_samples=window)
+    volume_sum = volume.rolling_sum(window_size=window, min_samples=window)
+    return (
+        pl.when(flow_sum.is_null() | volume_sum.is_null())
+        .then(None)
+        .when(volume_sum != 0.0)
+        .then(flow_sum / volume_sum)
+        .otherwise(0.0)
+    )
 
 
 def _adosc_expr(
@@ -184,3 +203,59 @@ def obv(close: IntoColumn, volume: IntoColumn) -> pl.Expr | pl.Series:
         TypeError: If series inputs are mixed with names or expressions.
     """
     return apply_to_columns((close, volume), _obv_expr)
+
+
+@overload
+def cmf(
+    high: str | pl.Expr,
+    low: str | pl.Expr,
+    close: str | pl.Expr,
+    volume: str | pl.Expr,
+    window: int = 20,
+) -> pl.Expr: ...
+
+
+@overload
+def cmf(
+    high: pl.Series,
+    low: pl.Series,
+    close: pl.Series,
+    volume: pl.Series,
+    window: int = 20,
+) -> pl.Series: ...
+
+
+def cmf(
+    high: IntoColumn,
+    low: IntoColumn,
+    close: IntoColumn,
+    volume: IntoColumn,
+    window: int = 20,
+) -> pl.Expr | pl.Series:
+    """Chaikin Money Flow: :func:`ad` over a window, divided by that window's volume.
+
+    Normalising by volume turns the open-ended A/D total into a bounded ratio,
+    so the reading says what *fraction* of recent trade was accumulation rather
+    than how much of it there was.
+
+    Args:
+        high: Column name, expression, or series of high prices.
+        low: Column name, expression, or series of low prices.
+        close: Column name, expression, or series of closing prices.
+        volume: Column name, expression, or series of traded volume.
+        window: Number of periods summed.
+
+    Returns:
+        A ratio in ``[-1, 1]``: a ``pl.Series`` when every input is a series,
+        otherwise a ``pl.Expr``. The first ``window - 1`` rows are null, and a
+        window with no volume reports ``0.0`` rather than dividing.
+
+    Raises:
+        ValueError: If ``window`` is not an integer of at least 1.
+        TypeError: If series inputs are mixed with names or expressions.
+    """
+    validate_window(window)
+    return apply_to_columns(
+        (high, low, close, volume),
+        lambda h, low_, c, v: _cmf_expr(h, low_, c, v, window),
+    )
