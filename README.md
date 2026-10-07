@@ -4,6 +4,86 @@ A Python technical-indicator library designed around Polars and PyArrow.
 
 Indicators are expression-first: they return a `pl.Expr` that composes inside `select`/`with_columns` and runs lazily, and they also accept a `pl.Series` for eager use.
 
+## Quick start
+
+### 1. Install
+
+The library requires Python 3.10+ and depends on `polars` and `pyarrow`. From a clone of the repository:
+
+```sh
+uv sync        # or: pip install .
+```
+
+### 2. Prepare your data
+
+Indicators read plain columns, so any DataFrame with the right price columns works. OHLCV data normally has `open`, `high`, `low`, `close`, and `volume`, sorted oldest to newest:
+
+```python
+import polars as pl
+
+n = 40
+close = [100 + i * 0.5 + (i % 5) * 1.3 for i in range(n)]
+ohlcv = pl.DataFrame(
+    {
+        "date": pl.date_range(pl.date(2024, 1, 1), pl.date(2024, 2, 9), "1d", eager=True),
+        "open": [c - 0.4 for c in close],
+        "high": [c + 1.0 for c in close],
+        "low": [c - 1.0 for c in close],
+        "close": close,
+        "volume": [1000.0 + 10 * i for i in range(n)],
+    }
+)
+```
+
+In practice, load your own data instead, for example `pl.read_csv("prices.csv")` or `pl.read_parquet("prices.parquet")`.
+
+### 3. Add indicators as columns
+
+Import indicators from `polars_ta` and pass column names. Each call returns an expression, so put it inside `with_columns` (keep the original columns) or `select` (only the new ones) and use `.alias` to name the result:
+
+```python
+from polars_ta import atr, bbands, macd, rsi, sma
+
+out = ohlcv.with_columns(
+    sma("close", 5).alias("sma_5"),
+    rsi("close", 14).alias("rsi_14"),
+    atr("high", "low", "close", 14).alias("atr_14"),  # price columns, in TA-Lib order
+    bbands("close", 20).alias("bb"),  # struct column
+    macd("close").alias("m"),  # struct column
+).unnest("bb", "m")  # lower/middle/upper and macd/signal/histogram
+
+print(out.select("date", "close", "sma_5", "rsi_14", "lower", "upper", "macd").tail(3))
+```
+
+The first rows of an indicator are `null` while it warms up; for example `rsi("close", 14)` is null for the first 14 rows. See [Missing values](#missing-values-null-and-nan).
+
+### 4. Use the results
+
+Output columns are ordinary Polars columns, so filter, join, or group them as usual:
+
+```python
+oversold = out.filter((pl.col("rsi_14") < 30) | (pl.col("close") < pl.col("lower")))
+```
+
+### 5. Go lazy, or use a Series
+
+The same expressions work on a `LazyFrame`, which lets Polars optimize the whole query:
+
+```python
+from polars_ta import ema, supertrend
+
+result = (
+    ohlcv.lazy()
+    .with_columns(supertrend("high", "low", "close", 10, 3.0).alias("st"))
+    .unnest("st")  # supertrend, direction
+    .collect()
+)
+
+ema(ohlcv["close"], 5)  # a pl.Series in, a pl.Series out
+```
+
+Find the function you need in the [Indicators](#indicators) table below, and see [docs/indicators.md](docs/indicators.md) for formulas and worked examples.
+
 ## Indicators
 
 Indicators are grouped by how they are charted. *Overlay* indicators are drawn on the price axis; *momentum* oscillators occupy a separate pane; *volume* indicators weight movement by how much traded; *volatility* indicators measure the size of movement; *cycle* indicators measure its rhythm; *returns* restate price on a percentage scale. Every public indicator is also re-exported from the package root.
