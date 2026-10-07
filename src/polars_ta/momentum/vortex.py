@@ -56,4 +56,5 @@ def vortex(
         TypeError: If an input is not a ``str`` or ``pl.Expr``.
     """
     validate_window(window)
-    return _vortex_expr(*to_exprs(high, low, close), window)
+    high_expr, low_expr, close_expr = to_exprs(high, low, close)
+    return _vortex_expr(high_expr, low_expr, close_expr, window)

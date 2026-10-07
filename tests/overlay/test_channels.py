@@ -1,3 +1,5 @@
+from typing import Any, cast
+
 import polars as pl
 from _assertions import IndicatorAssertions
 from _data import CLOSE, HIGH, LOW, constant, frame, frame_from, ramp_up, with_null
@@ -116,7 +118,11 @@ class TestDonchian(IndicatorAssertions):
 
     def test_series_input_is_rejected(self) -> None:
         with self.assertRaises(TypeError):
-            donchian(pl.Series("high", HIGH), pl.Series("low", LOW), 5)
+            donchian(
+                cast(Any, pl.Series("high", HIGH)),
+                cast(Any, pl.Series("low", LOW)),
+                5,
+            )
 
     def test_expression_works_in_a_lazy_frame(self) -> None:
         collected = (
@@ -129,7 +135,7 @@ class TestDonchian(IndicatorAssertions):
     def test_invalid_window_raises(self) -> None:
         for window in (0, -1, 2.5):
             with self.subTest(window=window), self.assertRaises(ValueError):
-                donchian("high", "low", window)
+                donchian("high", "low", cast(Any, window))
 
 
 class TestKeltner(IndicatorAssertions):
@@ -246,7 +252,7 @@ class TestKeltner(IndicatorAssertions):
 
     def test_series_input_is_rejected(self) -> None:
         with self.assertRaises(TypeError):
-            keltner(pl.Series("high", HIGH), "low", "close")
+            keltner(cast(Any, pl.Series("high", HIGH)), "low", "close")
 
     def test_invalid_arguments_raise(self) -> None:
         with self.assertRaises(ValueError):
@@ -256,4 +262,4 @@ class TestKeltner(IndicatorAssertions):
         with self.assertRaises(ValueError):
             keltner("high", "low", "close", 20, multiplier=0.0)
         with self.assertRaises(ValueError):
-            keltner("high", "low", "close", 20, mode="mesa")
+            keltner("high", "low", "close", 20, mode=cast(Any, "mesa"))

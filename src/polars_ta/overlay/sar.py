@@ -38,26 +38,31 @@ def _parabolic(
     if first >= size or highs[first] is None or lows[first] is None:
         return result
 
+    first_high, first_low = highs[first], lows[first]
+    start_high, start_low = highs[start], lows[start]
+    assert first_high is not None and first_low is not None
+    assert start_high is not None and start_low is not None
+
     if settings.start_value > 0.0:
         is_long = True
     elif settings.start_value < 0.0:
         is_long = False
     else:
         # The sign of the first -DM decides which side the stop starts on.
-        up = highs[first] - highs[first - 1]
-        down = lows[first - 1] - lows[first]
+        up = first_high - start_high
+        down = start_low - first_low
         is_long = not (down > up and down > 0.0)
 
     if settings.start_value == 0.0:
-        extreme = highs[first] if is_long else lows[first]
-        stop = lows[first - 1] if is_long else highs[first - 1]
+        extreme = first_high if is_long else first_low
+        stop = start_low if is_long else start_high
     else:
-        extreme = highs[first] if settings.start_value > 0.0 else lows[first]
+        extreme = first_high if settings.start_value > 0.0 else first_low
         stop = abs(settings.start_value)
 
     af_long, af_short = settings.init_long, settings.init_short
     # TA-Lib reuses the first bar as its own predecessor on the opening step.
-    previous_high, previous_low = highs[first], lows[first]
+    previous_high, previous_low = first_high, first_low
 
     for index in range(first, size):
         high, low = highs[index], lows[index]
@@ -65,6 +70,7 @@ def _parabolic(
             break
         if index > first:
             previous_high, previous_low = highs[index - 1], lows[index - 1]
+            assert previous_high is not None and previous_low is not None
 
         if is_long:
             if low <= stop:
@@ -153,7 +159,8 @@ def sar(
         start_value=0.0,
         signed=False,
     )
-    return _sar_expr(*to_exprs(high, low), settings)
+    high_expr, low_expr = to_exprs(high, low)
+    return _sar_expr(high_expr, low_expr, settings)
 
 
 def sarext(
@@ -226,4 +233,5 @@ def sarext(
         start_value=float(start_value),
         signed=True,
     )
-    return _sar_expr(*to_exprs(high, low), settings)
+    high_expr, low_expr = to_exprs(high, low)
+    return _sar_expr(high_expr, low_expr, settings)

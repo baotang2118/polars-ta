@@ -4,7 +4,22 @@ A Python technical-indicator library designed around Polars and PyArrow.
 
 Indicators are expression-only: every function returns a `pl.Expr` that composes inside `select`/`with_columns` and runs lazily. Series and DataFrame inputs are not accepted — convert them outside the library.
 
+Hilbert cycle indicators use datatype instances internally for static type compatibility; their output types and calculations are unchanged.
+
+The shared Hilbert engine initializes independent, typed output buffers; cycle and MAMA calculations are unchanged.
+It also checks non-null reads within the prefix preceding the first null; recursion still stops at that null.
+
+DX, ADX, ADXR, stochastic oscillators, Williams %R, Aroon, Awesome Oscillator, CCI, Mass Index, Vortex, and Ultimate Oscillator explicitly unpack converted price inputs for static argument checking; their public APIs and calculations are unchanged.
+
+Money Flow Index likewise explicitly unpacks its price and volume inputs for static argument checking, with no calculation or API changes.
+Channel overlays, MAVP, Ichimoku, Midprice, SAR, Supertrend, and parameterized volume indicators follow the same input-unpacking pattern. SAR checks its non-null initial and preceding bars internally while preserving its null termination and reversal rules.
+
+KST and Ultimate Oscillator check their internal non-empty accumulation invariants for static type compatibility; their weighted formulas and warm-ups are unchanged.
+
 ## Quick start
+
+Test maintenance: the read-only OHLCV fixture helper accepts nullable and non-null price sequences; indicator APIs and calculations are unchanged.
+Rejection tests across the indicator groups use explicit casts for deliberately invalid inputs, and read-only evaluation helpers accept sequences; runtime validation coverage is unchanged.
 
 ### 1. Install
 

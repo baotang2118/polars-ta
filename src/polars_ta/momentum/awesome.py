@@ -44,4 +44,5 @@ def ao(
     """
     validate_window(fast_period)
     validate_window(slow_period)
-    return _ao_expr(*to_exprs(high, low), fast_period, slow_period)
+    high_expr, low_expr = to_exprs(high, low)
+    return _ao_expr(high_expr, low_expr, fast_period, slow_period)

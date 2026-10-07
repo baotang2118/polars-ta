@@ -15,6 +15,8 @@ distinct reason:
 
 from __future__ import annotations
 
+from collections.abc import Sequence
+
 import polars as pl
 
 LENGTH: int = 120
@@ -138,7 +140,7 @@ def frame(
     )
 
 
-def frame_from(closes: list[float | None], spread: float = 1.0) -> pl.DataFrame:
+def frame_from(closes: Sequence[float | None], spread: float = 1.0) -> pl.DataFrame:
     """Build an OHLCV frame whose bars are centred on the given close series."""
     return pl.DataFrame(
         {

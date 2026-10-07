@@ -1,3 +1,5 @@
+from typing import Any, cast
+
 import polars as pl
 from _assertions import IndicatorAssertions
 from _data import CLOSE, HIGH, LOW, OPEN, frame
@@ -35,10 +37,10 @@ class TestAvgprice(IndicatorAssertions):
     def test_series_input_is_rejected(self) -> None:
         with self.assertRaises(TypeError):
             avgprice(
-                pl.Series("open", OPEN[:5]),
-                pl.Series("high", HIGH[:5]),
-                pl.Series("low", LOW[:5]),
-                pl.Series("close", CLOSE[:5]),
+                cast(Any, pl.Series("open", OPEN[:5])),
+                cast(Any, pl.Series("high", HIGH[:5])),
+                cast(Any, pl.Series("low", LOW[:5])),
+                cast(Any, pl.Series("close", CLOSE[:5])),
             )
 
 

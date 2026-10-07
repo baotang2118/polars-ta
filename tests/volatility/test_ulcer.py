@@ -1,3 +1,5 @@
+from typing import Any, cast
+
 import polars as pl
 from _assertions import IndicatorAssertions
 from _data import CLOSE, constant, frame, ramp_down, ramp_up
@@ -61,4 +63,4 @@ class TestUlcer(IndicatorAssertions):
 
     def test_series_input_is_rejected(self) -> None:
         with self.assertRaises(TypeError):
-            ulcer(pl.Series("close", CLOSE[:LENGTH]), 14)
+            ulcer(cast(Any, pl.Series("close", CLOSE[:LENGTH])), 14)

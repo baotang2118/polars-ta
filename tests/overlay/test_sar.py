@@ -1,3 +1,5 @@
+from typing import Any, cast
+
 import polars as pl
 from _assertions import IndicatorAssertions
 from _data import HIGH, LOW, ramp_down, ramp_up
@@ -56,7 +58,7 @@ class TestSar(IndicatorAssertions):
             self.assertGreaterEqual(result[index], falling[index])
 
     def test_null_ends_the_scan(self) -> None:
-        highs = list(HIGH[:20])
+        highs: list[float | None] = list(HIGH[:20])
         lows = list(LOW[:20])
         highs[10] = None
         result = column(sar("high", "low"), pl.DataFrame({"high": highs, "low": lows}))
@@ -69,7 +71,10 @@ class TestSar(IndicatorAssertions):
 
     def test_series_input_is_rejected(self) -> None:
         with self.assertRaises(TypeError):
-            sar(pl.Series("high", HIGH[:LENGTH]), pl.Series("low", LOW[:LENGTH]))
+            sar(
+                cast(Any, pl.Series("high", HIGH[:LENGTH])),
+                cast(Any, pl.Series("low", LOW[:LENGTH])),
+            )
 
     def test_expression_works_in_a_lazy_frame(self) -> None:
         collected = (
@@ -80,7 +85,7 @@ class TestSar(IndicatorAssertions):
     def test_invalid_arguments_raise(self) -> None:
         for acceleration in (0.0, -0.1, "fast"):
             with self.subTest(acceleration=acceleration), self.assertRaises(ValueError):
-                sar("high", "low", acceleration)
+                sar("high", "low", cast(Any, acceleration))
 
 
 class TestSarext(IndicatorAssertions):

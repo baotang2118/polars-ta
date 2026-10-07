@@ -1,3 +1,5 @@
+from typing import Any, cast
+
 import polars as pl
 from _assertions import IndicatorAssertions
 from _data import CLOSE, HIGH, LOW, constant, frame, frame_from, ramp_up
@@ -225,6 +227,6 @@ class TestDirectionalMovement(IndicatorAssertions):
     def test_invalid_window_raises(self) -> None:
         for window in (0, -1, 2.5):
             with self.subTest(window=window), self.assertRaises(ValueError):
-                dx("high", "low", "close", window)
+                dx("high", "low", "close", cast(Any, window))
             with self.subTest(window=window), self.assertRaises(ValueError):
-                plus_dm("high", "low", window)
+                plus_dm("high", "low", cast(Any, window))

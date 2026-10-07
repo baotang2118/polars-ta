@@ -1,3 +1,5 @@
+from typing import Any, cast
+
 import polars as pl
 from _assertions import IndicatorAssertions
 from _data import (
@@ -112,9 +114,9 @@ class TestStoch(IndicatorAssertions):
     def test_series_input_is_rejected(self) -> None:
         with self.assertRaises(TypeError):
             stoch(
-                pl.Series("high", HIGH),
-                pl.Series("low", LOW),
-                pl.Series("close", CLOSE),
+                cast(Any, pl.Series("high", HIGH)),
+                cast(Any, pl.Series("low", LOW)),
+                cast(Any, pl.Series("close", CLOSE)),
                 5,
                 3,
                 3,
@@ -131,4 +133,4 @@ class TestStoch(IndicatorAssertions):
     def test_invalid_periods_raise(self) -> None:
         for periods in ((0, 3, 3), (5, 0, 3), (5, 3, -1), (5, 2.5, 3)):
             with self.subTest(periods=periods), self.assertRaises(ValueError):
-                stoch("high", "low", "close", *periods)
+                stoch("high", "low", "close", *cast(Any, periods))

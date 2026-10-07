@@ -1,3 +1,5 @@
+from typing import Any, cast
+
 import polars as pl
 from _assertions import IndicatorAssertions
 from _data import HIGH, LOW, OPEN, constant, frame, ramp_down, ramp_up
@@ -113,7 +115,7 @@ class TestAroon(IndicatorAssertions):
         self.assert_values_equal(result, expected)
 
     def test_null_blanks_the_whole_window(self) -> None:
-        highs = list(HIGH[:LENGTH])
+        highs: list[float | None] = list(HIGH[:LENGTH])
         highs[10] = None
         bars = pl.DataFrame({"high": highs, "low": LOW[:LENGTH]})
         fields = unnest(aroon("high", "low", 4), bars)
@@ -180,4 +182,4 @@ class TestBop(IndicatorAssertions):
 
     def test_series_input_is_rejected(self) -> None:
         with self.assertRaises(TypeError):
-            bop(pl.Series("open", OPEN[:5]), "high", "low", "close")
+            bop(cast(Any, pl.Series("open", OPEN[:5])), "high", "low", "close")

@@ -1,3 +1,5 @@
+from typing import Any, cast
+
 import polars as pl
 from _assertions import IndicatorAssertions
 from _data import CLOSE, HIGH, LOW, VOLUME, constant, frame, ramp_down, ramp_up
@@ -87,7 +89,7 @@ class TestAo(IndicatorAssertions):
 
     def test_series_input_is_rejected(self) -> None:
         with self.assertRaises(TypeError):
-            ao(pl.Series("high", HIGH[:5]), "low")
+            ao(cast(Any, pl.Series("high", HIGH[:5])), "low")
 
 
 class TestPvo(IndicatorAssertions):
@@ -112,7 +114,7 @@ class TestPvo(IndicatorAssertions):
 
     def test_series_input_is_rejected(self) -> None:
         with self.assertRaises(TypeError):
-            pvo(pl.Series("volume", VOLUME[:LENGTH]), 5, 10)
+            pvo(cast(Any, pl.Series("volume", VOLUME[:LENGTH])), 5, 10)
 
 
 class TestAoAgainstLow(IndicatorAssertions):

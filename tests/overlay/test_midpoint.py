@@ -1,3 +1,6 @@
+from collections.abc import Sequence
+from typing import Any, cast
+
 import polars as pl
 from _assertions import IndicatorAssertions
 from _data import CLOSE, HIGH, LOW, constant, frame, ramp_up, with_null
@@ -40,7 +43,7 @@ MIDPRICE: dict[int, list[float | None]] = {
 # fmt: on
 
 
-def evaluate(expr: pl.Expr, values: list[float | None] | None = None):
+def evaluate(expr: pl.Expr, values: Sequence[float | None] | None = None):
     data = VALUES if values is None else values
     return pl.DataFrame({"close": data}).select(expr).to_series().to_list()
 
@@ -90,12 +93,12 @@ class TestMidpoint(IndicatorAssertions):
 
     def test_series_input_is_rejected(self) -> None:
         with self.assertRaises(TypeError):
-            midpoint(pl.Series("close", VALUES), 5)
+            midpoint(cast(Any, pl.Series("close", VALUES)), 5)
 
     def test_invalid_window_raises(self) -> None:
         for window in (0, -1, 2.5):
             with self.subTest(window=window), self.assertRaises(ValueError):
-                midpoint("close", window)
+                midpoint("close", cast(Any, window))
 
 
 class TestMidprice(IndicatorAssertions):
@@ -127,9 +130,13 @@ class TestMidprice(IndicatorAssertions):
 
     def test_series_input_is_rejected(self) -> None:
         with self.assertRaises(TypeError):
-            midprice(pl.Series("high", HIGH[:40]), pl.Series("low", LOW[:40]), 5)
+            midprice(
+                cast(Any, pl.Series("high", HIGH[:40])),
+                cast(Any, pl.Series("low", LOW[:40])),
+                5,
+            )
 
     def test_invalid_window_raises(self) -> None:
         for window in (0, -1, 2.5):
             with self.subTest(window=window), self.assertRaises(ValueError):
-                midprice("high", "low", window)
+                midprice("high", "low", cast(Any, window))

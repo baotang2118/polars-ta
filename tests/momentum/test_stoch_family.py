@@ -1,3 +1,5 @@
+from collections.abc import Sequence
+
 import polars as pl
 from _assertions import IndicatorAssertions
 from _data import CLOSE, HIGH, LOW, constant, frame, ramp_down, ramp_up
@@ -28,7 +30,7 @@ WILLR_14: list[float | None] = [
 # fmt: on
 
 
-def evaluate(expr: pl.Expr, values: list[float | None] | None = None):
+def evaluate(expr: pl.Expr, values: Sequence[float | None] | None = None):
     data = VALUES if values is None else values
     return pl.DataFrame({"close": data}).select(expr).to_series().to_list()
 

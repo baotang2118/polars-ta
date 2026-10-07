@@ -1,3 +1,5 @@
+from typing import Any, cast
+
 import polars as pl
 from _assertions import IndicatorAssertions
 from _data import CLOSE, HIGH, LOW, constant, frame, frame_from, with_null
@@ -111,9 +113,9 @@ class TestIchimoku(IndicatorAssertions):
     def test_series_input_is_rejected(self) -> None:
         with self.assertRaises(TypeError):
             ichimoku(
-                pl.Series("high", HIGH),
-                pl.Series("low", LOW),
-                pl.Series("close", CLOSE),
+                cast(Any, pl.Series("high", HIGH)),
+                cast(Any, pl.Series("low", LOW)),
+                cast(Any, pl.Series("close", CLOSE)),
                 3,
                 6,
                 12,

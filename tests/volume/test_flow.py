@@ -1,3 +1,5 @@
+from typing import Any, cast
+
 import polars as pl
 from _assertions import IndicatorAssertions
 from _data import CLOSE, HIGH, LOW, VOLUME, constant, frame, ramp_up
@@ -70,7 +72,7 @@ class TestAd(IndicatorAssertions):
 
     def test_series_input_is_rejected(self) -> None:
         with self.assertRaises(TypeError):
-            ad(pl.Series("high", HIGH[:5]), "low", "close", "volume")
+            ad(cast(Any, pl.Series("high", HIGH[:5])), "low", "close", "volume")
 
 
 class TestAdosc(IndicatorAssertions):
@@ -113,8 +115,8 @@ class TestObv(IndicatorAssertions):
     def test_series_input_is_rejected(self) -> None:
         with self.assertRaises(TypeError):
             obv(
-                pl.Series("close", CLOSE[:LENGTH]),
-                pl.Series("volume", VOLUME[:LENGTH]),
+                cast(Any, pl.Series("close", CLOSE[:LENGTH])),
+                cast(Any, pl.Series("volume", VOLUME[:LENGTH])),
             )
 
 

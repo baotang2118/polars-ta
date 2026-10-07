@@ -177,7 +177,8 @@ def plus_di(
         TypeError: If an input is not a ``str`` or ``pl.Expr``.
     """
     validate_window(window)
-    return _di_pair(*to_exprs(high, low, close), window)[0]
+    high_expr, low_expr, close_expr = to_exprs(high, low, close)
+    return _di_pair(high_expr, low_expr, close_expr, window)[0]
 
 
 def minus_di(
@@ -203,7 +204,8 @@ def minus_di(
         TypeError: If an input is not a ``str`` or ``pl.Expr``.
     """
     validate_window(window)
-    return _di_pair(*to_exprs(high, low, close), window)[1]
+    high_expr, low_expr, close_expr = to_exprs(high, low, close)
+    return _di_pair(high_expr, low_expr, close_expr, window)[1]
 
 
 def dx(
@@ -231,7 +233,8 @@ def dx(
         TypeError: If an input is not a ``str`` or ``pl.Expr``.
     """
     validate_window(window)
-    return _dx_expr(*_di_pair(*to_exprs(high, low, close), window))
+    high_expr, low_expr, close_expr = to_exprs(high, low, close)
+    return _dx_expr(*_di_pair(high_expr, low_expr, close_expr, window))
 
 
 def adx(
@@ -263,7 +266,8 @@ def adx(
         TypeError: If an input is not a ``str`` or ``pl.Expr``.
     """
     validate_window(window)
-    return _adx_expr(*to_exprs(high, low, close), window)
+    high_expr, low_expr, close_expr = to_exprs(high, low, close)
+    return _adx_expr(high_expr, low_expr, close_expr, window)
 
 
 def adxr(
@@ -292,5 +296,6 @@ def adxr(
         TypeError: If an input is not a ``str`` or ``pl.Expr``.
     """
     validate_window(window)
-    line = _adx_line(*to_exprs(high, low, close), window)
+    high_expr, low_expr, close_expr = to_exprs(high, low, close)
+    line = _adx_line(high_expr, low_expr, close_expr, window)
     return (line + line.shift(window - 1)) / 2.0

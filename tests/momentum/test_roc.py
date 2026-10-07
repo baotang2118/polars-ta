@@ -1,3 +1,6 @@
+from collections.abc import Sequence
+from typing import Any, cast
+
 import polars as pl
 from _assertions import IndicatorAssertions
 from _data import HAND_CHECKED, constant, with_null
@@ -92,7 +95,7 @@ ROCR100: dict[int, list[float | None]] = {
 # fmt: on
 
 
-def evaluate(expr: pl.Expr, values: list[float | None] | None = None):
+def evaluate(expr: pl.Expr, values: Sequence[float | None] | None = None):
     data = VALUES if values is None else values
     return pl.DataFrame({"close": data}).select(expr).to_series().to_list()
 
@@ -171,7 +174,7 @@ class TestRateOfChange(IndicatorAssertions):
 
     def test_series_input_is_rejected(self) -> None:
         with self.assertRaises(TypeError):
-            mom(pl.Series("close", VALUES), 3)
+            mom(cast(Any, pl.Series("close", VALUES)), 3)
 
     def test_expression_works_in_a_lazy_frame(self) -> None:
         collected = (
@@ -188,4 +191,4 @@ class TestRateOfChange(IndicatorAssertions):
                     self.subTest(function=function.__name__, window=window),
                     self.assertRaises(ValueError),
                 ):
-                    function("close", window)
+                    function("close", cast(Any, window))

@@ -101,8 +101,9 @@ def stoch(
     validate_window(fastk_period)
     validate_window(slowk_period)
     validate_window(slowd_period)
+    high_expr, low_expr, close_expr = to_exprs(high, low, close)
     return _stoch_expr(
-        *to_exprs(high, low, close), fastk_period, slowk_period, slowd_period
+        high_expr, low_expr, close_expr, fastk_period, slowk_period, slowd_period
     )
 
 
@@ -136,8 +137,9 @@ def stochf(
     """
     validate_window(fastk_period)
     validate_window(fastd_period)
+    high_expr, low_expr, close_expr = to_exprs(high, low, close)
     return _stochf_expr(
-        _fast_k_expr(*to_exprs(high, low, close), fastk_period), fastd_period
+        _fast_k_expr(high_expr, low_expr, close_expr, fastk_period), fastd_period
     )
 
 
@@ -203,4 +205,5 @@ def willr(
         TypeError: If an input is not a ``str`` or ``pl.Expr``.
     """
     validate_window(window)
-    return _willr_expr(*to_exprs(high, low, close), window)
+    high_expr, low_expr, close_expr = to_exprs(high, low, close)
+    return _willr_expr(high_expr, low_expr, close_expr, window)
