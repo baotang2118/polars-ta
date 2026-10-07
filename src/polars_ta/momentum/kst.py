@@ -35,6 +35,7 @@ def _kst_line(
         )
         term = float(weight) * _sma_expr(change, sma_period)
         total = term if total is None else total + term
+    assert total is not None
     return 100.0 * total
 
 

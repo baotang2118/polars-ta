@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
+
 import polars as pl
 
 from polars_ta._common import IntoColumn, to_expr
@@ -16,17 +18,19 @@ from polars_ta._hilbert import (
 PHASOR_FIELDS = ("in_phase", "quadrature")
 SINE_FIELDS = ("sine", "lead_sine")
 
-_FLOAT = pl.Float64
+_FLOAT = pl.Float64()
 _PHASOR_DTYPE = pl.Struct({"in_phase": pl.Float64, "quadrature": pl.Float64})
 _SINE_DTYPE = pl.Struct({"sine": pl.Float64, "lead_sine": pl.Float64})
-_MODE_DTYPE = pl.Int8
+_MODE_DTYPE = pl.Int8()
 
 
 def _transform(column: pl.Series) -> HilbertSeries:
     return hilbert_transform(column.to_list(), 0.5, 0.05)
 
 
-def _single(field: str, lookback: int, dtype: pl.DataType) -> object:
+def _single(
+    field: str, lookback: int, dtype: pl.DataType
+) -> Callable[[pl.Series], pl.Series]:
     def scan(column: pl.Series) -> pl.Series:
         values = getattr(_transform(column), field)
         return pl.Series(values=mask_lookback(values, lookback), dtype=dtype)
@@ -34,7 +38,9 @@ def _single(field: str, lookback: int, dtype: pl.DataType) -> object:
     return scan
 
 
-def _pair(first: str, second: str, lookback: int, dtype: pl.DataType) -> object:
+def _pair(
+    first: str, second: str, lookback: int, dtype: pl.DataType
+) -> Callable[[pl.Series], pl.Series]:
     def scan(column: pl.Series) -> pl.Series:
         series = _transform(column)
         left = mask_lookback(getattr(series, first), lookback)

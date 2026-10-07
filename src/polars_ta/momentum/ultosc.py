@@ -39,6 +39,7 @@ def _ultosc_expr(
             .otherwise(0.0)
         )
         total = term if total is None else total + term
+    assert total is not None
     return 100.0 * total / sum(_WEIGHTS)
 
 
@@ -76,4 +77,5 @@ def ultosc(
     periods = (short_period, medium_period, long_period)
     for window in periods:
         validate_window(window)
-    return _ultosc_expr(*to_exprs(high, low, close), periods)
+    high_expr, low_expr, close_expr = to_exprs(high, low, close)
+    return _ultosc_expr(high_expr, low_expr, close_expr, periods)

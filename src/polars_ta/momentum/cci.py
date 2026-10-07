@@ -55,4 +55,5 @@ def cci(
         TypeError: If an input is not a ``str`` or ``pl.Expr``.
     """
     validate_window(window)
-    return _cci_expr(*to_exprs(high, low, close), window)
+    high_expr, low_expr, close_expr = to_exprs(high, low, close)
+    return _cci_expr(high_expr, low_expr, close_expr, window)

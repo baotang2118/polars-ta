@@ -60,7 +60,8 @@ def aroon(high: IntoColumn, low: IntoColumn, window: int = 14) -> pl.Expr:
         TypeError: If an input is not a ``str`` or ``pl.Expr``.
     """
     validate_window(window)
-    return _aroon_expr(*to_exprs(high, low), window)
+    high_expr, low_expr = to_exprs(high, low)
+    return _aroon_expr(high_expr, low_expr, window)
 
 
 def aroonosc(high: IntoColumn, low: IntoColumn, window: int = 14) -> pl.Expr:
@@ -80,4 +81,5 @@ def aroonosc(high: IntoColumn, low: IntoColumn, window: int = 14) -> pl.Expr:
         TypeError: If an input is not a ``str`` or ``pl.Expr``.
     """
     validate_window(window)
-    return _aroonosc_expr(*to_exprs(high, low), window)
+    high_expr, low_expr = to_exprs(high, low)
+    return _aroonosc_expr(high_expr, low_expr, window)

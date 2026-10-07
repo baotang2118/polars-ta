@@ -62,4 +62,5 @@ def mfi(
         TypeError: If an input is not a ``str`` or ``pl.Expr``.
     """
     validate_window(window)
-    return _mfi_expr(*to_exprs(high, low, close, volume), window)
+    high_expr, low_expr, close_expr, volume_expr = to_exprs(high, low, close, volume)
+    return _mfi_expr(high_expr, low_expr, close_expr, volume_expr, window)
