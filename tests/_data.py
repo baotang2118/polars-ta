@@ -17,7 +17,7 @@ from __future__ import annotations
 
 import polars as pl
 
-LENGTH = 120
+LENGTH: int = 120
 
 _SEED_CLOSE: list[float] = [
     9.0,

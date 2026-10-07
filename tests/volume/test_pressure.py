@@ -4,8 +4,8 @@ from _data import CLOSE, VOLUME, constant, frame, ramp_up
 
 from polars_ta import eom, fi, nvi, vpt
 
-LENGTH = 60
-BARS = frame(close=CLOSE[:LENGTH])
+LENGTH: int = 60
+BARS: pl.DataFrame = frame(close=CLOSE[:LENGTH])
 
 
 def column(expr: pl.Expr, bars: pl.DataFrame | None = None) -> list:

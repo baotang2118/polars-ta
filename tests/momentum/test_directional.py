@@ -4,8 +4,8 @@ from _data import CLOSE, HIGH, LOW, constant, frame, frame_from, ramp_up
 
 from polars_ta import adx, adxr, dx, minus_di, minus_dm, plus_di, plus_dm
 
-LENGTH = 60
-BARS = frame(high=HIGH[:LENGTH], low=LOW[:LENGTH], close=CLOSE[:LENGTH])
+LENGTH: int = 60
+BARS: pl.DataFrame = frame(high=HIGH[:LENGTH], low=LOW[:LENGTH], close=CLOSE[:LENGTH])
 
 
 def column(expr: pl.Expr, bars: pl.DataFrame | None = None) -> list:

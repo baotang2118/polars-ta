@@ -4,7 +4,7 @@ from _data import CLOSE, HIGH, LOW, OPEN, constant, frame, ramp_down, ramp_up
 
 from polars_ta import aroon, aroonosc, bop
 
-LENGTH = 60
+LENGTH: int = 60
 
 
 def unnest(expr: pl.Expr, bars: pl.DataFrame) -> dict[str, list]:

@@ -6,8 +6,8 @@ from _data import CLOSE, constant, frame, ramp_up
 
 from polars_ta import cumulative_return, daily_log_return, daily_return
 
-LENGTH = 60
-BARS = frame(close=CLOSE[:LENGTH])
+LENGTH: int = 60
+BARS: pl.DataFrame = frame(close=CLOSE[:LENGTH])
 STEPS = pl.DataFrame({"close": [10.0, 12.0, 6.0, 6.0]})
 
 

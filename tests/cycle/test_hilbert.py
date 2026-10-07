@@ -14,7 +14,7 @@ from polars_ta import (
 from polars_ta._hilbert import LONG_LOOKBACK, SHORT_LOOKBACK, hilbert_transform
 
 VALUES: list[float] = CLOSE
-BARS = pl.DataFrame({"close": VALUES})
+BARS: pl.DataFrame = pl.DataFrame({"close": VALUES})
 
 
 def column(expr: pl.Expr, bars: pl.DataFrame | None = None) -> list:

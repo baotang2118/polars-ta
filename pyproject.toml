@@ -15,8 +15,11 @@ dependencies = [
 
 [dependency-groups]
 dev = [
+    "mcp[cli]>=1.28,<2",
+    "polars-mcp>=0.2.1",
     "pytest>=8.0",
     "ruff>=0.9",
+    "typer>=0.27.3",
 ]
 
 [tool.hatch.build.targets.wheel]
