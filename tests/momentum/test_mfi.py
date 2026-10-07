@@ -1,3 +1,5 @@
+from typing import Any, cast
+
 import polars as pl
 from _assertions import IndicatorAssertions
 from _data import (
@@ -119,7 +121,7 @@ class TestMfi(IndicatorAssertions):
 
     def test_series_input_is_rejected(self) -> None:
         with self.assertRaises(TypeError):
-            mfi(pl.Series("high", HIGH), "low", "close", "volume", 3)
+            mfi(cast(Any, pl.Series("high", HIGH)), "low", "close", "volume", 3)
 
     def test_expression_works_in_a_lazy_frame(self) -> None:
         collected = (
@@ -132,4 +134,4 @@ class TestMfi(IndicatorAssertions):
     def test_invalid_window_raises(self) -> None:
         for window in (0, -1, 2.5):
             with self.subTest(window=window), self.assertRaises(ValueError):
-                mfi("high", "low", "close", "volume", window)
+                mfi("high", "low", "close", "volume", cast(Any, window))

@@ -1,3 +1,5 @@
+from typing import Any, cast
+
 import polars as pl
 from _assertions import IndicatorAssertions
 from _data import CLOSE, HIGH, frame
@@ -80,4 +82,4 @@ class TestVwap(IndicatorAssertions):
 
     def test_series_input_is_rejected(self) -> None:
         with self.assertRaises(TypeError):
-            vwap(pl.Series("high", HIGH[:5]), "low", "close", "volume")
+            vwap(cast(Any, pl.Series("high", HIGH[:5])), "low", "close", "volume")

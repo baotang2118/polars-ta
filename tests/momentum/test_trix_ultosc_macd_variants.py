@@ -1,3 +1,5 @@
+from typing import Any, cast
+
 import polars as pl
 from _assertions import IndicatorAssertions
 from _data import CLOSE, HAND_CHECKED, HIGH, LOW, constant, frame, ramp_up
@@ -188,10 +190,10 @@ class TestMacdVariants(IndicatorAssertions):
         with self.assertRaises(ValueError):
             macdext("close", 0)
         with self.assertRaises(ValueError):
-            macdext("close", 5, 12, 4, fast_ma_type="mesa")
+            macdext("close", 5, 12, 4, fast_ma_type=cast(Any, "mesa"))
         with self.assertRaises(ValueError):
             macdfix("close", 0)
 
     def test_series_input_is_rejected(self) -> None:
         with self.assertRaises(TypeError):
-            macdfix(pl.Series("close", HAND_CHECKED))
+            macdfix(cast(Any, pl.Series("close", HAND_CHECKED)))

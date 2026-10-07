@@ -1,3 +1,5 @@
+from typing import Any, cast
+
 import polars as pl
 from _assertions import IndicatorAssertions
 from _data import CLOSE, HAND_CHECKED, constant, frame, ramp_up
@@ -137,4 +139,4 @@ class TestStc(IndicatorAssertions):
 
     def test_series_input_is_rejected(self) -> None:
         with self.assertRaises(TypeError):
-            stc(pl.Series("close", CLOSE[:LENGTH]), 5, 10, 4)
+            stc(cast(Any, pl.Series("close", CLOSE[:LENGTH])), 5, 10, 4)

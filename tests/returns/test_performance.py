@@ -1,3 +1,5 @@
+from typing import Any, cast
+
 import polars as pl
 from _assertions import IndicatorAssertions
 from _data import CLOSE, constant, frame, ramp_up
@@ -35,7 +37,7 @@ class TestDailyReturn(IndicatorAssertions):
 
     def test_series_input_is_rejected(self) -> None:
         with self.assertRaises(TypeError):
-            daily_return(pl.Series("close", CLOSE[:LENGTH]))
+            daily_return(cast(Any, pl.Series("close", CLOSE[:LENGTH])))
 
 
 class TestDailyLogReturn(IndicatorAssertions):

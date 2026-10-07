@@ -1,9 +1,13 @@
+from collections.abc import Sequence
+from typing import Any, cast
+
 import polars as pl
 from _assertions import IndicatorAssertions
 from _data import CLOSE, constant, with_null
 
 from polars_ta import kama, ma, mavp, sma, t3, trima
 from polars_ta.overlay import MA_TYPES
+from polars_ta.overlay.dispatch import MaType
 
 VALUES: list[float] = CLOSE[:80]
 
@@ -77,7 +81,7 @@ MAVP_VARYING: list[float | None] = [
 # fmt: on
 
 
-def evaluate(expr: pl.Expr, values: list[float | None] | None = None):
+def evaluate(expr: pl.Expr, values: Sequence[float | None] | None = None):
     data = VALUES if values is None else values
     return pl.DataFrame({"close": data}).select(expr).to_series().to_list()
 
@@ -110,7 +114,7 @@ class TestTrima(IndicatorAssertions):
     def test_invalid_window_raises(self) -> None:
         for window in (0, -1, 2.5):
             with self.subTest(window=window), self.assertRaises(ValueError):
-                trima("close", window)
+                trima("close", cast(Any, window))
 
 
 class TestT3(IndicatorAssertions):
@@ -147,7 +151,7 @@ class TestT3(IndicatorAssertions):
     def test_invalid_vfactor_raises(self) -> None:
         for vfactor in (-0.1, 1.1, "fast"):
             with self.subTest(vfactor=vfactor), self.assertRaises(ValueError):
-                t3("close", 5, vfactor=vfactor)
+                t3("close", 5, vfactor=cast(Any, vfactor))
 
 
 class TestKama(IndicatorAssertions):
@@ -183,19 +187,19 @@ class TestKama(IndicatorAssertions):
 
     def test_series_input_is_rejected(self) -> None:
         with self.assertRaises(TypeError):
-            kama(pl.Series("close", VALUES), 10)
+            kama(cast(Any, pl.Series("close", VALUES)), 10)
 
     def test_invalid_window_raises(self) -> None:
         for window in (0, -1, 2.5):
             with self.subTest(window=window), self.assertRaises(ValueError):
-                kama("close", window)
+                kama("close", cast(Any, window))
 
 
 class TestMa(IndicatorAssertions):
     def test_every_type_is_supported(self) -> None:
         for ma_type in MA_TYPES:
             with self.subTest(ma_type=ma_type):
-                result = evaluate(ma("close", 5, ma_type=ma_type))
+                result = evaluate(ma("close", 5, ma_type=cast(MaType, ma_type)))
                 self.assertEqual(len(result), len(VALUES))
                 self.assertTrue(any(value is not None for value in result))
 
@@ -215,7 +219,7 @@ class TestMa(IndicatorAssertions):
 
     def test_unknown_type_raises(self) -> None:
         with self.assertRaises(ValueError):
-            ma("close", 5, ma_type="mesa")
+            ma("close", 5, ma_type=cast(Any, "mesa"))
 
 
 class TestMavp(IndicatorAssertions):

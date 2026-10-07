@@ -1,3 +1,6 @@
+from collections.abc import Sequence
+from typing import Any, cast
+
 import polars as pl
 from _assertions import IndicatorAssertions
 from _data import HAND_CHECKED
@@ -144,7 +147,7 @@ TEMA_3_ALPHA_025: list[float | None] = [
 
 
 def evaluate(
-    expr: pl.Expr, values: list[float | None] | None = None
+    expr: pl.Expr, values: Sequence[float | None] | None = None
 ) -> list[float | None]:
     """Collect an indicator expression over ``values`` into a Python list."""
     data = VALUES if values is None else values
@@ -179,7 +182,7 @@ class TestSma(IndicatorAssertions):
 
     def test_non_integer_window_raises(self) -> None:
         with self.assertRaises(ValueError):
-            sma("close", 2.5)
+            sma("close", cast(Any, 2.5))
 
 
 class TestEma(IndicatorAssertions):
@@ -230,7 +233,7 @@ class TestEma(IndicatorAssertions):
 
     def test_invalid_mode_raises(self) -> None:
         with self.assertRaises(ValueError):
-            ema("close", 3, mode="exponential")
+            ema("close", 3, mode=cast(Any, "exponential"))
 
     def test_invalid_window_raises(self) -> None:
         with self.assertRaises(ValueError):
@@ -312,7 +315,7 @@ class TestDema(IndicatorAssertions):
         with self.assertRaises(ValueError):
             dema("close", 3, alpha=0.0)
         with self.assertRaises(ValueError):
-            dema("close", 3, mode="double")
+            dema("close", 3, mode=cast(Any, "double"))
 
 
 class TestTema(IndicatorAssertions):
@@ -351,7 +354,7 @@ class TestTema(IndicatorAssertions):
         with self.assertRaises(ValueError):
             tema("close", 3, alpha=1.5)
         with self.assertRaises(ValueError):
-            tema("close", 3, mode="triple")
+            tema("close", 3, mode=cast(Any, "triple"))
 
 
 class TestInputForms(IndicatorAssertions):
@@ -368,7 +371,7 @@ class TestInputForms(IndicatorAssertions):
                 self.subTest(indicator=indicator.__name__),
                 self.assertRaises(TypeError),
             ):
-                indicator(pl.Series("close", VALUES), 3)
+                indicator(cast(Any, pl.Series("close", VALUES)), 3)
 
     def test_expression_works_in_a_lazy_frame(self) -> None:
         frame = pl.LazyFrame({"close": VALUES}).with_columns(
@@ -386,4 +389,4 @@ class TestInputForms(IndicatorAssertions):
 
     def test_unsupported_input_type_raises(self) -> None:
         with self.assertRaises(TypeError):
-            sma([1.0, 2.0], 2)
+            sma(cast(Any, [1.0, 2.0]), 2)

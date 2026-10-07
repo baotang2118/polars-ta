@@ -1,3 +1,5 @@
+from typing import Any, cast
+
 import polars as pl
 from _assertions import IndicatorAssertions
 from _data import CLOSE, HIGH, constant, frame, ramp_up
@@ -84,7 +86,7 @@ class TestVortex(IndicatorAssertions):
 
     def test_series_input_is_rejected(self) -> None:
         with self.assertRaises(TypeError):
-            vortex(pl.Series("high", HIGH[:5]), "low", "close")
+            vortex(cast(Any, pl.Series("high", HIGH[:5])), "low", "close")
 
 
 class TestMass(IndicatorAssertions):

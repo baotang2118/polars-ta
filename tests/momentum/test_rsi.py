@@ -1,3 +1,6 @@
+from collections.abc import Sequence
+from typing import Any, cast
+
 import polars as pl
 from _assertions import IndicatorAssertions
 from _data import HAND_CHECKED, WILDER_CLOSE, constant, ramp_down, ramp_up
@@ -21,7 +24,7 @@ RSI_3: list[float | None] = [
 # fmt: on
 
 
-def evaluate(expr: pl.Expr, values: list[float | None] | None = None):
+def evaluate(expr: pl.Expr, values: Sequence[float | None] | None = None):
     data = VALUES if values is None else values
     return pl.DataFrame({"close": data}).select(expr).to_series().to_list()
 
@@ -83,7 +86,7 @@ class TestRsi(IndicatorAssertions):
 
     def test_series_input_is_rejected(self) -> None:
         with self.assertRaises(TypeError):
-            rsi(pl.Series("close", VALUES), 3)
+            rsi(cast(Any, pl.Series("close", VALUES)), 3)
 
     def test_expression_works_in_a_lazy_frame(self) -> None:
         collected = (
@@ -96,4 +99,4 @@ class TestRsi(IndicatorAssertions):
     def test_invalid_window_raises(self) -> None:
         for window in (0, -1, 2.5):
             with self.subTest(window=window), self.assertRaises(ValueError):
-                rsi("close", window)
+                rsi("close", cast(Any, window))

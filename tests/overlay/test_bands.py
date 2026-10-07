@@ -1,3 +1,6 @@
+from collections.abc import Sequence
+from typing import Any, cast
+
 import polars as pl
 from _assertions import IndicatorAssertions
 from _data import HAND_CHECKED, constant, ramp_up
@@ -32,7 +35,9 @@ BBANDS_3_SAMPLE_UPPER: list[float | None] = [
 # fmt: on
 
 
-def evaluate(expr: pl.Expr, values: list[float | None] | None = None) -> pl.DataFrame:
+def evaluate(
+    expr: pl.Expr, values: Sequence[float | None] | None = None
+) -> pl.DataFrame:
     data = VALUES if values is None else values
     return pl.DataFrame({"close": data}).select(expr.alias("b")).unnest("b")
 
@@ -97,7 +102,7 @@ class TestBbands(IndicatorAssertions):
 
     def test_series_input_is_rejected(self) -> None:
         with self.assertRaises(TypeError):
-            bbands(pl.Series("close", VALUES), 3)
+            bbands(cast(Any, pl.Series("close", VALUES)), 3)
 
     def test_expression_works_in_a_lazy_frame(self) -> None:
         collected = (
@@ -110,7 +115,7 @@ class TestBbands(IndicatorAssertions):
     def test_invalid_arguments_raise(self) -> None:
         for window in (0, -1, 2.5):
             with self.subTest(window=window), self.assertRaises(ValueError):
-                bbands("close", window)
+                bbands("close", cast(Any, window))
         for num_std in (0.0, -1.0):
             with self.subTest(num_std=num_std), self.assertRaises(ValueError):
                 bbands("close", 3, num_std=num_std)

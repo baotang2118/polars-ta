@@ -1,3 +1,6 @@
+from collections.abc import Sequence
+from typing import Any, cast
+
 import polars as pl
 from _assertions import IndicatorAssertions
 from _data import CLOSE, constant, ramp_down, ramp_up
@@ -29,7 +32,7 @@ APO_EMA_5_12: list[float | None] = [
 # fmt: on
 
 
-def evaluate(expr: pl.Expr, values: list[float | None] | None = None):
+def evaluate(expr: pl.Expr, values: Sequence[float | None] | None = None):
     data = VALUES if values is None else values
     return pl.DataFrame({"close": data}).select(expr).to_series().to_list()
 
@@ -85,10 +88,10 @@ class TestPriceOscillators(IndicatorAssertions):
 
     def test_series_input_is_rejected(self) -> None:
         with self.assertRaises(TypeError):
-            apo(pl.Series("close", VALUES), 5, 12)
+            apo(cast(Any, pl.Series("close", VALUES)), 5, 12)
 
     def test_invalid_arguments_raise(self) -> None:
         with self.assertRaises(ValueError):
             apo("close", 0, 12)
         with self.assertRaises(ValueError):
-            ppo("close", 5, 12, ma_type="mesa")
+            ppo("close", 5, 12, ma_type=cast(Any, "mesa"))
