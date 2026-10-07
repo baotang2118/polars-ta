@@ -10,7 +10,7 @@ Indicators are grouped by how they are charted. *Overlay* indicators are drawn o
 
 Every indicator in [indicators.md](indicators.md) is implemented, along with a few TA-Lib does not carry: `donchian`, `keltner`, `supertrend`, and `ichimoku`.
 
-| Group | Module | Function | Description |
+| Category | Module | Function | Description |
 | ----- | ------ | -------- | ----------- |
 | Overlay | `overlay.ma` | `sma(column, window)` | Simple moving average |
 | Overlay | `overlay.ma` | `wma(column, window)` | Weighted moving average (linear weights) |
@@ -161,6 +161,20 @@ sma(pl.Series("close", [1.0, 2.0]), 3)  # pl.Series
 
 Every indicator emits exactly the TA-Lib lookback as leading nulls: `window - 1` for the single-pass moving averages, `bbands`, `cci`, `donchian`, `midpoint`, `midprice`, `trima`, `willr`, `cmf`, and `vwap`; `2 * (window - 1)`, `3 * (window - 1)`, and `6 * (window - 1)` for `dema`, `tema`, and `t3`; `window` for `rsi`, `cmo`, `mfi`, `atr`, `natr`, `kama`, `supertrend`, `aroon`, `dx`, `fi`, `eom`, `vortex`, and the directional indicators; `window - 1` for `plus_dm`/`minus_dm`; `2 * window - 1` for `adx` and `3 * window - 2` for `adxr`; `1` for `sar`, `sarext`, `daily_return`, and `daily_log_return`; `2 * (window - 1)` for `ulcer`; `32` for `ht_dcperiod`, `ht_phasor`, and `mama`; `63` for the remaining `ht_*` indicators; and nothing at all for `bop`, `ad`, `obv`, `vpt`, `nvi`, `cumulative_return`, and the price transforms. Struct fields start on the same row where TA-Lib emits them together, and keep their own warm-ups where TA-Lib treats them as separate functions. `donchian`, `keltner`, `ichimoku`, and `kst` likewise let each field reflect only the inputs it depends on — `keltner`'s `middle` starts after `window - 1` rows while its edges wait for the ATR. See [docs/indicators.md](docs/indicators.md) for the formulas, null-handling rules, and worked examples.
 
+## Missing values: null and NaN
+
+Null is the convention. Warm-up rows, rows whose window contains a null input, and unavailable results are all reported as null.
+
+NaN is a different value in Polars: `is_null()` is false for NaN, and `fill_null()` does not replace it. NaN can still appear in two ways:
+
+- **Input NaN.** The indicators do not convert NaN to null, so a NaN input propagates into the output rows that depend on it. Convert it first if you want it treated as missing:
+
+  ```python
+  df = df.with_columns(pl.col(pl.Float64).fill_nan(None))
+  ```
+
+- **Undefined results.** `daily_log_return` yields NaN where the price changes sign, because the logarithm is undefined there.
+
 ## Development
 
 Install the package and development tools, then run the unit tests with pytest:
@@ -170,7 +184,7 @@ uv sync --dev
 uv run pytest
 ```
 
-Tests use `unittest.TestCase` assertions and are executed with pytest. Follow [AGENTS.md](AGENTS.md) for the Python linting and formatting workflow.
+Tests use `unittest.TestCase` assertions and are executed with pytest. Module-level fixtures such as `LENGTH` and `BARS` are explicitly annotated. Follow [AGENTS.md](AGENTS.md) for the Python linting and formatting workflow.
 
 ## Project References
 

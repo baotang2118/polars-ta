@@ -4,7 +4,7 @@ from _data import CLOSE, HIGH, LOW, OPEN, frame
 
 from polars_ta import avgprice, medprice, typprice, wclprice
 
-BARS = pl.DataFrame(
+BARS: pl.DataFrame = pl.DataFrame(
     {
         "open": [1.0, 2.0, 3.0],
         "high": [4.0, 6.0, 8.0],

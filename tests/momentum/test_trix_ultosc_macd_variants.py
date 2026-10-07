@@ -4,8 +4,8 @@ from _data import CLOSE, HAND_CHECKED, HIGH, LOW, constant, frame, ramp_up
 
 from polars_ta import atr, ema, macd, macdext, macdfix, natr, sma, trix, ultosc
 
-LENGTH = 90
-BARS = frame(high=HIGH[:LENGTH], low=LOW[:LENGTH], close=CLOSE[:LENGTH])
+LENGTH: int = 90
+BARS: pl.DataFrame = frame(high=HIGH[:LENGTH], low=LOW[:LENGTH], close=CLOSE[:LENGTH])
 
 
 def column(expr: pl.Expr, bars: pl.DataFrame | None = None) -> list:

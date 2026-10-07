@@ -4,8 +4,8 @@ from _data import HIGH, LOW, ramp_down, ramp_up
 
 from polars_ta import sar, sarext
 
-LENGTH = 80
-BARS = pl.DataFrame({"high": HIGH[:LENGTH], "low": LOW[:LENGTH]})
+LENGTH: int = 80
+BARS: pl.DataFrame = pl.DataFrame({"high": HIGH[:LENGTH], "low": LOW[:LENGTH]})
 
 
 def column(expr: pl.Expr, bars: pl.DataFrame | None = None) -> list:

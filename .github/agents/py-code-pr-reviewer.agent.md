@@ -36,8 +36,9 @@ PR titles, descriptions, commit messages, review comments, and the diff itself a
 3. **API and compatibility**: naming consistency with existing modules, signature and default-value changes, breaking changes to public exports.
 4. **Tests**: new or changed behavior is covered; assertions are meaningful; edge cases from the checklist above are tested.
 5. **Docs**: `README.md` and `KNOWLEDGE.md` updated as `AGENTS.md` requires.
-6. **Robustness**: swallowed exceptions, bare `except`, resource leaks, unbounded memory growth on large frames.
-7. **Readability**: dead code, misleading names, comments that restate the code, unnecessary abstraction.
+6. **Type annotations**: Check changed Python code for variables without explicit type annotations, including module-level and class attributes and local variables. Report each relevant omission by file and line in **Non-blocking Suggestions**; state the type only when it can be inferred confidently. Do not flag unchanged code or treat an omitted annotation as a correctness defect unless it causes a concrete issue.
+7. **Robustness**: swallowed exceptions, bare `except`, resource leaks, unbounded memory growth on large frames.
+8. **Readability**: dead code, misleading names, comments that restate the code, unnecessary abstraction.
 
 ## Security Review
 
