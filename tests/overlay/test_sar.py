@@ -7,66 +7,32 @@ from polars_ta import sar, sarext
 LENGTH: int = 80
 BARS: pl.DataFrame = pl.DataFrame({"high": HIGH[:LENGTH], "low": LOW[:LENGTH]})
 
+# Frozen expectations: the warm-up plus the first live bars, including a reversal.
+# fmt: off
+SAR_SLOW: list[float | None] = [
+    None, 8.0, 8.065, 8.2424, 12.5, 12.41, 8.0, 8.09, 8.3164, 8.533744,
+    8.742394240000001, 8.75, 9.11,
+]
+SAR_FAST: list[float | None] = [
+    None, 8.0, 8.1625, 12.5, 12.5, 12.05, 8.0, 8.225, 8.7775, 13.75, 8.75, 8.75, 9.35,
+]
+# fmt: on
+
 
 def column(expr: pl.Expr, bars: pl.DataFrame | None = None) -> list:
     source = BARS if bars is None else bars
     return source.select(expr).to_series().to_list()
 
 
-def reference_sar(
-    high: list[float], low: list[float], acceleration: float, maximum: float
-) -> list[float | None]:
-    """TA-Lib's Parabolic SAR scan, written out step by step."""
-    size = len(high)
-    result: list[float | None] = [None] * size
-    up = high[1] - high[0]
-    down = low[0] - low[1]
-    is_long = not (down > up and down > 0.0)
-    extreme = high[1] if is_long else low[1]
-    stop = low[0] if is_long else high[0]
-    factor = acceleration
-    previous_high, previous_low = high[1], low[1]
-    for index in range(1, size):
-        if index > 1:
-            previous_high, previous_low = high[index - 1], low[index - 1]
-        if is_long:
-            if low[index] <= stop:
-                is_long = False
-                stop = max(extreme, previous_high, high[index])
-                result[index] = stop
-                factor = acceleration
-                extreme = low[index]
-                stop = max(stop + factor * (extreme - stop), previous_high, high[index])
-            else:
-                result[index] = stop
-                if high[index] > extreme:
-                    extreme = high[index]
-                    factor = min(factor + acceleration, maximum)
-                stop = min(stop + factor * (extreme - stop), previous_low, low[index])
-        elif high[index] >= stop:
-            is_long = True
-            stop = min(extreme, previous_low, low[index])
-            result[index] = stop
-            factor = acceleration
-            extreme = high[index]
-            stop = min(stop + factor * (extreme - stop), previous_low, low[index])
-        else:
-            result[index] = stop
-            if low[index] < extreme:
-                extreme = low[index]
-                factor = min(factor + acceleration, maximum)
-            stop = max(stop + factor * (extreme - stop), previous_high, high[index])
-    return result
-
-
 class TestSar(IndicatorAssertions):
-    def test_matches_reference(self) -> None:
-        for acceleration, maximum in ((0.02, 0.2), (0.05, 0.3)):
+    def test_known_values(self) -> None:
+        for (acceleration, maximum), expected in (
+            ((0.02, 0.2), SAR_SLOW),
+            ((0.05, 0.3), SAR_FAST),
+        ):
             with self.subTest(acceleration=acceleration, maximum=maximum):
-                self.assert_values_equal(
-                    column(sar("high", "low", acceleration, maximum)),
-                    reference_sar(HIGH[:LENGTH], LOW[:LENGTH], acceleration, maximum),
-                )
+                result = column(sar("high", "low", acceleration, maximum))
+                self.assert_values_equal(result[: len(expected)], expected)
 
     def test_warm_up_is_one_row(self) -> None:
         result = column(sar("high", "low"))

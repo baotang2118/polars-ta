@@ -383,6 +383,8 @@ uv run pytest
 
 Tests use `unittest.TestCase` assertions and are executed with pytest. Module-level fixtures such as `LENGTH` and `BARS` are explicitly annotated. Follow [AGENTS.md](AGENTS.md) for the Python linting and formatting workflow.
 
+Expected values are checked-in constants. Each test module declares frozen tables such as `MACD_LINE` or `ATR_5` near the top and compares the indicator against them, rather than recomputing an expectation while the test runs. A table covers the indicator's warm-up plus the first live bars; warm-up length, value bounds, and null propagation are asserted separately over the full series. Tests that state a relationship between two public calls — `pvo` against `ppo`, `macdfix` against `macd(12, 26)`, a column name against the equivalent expression — compare the two calls directly and are not frozen.
+
 ## Project References
 
 - [docs/indicators.md](docs/indicators.md): shared conventions, the indicator index, and the overlay formulas.

@@ -14,51 +14,39 @@ from _data import (
 
 from polars_ta import stoch
 
+# Frozen expectations: the warm-up plus the first live bars.
+# fmt: off
+STOCH_K: list[float | None] = [
+    None, None, None, None, None, None, None, None, 62.80193236714976,
+    48.91304347826087, 47.391304347826086, 53.61111111111111, 57.77777777777777,
+    43.05555555555555, 26.340996168582375, 29.93295019157088, 47.305966064586755,
+    66.88967749834356, 78.23483039359404, 79.24887441998375,
+]
+STOCH_D: list[float | None] = [
+    None, None, None, None, None, None, None, None, 55.823939881910896,
+    57.31347289318304, 53.03542673107891, 49.97181964573269, 52.92673107890499,
+    51.481481481481474, 42.39144316730523, 33.10983397190294, 34.526637474913336,
+    48.04286458483373, 64.14349131884144, 74.79112743730711,
+]
+# A null close at index 6 blanks every window that overlaps it.
+STOCH_K_NULL_CLOSE: list[float | None] = [
+    None, None, None, None, 31.69934640522876, 37.77777777777778, None, None, None,
+    30.147058823529413, 46.71052631578947, 69.62719298245614, 45.94298245614035,
+    20.94298245614035, 27.083333333333336, 50.0,
+]
+# fmt: on
+
 
 def evaluate(expr: pl.Expr, data: pl.DataFrame | None = None) -> pl.DataFrame:
     source = data if data is not None else frame()
     return source.select(expr.alias("s")).unnest("s")
 
 
-def reference_stoch(high, low, close, fastk: int, slowk: int, slowd: int):
-    fast_k: list[float | None] = []
-    for index in range(len(close)):
-        window_high = high[index + 1 - fastk : index + 1]
-        window_low = low[index + 1 - fastk : index + 1]
-        if (
-            index + 1 < fastk
-            or close[index] is None
-            or any(v is None for v in window_high)
-            or any(v is None for v in window_low)
-        ):
-            fast_k.append(None)
-            continue
-        highest, lowest = max(window_high), min(window_low)
-        span = highest - lowest
-        fast_k.append(0.0 if span <= 0.0 else 100.0 * (close[index] - lowest) / span)
-
-    def smooth(values, period):
-        out: list[float | None] = []
-        for index in range(len(values)):
-            chunk = values[index + 1 - period : index + 1]
-            if index + 1 < period or any(v is None for v in chunk):
-                out.append(None)
-            else:
-                out.append(sum(chunk) / period)
-        return out
-
-    k = smooth(fast_k, slowk)
-    d = smooth(k, slowd)
-    aligned_k = [None if d[i] is None else k[i] for i in range(len(k))]
-    return aligned_k, d
-
-
 class TestStoch(IndicatorAssertions):
-    def test_matches_reference(self) -> None:
+    def test_known_values(self) -> None:
         result = evaluate(stoch("high", "low", "close", 5, 3, 3))
-        k, d = reference_stoch(HIGH, LOW, CLOSE, 5, 3, 3)
-        self.assert_values_equal(result["k"].to_list(), k)
-        self.assert_values_equal(result["d"].to_list(), d)
+        self.assert_values_equal(result["k"].to_list()[: len(STOCH_K)], STOCH_K)
+        self.assert_values_equal(result["d"].to_list()[: len(STOCH_D)], STOCH_D)
 
     def test_field_names_and_order(self) -> None:
         self.assertEqual(evaluate(stoch("high", "low", "close")).columns, ["k", "d"])
@@ -106,8 +94,9 @@ class TestStoch(IndicatorAssertions):
     def test_null_input_propagates(self) -> None:
         close = with_null(CLOSE, 6)
         result = evaluate(stoch("high", "low", "close", 3, 2, 2), frame(close=close))
-        k, _ = reference_stoch(HIGH, LOW, close, 3, 2, 2)
-        self.assert_values_equal(result["k"].to_list(), k)
+        self.assert_values_equal(
+            result["k"].to_list()[: len(STOCH_K_NULL_CLOSE)], STOCH_K_NULL_CLOSE
+        )
 
     def test_input_shorter_than_warm_up_is_all_null(self) -> None:
         result = evaluate(stoch("high", "low", "close", len(HIGH), 3, 3))

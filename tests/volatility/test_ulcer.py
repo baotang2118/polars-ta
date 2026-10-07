@@ -1,5 +1,3 @@
-import math
-
 import polars as pl
 from _assertions import IndicatorAssertions
 from _data import CLOSE, constant, frame, ramp_down, ramp_up
@@ -9,29 +7,27 @@ from polars_ta import ulcer
 LENGTH: int = 60
 BARS: pl.DataFrame = frame(close=CLOSE[:LENGTH])
 
+# Frozen expectations: the warm-up plus the first live bars.
+# fmt: off
+ULCER_14: list[float | None] = [
+    None, None, None, None, None, None, None, None, None, None, None, None, None, None,
+    None, None, None, None, None, None, None, None, None, None, None, None,
+    12.09919261141096, 10.761437169239986, 8.916644849689657, 11.167599416747077,
+    14.22040644778843, 16.06372685089913, 17.443647758270625, 19.35278139443941,
+    20.64532933415509, 23.13322308521081, 24.487138130267855, 25.145959952424935,
+]
+# fmt: on
+
 
 def column(expr: pl.Expr, bars: pl.DataFrame | None = None) -> list:
     source = BARS if bars is None else bars
     return source.select(expr).to_series().to_list()
 
 
-def reference_ulcer(values: list[float], window: int) -> list:
-    drawdowns: list = [None] * (window - 1)
-    for index in range(window - 1, len(values)):
-        peak = max(values[index - window + 1 : index + 1])
-        drawdowns.append(100.0 * (values[index] - peak) / peak)
-    result: list = [None] * (2 * window - 2)
-    for index in range(2 * window - 2, len(values)):
-        squares = [value * value for value in drawdowns[index - window + 1 : index + 1]]
-        result.append(math.sqrt(sum(squares) / window))
-    return result
-
-
 class TestUlcer(IndicatorAssertions):
-    def test_matches_reference(self) -> None:
-        self.assert_values_equal(
-            column(ulcer("close", 14)), reference_ulcer(CLOSE[:LENGTH], 14)
-        )
+    def test_known_values(self) -> None:
+        result = column(ulcer("close", 14))
+        self.assert_values_equal(result[: len(ULCER_14)], ULCER_14)
 
     def test_warm_up_is_twice_the_window_minus_two(self) -> None:
         for window in (3, 5, 14):

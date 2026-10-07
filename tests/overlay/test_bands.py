@@ -1,5 +1,3 @@
-import math
-
 import polars as pl
 from _assertions import IndicatorAssertions
 from _data import HAND_CHECKED, constant, ramp_up
@@ -8,6 +6,30 @@ from polars_ta import bbands
 
 # The literal expectations below were worked out against this exact series.
 VALUES: list[float] = HAND_CHECKED[:8]
+NULL_VALUES: list[float | None] = [1.0, 2.0, None, 4.0, 5.0, 6.0]
+
+# fmt: off
+BBANDS_3_LOWER: list[float | None] = [
+    None, None, 0.36700683814454793, 0.26732032427147656, 0.9339869909381431,
+    3.267320324271477, 1.6795062010614261, 2.679506201061426,
+]
+BBANDS_3_MIDDLE: list[float | None] = [
+    None, None, 2.0, 3.6666666666666665, 4.333333333333333, 6.666666666666667, 6.0,
+    7.0,
+]
+BBANDS_3_UPPER: list[float | None] = [
+    None, None, 3.632993161855452, 7.066013009061857, 7.732679675728523,
+    10.066013009061857, 10.320493798938575, 11.320493798938575,
+]
+BBANDS_3_SAMPLE_LOWER: list[float | None] = [
+    None, None, 0.0, -0.4966653322655996, 0.1700013344010678, 2.5033346677344017,
+    0.7084973778708186, 1.7084973778708186,
+]
+BBANDS_3_SAMPLE_UPPER: list[float | None] = [
+    None, None, 4.0, 7.829998665598932, 8.496665332265598, 10.829998665598932,
+    11.291502622129181, 12.291502622129181,
+]
+# fmt: on
 
 
 def evaluate(expr: pl.Expr, values: list[float | None] | None = None) -> pl.DataFrame:
@@ -15,33 +37,12 @@ def evaluate(expr: pl.Expr, values: list[float | None] | None = None) -> pl.Data
     return pl.DataFrame({"close": data}).select(expr.alias("b")).unnest("b")
 
 
-def reference_bbands(values, window: int, num_std: float, ddof: int = 0):
-    lower: list[float | None] = []
-    middle: list[float | None] = []
-    upper: list[float | None] = []
-    for index in range(len(values)):
-        chunk = values[index + 1 - window : index + 1]
-        if index + 1 < window or any(v is None for v in chunk):
-            lower.append(None)
-            middle.append(None)
-            upper.append(None)
-            continue
-        mean = sum(chunk) / window
-        variance = sum((v - mean) ** 2 for v in chunk) / (window - ddof)
-        deviation = math.sqrt(variance) * num_std
-        lower.append(mean - deviation)
-        middle.append(mean)
-        upper.append(mean + deviation)
-    return lower, middle, upper
-
-
 class TestBbands(IndicatorAssertions):
-    def test_matches_reference(self) -> None:
+    def test_known_values(self) -> None:
         frame = evaluate(bbands("close", 3))
-        lower, middle, upper = reference_bbands(VALUES, 3, 2.0)
-        self.assert_values_equal(frame["lower"].to_list(), lower)
-        self.assert_values_equal(frame["middle"].to_list(), middle)
-        self.assert_values_equal(frame["upper"].to_list(), upper)
+        self.assert_values_equal(frame["lower"].to_list(), BBANDS_3_LOWER)
+        self.assert_values_equal(frame["middle"].to_list(), BBANDS_3_MIDDLE)
+        self.assert_values_equal(frame["upper"].to_list(), BBANDS_3_UPPER)
 
     def test_field_names_and_order(self) -> None:
         self.assertEqual(
@@ -50,9 +51,7 @@ class TestBbands(IndicatorAssertions):
 
     def test_middle_band_is_the_simple_moving_average(self) -> None:
         middle = evaluate(bbands("close", 3))["middle"].to_list()
-        self.assert_values_equal(
-            middle, [None, None, 2.0, 11 / 3, 13 / 3, 20 / 3, 6.0, 7.0]
-        )
+        self.assert_values_equal(middle, BBANDS_3_MIDDLE)
 
     def test_bands_are_symmetric_about_the_middle(self) -> None:
         frame = evaluate(bbands("close", 3))
@@ -72,9 +71,8 @@ class TestBbands(IndicatorAssertions):
 
     def test_ddof_one_is_the_sample_deviation(self) -> None:
         frame = evaluate(bbands("close", 3, ddof=1))
-        lower, _, upper = reference_bbands(VALUES, 3, 2.0, ddof=1)
-        self.assert_values_equal(frame["lower"].to_list(), lower)
-        self.assert_values_equal(frame["upper"].to_list(), upper)
+        self.assert_values_equal(frame["lower"].to_list(), BBANDS_3_SAMPLE_LOWER)
+        self.assert_values_equal(frame["upper"].to_list(), BBANDS_3_SAMPLE_UPPER)
 
     def test_constant_input_collapses_the_bands(self) -> None:
         frame = evaluate(bbands("close", 3), constant(6, 4.0))
@@ -87,8 +85,7 @@ class TestBbands(IndicatorAssertions):
         self.assertIsNotNone(middle[3])
 
     def test_null_blanks_every_overlapping_window(self) -> None:
-        values = [1.0, 2.0, None, 4.0, 5.0, 6.0]
-        frame = evaluate(bbands("close", 3), values)
+        frame = evaluate(bbands("close", 3), NULL_VALUES)
         self.assertEqual(frame["middle"].to_list()[:5], [None] * 5)
         self.assertIsNotNone(frame["middle"][5])
 

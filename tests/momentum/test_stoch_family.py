@@ -6,6 +6,27 @@ from polars_ta import cmo, rsi, stochf, stochrsi, willr
 
 VALUES: list[float] = CLOSE[:60]
 
+# Frozen expectations: the warm-up plus the first live bars.
+# fmt: off
+FAST_K_5: list[float | None] = [
+    None, None, None, None, None, None, 66.66666666666667, 69.56521739130434,
+    52.17391304347826, 25.0, 65.0, 70.83333333333333, 37.5, 20.833333333333332,
+    20.689655172413794, 48.275862068965516, 72.95238095238095, 79.4407894736842,
+]
+FAST_D_5_3: list[float | None] = [
+    None, None, None, None, None, None, 44.44444444444445, 60.225442834138484,
+    62.80193236714976, 48.91304347826087, 47.391304347826086, 53.61111111111111,
+    57.77777777777777, 43.05555555555555, 26.340996168582375, 29.93295019157088,
+    47.305966064586755, 66.88967749834356,
+]
+WILLR_14: list[float | None] = [
+    None, None, None, None, None, None, None, None, None, None, None, None, None,
+    -70.37037037037037, -79.3103448275862, -51.724137931034484, -47.172413793103445,
+    -33.37931034482759, -17.688679245283026, -19.358407079646028, -27.5442477876106,
+    -12.57545271629779, -29.376257545271642, -15.794223826714813, -7.898894154818322,
+]
+# fmt: on
+
 
 def evaluate(expr: pl.Expr, values: list[float | None] | None = None):
     data = VALUES if values is None else values
@@ -15,19 +36,6 @@ def evaluate(expr: pl.Expr, values: list[float | None] | None = None):
 def unnest(expr: pl.Expr, bars: pl.DataFrame) -> dict[str, list]:
     result = bars.select(expr.alias("out")).unnest("out")
     return {name: result[name].to_list() for name in result.columns}
-
-
-def reference_fast_k(
-    high: list[float], low: list[float], close: list[float], window: int
-) -> list[float | None]:
-    result: list[float | None] = [None] * len(close)
-    for index in range(window - 1, len(close)):
-        start = index - window + 1
-        highest = max(high[start : index + 1])
-        lowest = min(low[start : index + 1])
-        span = highest - lowest
-        result[index] = 0.0 if span == 0.0 else 100.0 * (close[index] - lowest) / span
-    return result
 
 
 class TestCmo(IndicatorAssertions):
@@ -65,15 +73,11 @@ class TestCmo(IndicatorAssertions):
 
 
 class TestStochf(IndicatorAssertions):
-    def test_matches_reference(self) -> None:
+    def test_known_values(self) -> None:
         bars = frame(high=HIGH[:60], low=LOW[:60], close=VALUES)
         fields = unnest(stochf("high", "low", "close", 5, 3), bars)
-        raw = reference_fast_k(HIGH[:60], LOW[:60], VALUES, 5)
-        expected_d: list[float | None] = [None] * 60
-        for index in range(6, 60):
-            expected_d[index] = sum(raw[index - 2 : index + 1]) / 3.0
-        self.assert_values_equal(fields["fast_d"], expected_d)
-        self.assert_values_equal(fields["fast_k"], [None] * 6 + raw[6:])
+        self.assert_values_equal(fields["fast_k"][: len(FAST_K_5)], FAST_K_5)
+        self.assert_values_equal(fields["fast_d"][: len(FAST_D_5_3)], FAST_D_5_3)
 
     def test_warm_up_sums_both_periods(self) -> None:
         bars = frame(high=HIGH[:60], low=LOW[:60], close=VALUES)
@@ -140,12 +144,10 @@ class TestStochrsi(IndicatorAssertions):
 
 
 class TestWillr(IndicatorAssertions):
-    def test_mirrors_raw_fast_k(self) -> None:
+    def test_known_values(self) -> None:
         bars = frame(high=HIGH[:60], low=LOW[:60], close=VALUES)
         result = bars.select(willr("high", "low", "close", 14)).to_series().to_list()
-        raw = reference_fast_k(HIGH[:60], LOW[:60], VALUES, 14)
-        expected = [None if v is None else v - 100.0 for v in raw]
-        self.assert_values_equal(result, expected)
+        self.assert_values_equal(result[: len(WILLR_14)], WILLR_14)
 
     def test_warm_up_is_window_minus_one_nulls(self) -> None:
         bars = frame(high=HIGH[:60], low=LOW[:60], close=VALUES)

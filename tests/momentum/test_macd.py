@@ -6,39 +6,42 @@ from polars_ta import ema, macd
 
 VALUES: list[float] = CLOSE
 
+# Frozen expectations for macd(close, 3, 6, 4): warm-up plus the first live bars.
+# fmt: off
+MACD_LINE: list[float | None] = [
+    None, None, None, None, None, None, None, None, 0.31483843537414913,
+    -0.00949040330417894, 0.30460506906844387, 0.5875527279060311, 0.17609793064716506,
+    -0.21029277275202496, -0.532533342144303, -0.14297163947807334,
+    0.08729634568530464, 0.37134971957432406, 0.8804616788812147, 1.0029357102220722,
+]
+MACD_SIGNAL: list[float | None] = [
+    None, None, None, None, None, None, None, None, 0.23421556122448894,
+    0.13673317541302177, 0.20388193287519063, 0.3573502508875268, 0.2848493227913821,
+    0.08679248457401925, -0.16093784611330966, -0.15375136345921514,
+    -0.05733227980140722, 0.11414051994888529, 0.4206689835218171, 0.6535756742019191,
+]
+MACD_HISTOGRAM: list[float | None] = [
+    None, None, None, None, None, None, None, None, 0.08062287414966018,
+    -0.1462235787172007, 0.10072313619325324, 0.23020247701850427,
+    -0.10875139214421703, -0.2970852573260442, -0.3715954960309934,
+    0.010779723981141798, 0.14462862548671185, 0.25720919962543876,
+    0.45979269535939765, 0.3493600360201531,
+]
+# fmt: on
+
 
 def evaluate(expr: pl.Expr, values: list[float] | None = None) -> pl.DataFrame:
     data = VALUES if values is None else values
     return pl.DataFrame({"close": data}).select(expr.alias("m")).unnest("m")
 
 
-def reference_macd(values, fast: int, slow: int, signal: int):
-    frame = pl.DataFrame({"close": values})
-    fast_line = frame.select(ema("close", fast)).to_series().to_list()
-    slow_line = frame.select(ema("close", slow)).to_series().to_list()
-    macd_line = [
-        None if f is None or s is None else f - s for f, s in zip(fast_line, slow_line)
-    ]
-    signal_line = (
-        pl.DataFrame({"macd": macd_line})
-        .select(ema("macd", signal))
-        .to_series()
-        .to_list()
-    )
-    aligned = [None if s is None else macd_line[i] for i, s in enumerate(signal_line)]
-    histogram = [
-        None if a is None or s is None else a - s for a, s in zip(aligned, signal_line)
-    ]
-    return aligned, signal_line, histogram
-
-
 class TestMacd(IndicatorAssertions):
-    def test_matches_reference(self) -> None:
+    def test_known_values(self) -> None:
         result = evaluate(macd("close", 3, 6, 4))
-        macd_line, signal, histogram = reference_macd(VALUES, 3, 6, 4)
-        self.assert_values_equal(result["macd"].to_list(), macd_line)
-        self.assert_values_equal(result["signal"].to_list(), signal)
-        self.assert_values_equal(result["histogram"].to_list(), histogram)
+        size = len(MACD_LINE)
+        self.assert_values_equal(result["macd"].to_list()[:size], MACD_LINE)
+        self.assert_values_equal(result["signal"].to_list()[:size], MACD_SIGNAL)
+        self.assert_values_equal(result["histogram"].to_list()[:size], MACD_HISTOGRAM)
 
     def test_field_names_and_order(self) -> None:
         self.assertEqual(

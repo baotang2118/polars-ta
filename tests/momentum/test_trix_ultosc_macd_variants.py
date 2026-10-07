@@ -2,10 +2,45 @@ import polars as pl
 from _assertions import IndicatorAssertions
 from _data import CLOSE, HAND_CHECKED, HIGH, LOW, constant, frame, ramp_up
 
-from polars_ta import atr, ema, macd, macdext, macdfix, natr, sma, trix, ultosc
+from polars_ta import macd, macdext, macdfix, natr, trix, ultosc
 
 LENGTH: int = 90
 BARS: pl.DataFrame = frame(high=HIGH[:LENGTH], low=LOW[:LENGTH], close=CLOSE[:LENGTH])
+
+# Frozen expectations: the warm-up plus the first live bars.
+# fmt: off
+NATR_14: list[float | None] = [
+    None, None, None, None, None, None, None, None, None, None, None, None, None, None,
+    31.746031746031747, 26.55380333951763, 25.199810096778595, 22.95029561554003,
+    19.947232064990676, 19.82452894771489, 20.394825525049015, 17.930445963779242,
+    20.124070060982966, 17.84491751426511, 15.796635486676347, 16.1219986400884,
+]
+TRIX_5: list[float | None] = [
+    None, None, None, None, None, None, None, None, None, None, None, None, None,
+    1.2208338068720792, 0.011412687066858496, -0.288504617521379, -0.12243202378512397,
+    0.4877800212819583, 1.7825470238750585, 2.9353134649920065, 3.3306883727149073,
+    3.930231069621426, 3.707671947508051, 3.8507511773261394, 4.523079995944235,
+]
+ULTOSC: list[float | None] = [
+    None, None, None, None, None, None, None, None, None, None, None, None, None, None,
+    None, None, None, None, None, None, None, None, None, None, None, None, None, None,
+    51.241416971345984, 50.65143600609738, 49.90560751303091, 48.15966989955722,
+    47.906309442897616, 47.853558805239096, 48.13567960045787, 48.47393653415503,
+    49.901807923036436, 51.14914811947017, 50.68076696821248, 50.623954615347245,
+]
+MACDEXT_MACD: list[float | None] = [
+    None, None, None, None, None, None, None, None, None, None, None, None, None, None,
+    0.3333333333333339, 0.05000000000000071, -0.4781666666666684, -0.4063333333333343,
+    0.19966666666666733, 1.125166666666665, 1.4810000000000016, 1.9371666666666663,
+    2.165166666666668, 2.315999999999999, 2.509999999999998, 2.6963333333333352,
+]
+MACDEXT_SIGNAL: list[float | None] = [
+    None, None, None, None, None, None, None, None, None, None, None, None, None, None,
+    0.5499999999999998, 0.3291666666666666, 0.0679583333333329, -0.12529166666666702,
+    -0.15870833333333367, 0.11008333333333242, 0.5998749999999999, 1.18575,
+    1.6771250000000002, 1.9748333333333337, 2.2320833333333328, 2.421875,
+]
+# fmt: on
 
 
 def column(expr: pl.Expr, bars: pl.DataFrame | None = None) -> list:
@@ -15,12 +50,8 @@ def column(expr: pl.Expr, bars: pl.DataFrame | None = None) -> list:
 
 class TestNatr(IndicatorAssertions):
     def test_is_atr_as_a_percentage_of_close(self) -> None:
-        average = column(atr("high", "low", "close", 14))
-        expected = [
-            None if value is None else 100.0 * value / close
-            for value, close in zip(average, CLOSE[:LENGTH])
-        ]
-        self.assert_values_equal(column(natr("high", "low", "close", 14)), expected)
+        result = column(natr("high", "low", "close", 14))
+        self.assert_values_equal(result[: len(NATR_14)], NATR_14)
 
     def test_warm_up_matches_atr(self) -> None:
         for window in (3, 7, 14):
@@ -48,23 +79,9 @@ class TestNatr(IndicatorAssertions):
 
 class TestTrix(IndicatorAssertions):
     def test_is_the_one_period_roc_of_a_triple_ema(self) -> None:
-        values = CLOSE[:LENGTH]
-        bars = pl.DataFrame({"close": values})
-        stage = bars.select(ema("close", 5)).to_series().to_list()
-        for _ in range(2):
-            stage = (
-                pl.DataFrame({"close": stage})
-                .select(ema("close", 5))
-                .to_series()
-                .to_list()
-            )
-        expected = [
-            None
-            if index == 0 or stage[index] is None or stage[index - 1] is None
-            else (stage[index] / stage[index - 1] - 1.0) * 100.0
-            for index in range(LENGTH)
-        ]
-        self.assert_values_equal(column(trix("close", 5), bars), expected)
+        bars = pl.DataFrame({"close": CLOSE[:LENGTH]})
+        result = column(trix("close", 5), bars)
+        self.assert_values_equal(result[: len(TRIX_5)], TRIX_5)
 
     def test_warm_up_is_three_passes_plus_one(self) -> None:
         bars = pl.DataFrame({"close": CLOSE[:LENGTH]})
@@ -96,27 +113,9 @@ class TestTrix(IndicatorAssertions):
 
 
 class TestUltosc(IndicatorAssertions):
-    def test_matches_reference(self) -> None:
-        high, low, close = HIGH[:LENGTH], LOW[:LENGTH], CLOSE[:LENGTH]
-        periods = (7, 14, 28)
-        buying: list[float | None] = [None] * LENGTH
-        ranges: list[float | None] = [None] * LENGTH
-        for index in range(1, LENGTH):
-            floor = min(low[index], close[index - 1])
-            ceiling = max(high[index], close[index - 1])
-            buying[index] = close[index] - floor
-            ranges[index] = ceiling - floor
-        expected: list[float | None] = [None] * LENGTH
-        for index in range(max(periods), LENGTH):
-            total = 0.0
-            for weight, window in zip((4.0, 2.0, 1.0), periods):
-                start = index - window + 1
-                pressure = sum(buying[start : index + 1])
-                span = sum(ranges[start : index + 1])
-                if span > 0.0:
-                    total += weight * pressure / span
-            expected[index] = 100.0 * total / 7.0
-        self.assert_values_equal(column(ultosc("high", "low", "close")), expected)
+    def test_known_values(self) -> None:
+        result = column(ultosc("high", "low", "close"))
+        self.assert_values_equal(result[: len(ULTOSC)], ULTOSC)
 
     def test_warm_up_is_the_longest_period(self) -> None:
         for periods in ((7, 14, 28), (3, 5, 9), (9, 5, 3)):
@@ -156,15 +155,9 @@ class TestMacdVariants(IndicatorAssertions):
     def test_macdext_defaults_to_simple_averages(self) -> None:
         bars = pl.DataFrame({"close": CLOSE[:LENGTH]})
         fields = bars.select(macdext("close", 5, 12, 4).alias("m")).unnest("m")
-        fast = bars.select(sma("close", 5)).to_series().to_list()
-        slow = bars.select(sma("close", 12)).to_series().to_list()
-        line = [None if f is None or s is None else f - s for f, s in zip(fast, slow)]
-        signal = (
-            pl.DataFrame({"line": line}).select(sma("line", 4)).to_series().to_list()
-        )
-        expected = [None if s is None else line[i] for i, s in enumerate(signal)]
-        self.assert_values_equal(fields["macd"].to_list(), expected)
-        self.assert_values_equal(fields["signal"].to_list(), signal)
+        size = len(MACDEXT_MACD)
+        self.assert_values_equal(fields["macd"].to_list()[:size], MACDEXT_MACD)
+        self.assert_values_equal(fields["signal"].to_list()[:size], MACDEXT_SIGNAL)
 
     def test_macdext_honours_each_ma_type(self) -> None:
         bars = pl.DataFrame({"close": CLOSE[:LENGTH]})

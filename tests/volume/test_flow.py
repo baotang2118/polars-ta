@@ -2,10 +2,33 @@ import polars as pl
 from _assertions import IndicatorAssertions
 from _data import CLOSE, HIGH, LOW, VOLUME, constant, frame, ramp_up
 
-from polars_ta import ad, adosc, cmf, ema, obv
+from polars_ta import ad, adosc, cmf, obv
 
 LENGTH: int = 60
 BARS: pl.DataFrame = frame(high=HIGH[:LENGTH], low=LOW[:LENGTH], close=CLOSE[:LENGTH])
+
+# Frozen expectations: the warm-up plus the first live bars. The canonical bars
+# are symmetric about the close, so the accumulation multiplier is zero.
+# fmt: off
+AD: list[float | None] = [
+    0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+]
+ADOSC_3_10: list[float | None] = [
+    None, None, None, None, None, None, None, None, None, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+    0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+]
+OBV: list[float | None] = [
+    150.0, 400.0, 750.0, 300.0, -250.0, 400.0, 1150.0, 2000.0, 1050.0, 900.0, 1150.0,
+    1500.0,
+]
+CMF_20: list[float | None] = [
+    None, None, None, None, None, None, None, None, None, None, None, None, None, None,
+    None, None, None, None, None, 0.0, 0.0, 2.9882638419817274e-17,
+    2.9334333127710535e-17, -9.14469415392702e-19, -8.982841160052205e-19,
+    -8.82661783552956e-19, -8.67573547936666e-19, -9.227827737144538e-19,
+    2.057223246739539e-17, 2.0180380420397382e-17, 1.9803177048053505e-17,
+]
+# fmt: on
 
 
 def column(expr: pl.Expr, bars: pl.DataFrame | None = None) -> list:
@@ -13,40 +36,10 @@ def column(expr: pl.Expr, bars: pl.DataFrame | None = None) -> list:
     return source.select(expr).to_series().to_list()
 
 
-def reference_ad(
-    high: list[float], low: list[float], close: list[float], volume: list[float]
-) -> list[float]:
-    total = 0.0
-    result = []
-    for index in range(len(close)):
-        span = high[index] - low[index]
-        if span > 0.0:
-            multiplier = (
-                (close[index] - low[index]) - (high[index] - close[index])
-            ) / span
-            total += multiplier * volume[index]
-        result.append(total)
-    return result
-
-
-def reference_obv(close: list[float], volume: list[float]) -> list[float]:
-    total = volume[0]
-    result = [total]
-    for index in range(1, len(close)):
-        if close[index] > close[index - 1]:
-            total += volume[index]
-        elif close[index] < close[index - 1]:
-            total -= volume[index]
-        result.append(total)
-    return result
-
-
 class TestAd(IndicatorAssertions):
-    def test_matches_reference(self) -> None:
-        self.assert_values_equal(
-            column(ad("high", "low", "close", "volume")),
-            reference_ad(HIGH[:LENGTH], LOW[:LENGTH], CLOSE[:LENGTH], VOLUME[:LENGTH]),
-        )
+    def test_known_values(self) -> None:
+        result = column(ad("high", "low", "close", "volume"))
+        self.assert_values_equal(result[: len(AD)], AD)
 
     def test_has_no_warm_up(self) -> None:
         self.assertIsNotNone(column(ad("high", "low", "close", "volume"))[0])
@@ -63,7 +56,7 @@ class TestAd(IndicatorAssertions):
         )
         self.assert_values_equal(
             column(ad("high", "low", "close", "volume"), bars),
-            [100.0 * (index + 1) for index in range(10)],
+            [100.0, 200.0, 300.0, 400.0, 500.0, 600.0, 700.0, 800.0, 900.0, 1000.0],
         )
 
     def test_bar_with_no_range_contributes_nothing(self) -> None:
@@ -81,17 +74,9 @@ class TestAd(IndicatorAssertions):
 
 
 class TestAdosc(IndicatorAssertions):
-    def test_is_the_difference_of_two_recursive_emas(self) -> None:
-        line = column(ad("high", "low", "close", "volume"))
-        bars = pl.DataFrame({"line": line})
-        fast = bars.select(ema("line", 3, mode="recursive")).to_series().to_list()
-        slow = bars.select(ema("line", 10, mode="recursive")).to_series().to_list()
-        expected = [
-            None if f is None or s is None else f - s for f, s in zip(fast, slow)
-        ]
-        self.assert_values_equal(
-            column(adosc("high", "low", "close", "volume")), expected
-        )
+    def test_known_values(self) -> None:
+        result = column(adosc("high", "low", "close", "volume"))
+        self.assert_values_equal(result[: len(ADOSC_3_10)], ADOSC_3_10)
 
     def test_warm_up_is_slow_period_minus_one(self) -> None:
         for fast, slow in ((3, 10), (2, 6)):
@@ -106,11 +91,9 @@ class TestAdosc(IndicatorAssertions):
 
 
 class TestObv(IndicatorAssertions):
-    def test_matches_reference(self) -> None:
-        self.assert_values_equal(
-            column(obv("close", "volume")),
-            reference_obv(CLOSE[:LENGTH], VOLUME[:LENGTH]),
-        )
+    def test_known_values(self) -> None:
+        result = column(obv("close", "volume"))
+        self.assert_values_equal(result[: len(OBV)], OBV)
 
     def test_first_bar_seeds_with_its_own_volume(self) -> None:
         self.assertAlmostEqual(column(obv("close", "volume"))[0], VOLUME[0], places=10)
@@ -120,7 +103,7 @@ class TestObv(IndicatorAssertions):
         bars = pl.DataFrame({"close": rising, "volume": [20.0] * 10})
         self.assert_values_equal(
             column(obv("close", "volume"), bars),
-            [20.0 * (index + 1) for index in range(10)],
+            [20.0, 40.0, 60.0, 80.0, 100.0, 120.0, 140.0, 160.0, 180.0, 200.0],
         )
 
     def test_unchanged_close_contributes_nothing(self) -> None:
@@ -135,38 +118,10 @@ class TestObv(IndicatorAssertions):
             )
 
 
-def reference_cmf(
-    high: list[float],
-    low: list[float],
-    close: list[float],
-    volume: list[float],
-    window: int,
-) -> list:
-    flows = []
-    for index in range(len(close)):
-        span = high[index] - low[index]
-        multiplier = (
-            ((close[index] - low[index]) - (high[index] - close[index])) / span
-            if span > 0.0
-            else 0.0
-        )
-        flows.append(multiplier * volume[index])
-    result: list = [None] * (window - 1)
-    for index in range(window - 1, len(close)):
-        traded = sum(volume[index - window + 1 : index + 1])
-        moved = sum(flows[index - window + 1 : index + 1])
-        result.append(moved / traded if traded != 0.0 else 0.0)
-    return result
-
-
 class TestCmf(IndicatorAssertions):
-    def test_matches_reference(self) -> None:
-        self.assert_values_equal(
-            column(cmf("high", "low", "close", "volume", 20)),
-            reference_cmf(
-                HIGH[:LENGTH], LOW[:LENGTH], CLOSE[:LENGTH], VOLUME[:LENGTH], 20
-            ),
-        )
+    def test_known_values(self) -> None:
+        result = column(cmf("high", "low", "close", "volume", 20))
+        self.assert_values_equal(result[: len(CMF_20)], CMF_20)
 
     def test_warm_up_is_window_minus_one(self) -> None:
         for window in (5, 14, 20):

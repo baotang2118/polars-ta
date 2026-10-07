@@ -6,28 +6,51 @@ from polars_ta import midpoint, midprice
 
 VALUES: list[float] = CLOSE[:40]
 
+# Frozen expectations: each table covers the warm-up plus the first live bars.
+# fmt: off
+MIDPOINT: dict[int, list[float | None]] = {
+    2: [
+        None, 9.5, 10.5, 10.5, 9.5, 9.5, 10.5, 11.5, 11.5, 10.5, 11.0, 12.5, 12.0,
+    ],
+    5: [
+        None, None, None, None, 10.0, 10.0, 10.0, 10.5, 10.5, 11.0, 11.0, 11.5, 11.5,
+        11.5, 11.0, 11.0,
+    ],
+    14: [
+        None, None, None, None, None, None, None, None, None, None, None, None, None,
+        11.0, 11.0, 11.0, 11.0, 11.0, 11.74, 11.895, 11.895, 12.595, 12.595, 12.915,
+        14.08,
+    ],
+}
+MIDPRICE: dict[int, list[float | None]] = {
+    2: [
+        None, 9.625, 10.625, 10.375, 9.875, 9.625, 10.625, 11.625, 11.875, 10.375,
+        11.125, 12.625, 12.375,
+    ],
+    5: [
+        None, None, None, None, 10.25, 10.25, 10.25, 10.875, 10.875, 11.25, 11.25,
+        11.75, 11.75, 11.75, 11.125, 11.125,
+    ],
+    14: [
+        None, None, None, None, None, None, None, None, None, None, None, None, None,
+        11.375, 11.125, 11.125, 11.125, 11.125, 11.74, 12.02, 12.02, 12.47, 12.47,
+        13.04, 13.83,
+    ],
+}
+# fmt: on
+
 
 def evaluate(expr: pl.Expr, values: list[float | None] | None = None):
     data = VALUES if values is None else values
     return pl.DataFrame({"close": data}).select(expr).to_series().to_list()
 
 
-def reference_midpoint(values: list[float], window: int) -> list[float | None]:
-    result: list[float | None] = [None] * len(values)
-    for index in range(window - 1, len(values)):
-        span = values[index - window + 1 : index + 1]
-        result[index] = (max(span) + min(span)) / 2.0
-    return result
-
-
 class TestMidpoint(IndicatorAssertions):
-    def test_matches_reference(self) -> None:
-        for window in (2, 5, 14):
+    def test_known_values(self) -> None:
+        for window, expected in MIDPOINT.items():
             with self.subTest(window=window):
-                self.assert_values_equal(
-                    evaluate(midpoint("close", window)),
-                    reference_midpoint(VALUES, window),
-                )
+                result = evaluate(midpoint("close", window))
+                self.assert_values_equal(result[: len(expected)], expected)
 
     def test_warm_up_is_window_minus_one_nulls(self) -> None:
         for window in (2, 5, 14):
@@ -48,7 +71,7 @@ class TestMidpoint(IndicatorAssertions):
         rising = ramp_up(10, 0.0)
         self.assert_values_equal(
             evaluate(midpoint("close", 3), rising)[2:],
-            [index + 1.0 for index in range(8)],
+            [1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0],
         )
 
     def test_null_blanks_the_whole_window(self) -> None:
@@ -76,20 +99,14 @@ class TestMidpoint(IndicatorAssertions):
 
 
 class TestMidprice(IndicatorAssertions):
-    def test_matches_reference(self) -> None:
+    def test_known_values(self) -> None:
         bars = frame(high=HIGH[:40], low=LOW[:40])
-        for window in (2, 5, 14):
+        for window, expected in MIDPRICE.items():
             with self.subTest(window=window):
                 result = (
                     bars.select(midprice("high", "low", window)).to_series().to_list()
                 )
-                expected: list[float | None] = [None] * 40
-                for index in range(window - 1, 40):
-                    start = index - window + 1
-                    expected[index] = (
-                        max(HIGH[start : index + 1]) + min(LOW[start : index + 1])
-                    ) / 2.0
-                self.assert_values_equal(result, expected)
+                self.assert_values_equal(result[: len(expected)], expected)
 
     def test_warm_up_is_window_minus_one_nulls(self) -> None:
         bars = frame(high=HIGH[:40], low=LOW[:40])

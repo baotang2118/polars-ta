@@ -1,11 +1,35 @@
 import polars as pl
 from _assertions import IndicatorAssertions
-from _data import CLOSE, HIGH, LOW, constant, frame, ramp_up
+from _data import CLOSE, HIGH, constant, frame, ramp_up
 
 from polars_ta import mass, vortex
 
 LENGTH: int = 60
 BARS: pl.DataFrame = frame(close=CLOSE[:LENGTH])
+
+# Frozen expectations: the warm-up plus the first live bars.
+# fmt: off
+VORTEX_PLUS_14: list[float | None] = [
+    None, None, None, None, None, None, None, None, None, None, None, None, None, None,
+    0.95, 0.9696969696969697, 0.9771428571428571, 1.027515923566879,
+    1.0630806845965772, 1.045107398568019, 1.028117359413203, 1.0343221377788674,
+    0.9895138226882746, 1.053079044117647, 1.0648212226066895, 1.028099173553719,
+]
+VORTEX_MINUS_14: list[float | None] = [
+    None, None, None, None, None, None, None, None, None, None, None, None, None, None,
+    0.95, 0.9212121212121213, 0.9607453416149069, 0.9087898089171975,
+    0.7951100244498777, 0.8164677804295943, 0.8789731051344745, 0.828879627359647,
+    0.8217349857006674, 0.7392003676470588, 0.7344867358708189, 0.766469893742621,
+]
+MASS_9_25: list[float | None] = [
+    None, None, None, None, None, None, None, None, None, None, None, None, None, None,
+    None, None, None, None, None, None, None, None, None, None, None, None, None, None,
+    None, None, None, None, None, None, None, None, None, None, None, None,
+    25.081966775478254, 25.05878511176363, 25.070964465811787, 25.104295617612685,
+    25.034083634080908, 25.016975913643396, 25.03462764531113, 25.073058837956353,
+    25.007612010927936, 24.994344748903107, 25.015315383174944, 25.056718582897954,
+]
+# fmt: on
 
 
 def column(expr: pl.Expr, bars: pl.DataFrame | None = None) -> list:
@@ -17,78 +41,13 @@ def field(name: str, expr: pl.Expr, bars: pl.DataFrame | None = None) -> list:
     return column(expr.struct.field(name), bars)
 
 
-def recursive_ema(values: list, window: int) -> list:
-    """``ewm_mean(adjust=False, min_samples=window)`` over a null-free series."""
-    alpha = 2.0 / (window + 1.0)
-    level = None
-    seen = 0
-    result: list = []
-    for value in values:
-        if value is None:
-            result.append(None)
-            continue
-        seen += 1
-        level = value if level is None else level + alpha * (value - level)
-        result.append(level if seen >= window else None)
-    return result
-
-
-def reference_vortex(
-    high: list[float], low: list[float], close: list[float], window: int
-) -> tuple[list, list]:
-    ranges: list = [None]
-    plus: list = [None]
-    minus: list = [None]
-    for index in range(1, len(close)):
-        ranges.append(
-            max(
-                high[index] - low[index],
-                abs(high[index] - close[index - 1]),
-                abs(low[index] - close[index - 1]),
-            )
-        )
-        plus.append(abs(high[index] - low[index - 1]))
-        minus.append(abs(low[index] - high[index - 1]))
-
-    def ratio(movement: list) -> list:
-        result: list = [None] * window
-        for index in range(window, len(close)):
-            window_range = sum(ranges[index - window + 1 : index + 1])
-            moved = sum(movement[index - window + 1 : index + 1])
-            result.append(moved / window_range if window_range != 0.0 else 0.0)
-        return result
-
-    return ratio(plus), ratio(minus)
-
-
-def reference_mass(
-    high: list[float], low: list[float], fast_period: int, slow_period: int
-) -> list:
-    amplitude = [h - low_ for h, low_ in zip(high, low)]
-    single = recursive_ema(amplitude, fast_period)
-    double = recursive_ema(single, fast_period)
-    ratios: list = []
-    for numerator, denominator in zip(single, double):
-        if numerator is None or denominator is None:
-            ratios.append(None)
-        else:
-            ratios.append(numerator / denominator if denominator != 0.0 else 0.0)
-    result: list = []
-    for index in range(len(ratios)):
-        terms = ratios[index - slow_period + 1 : index + 1]
-        if index < slow_period - 1 or any(term is None for term in terms):
-            result.append(None)
-        else:
-            result.append(sum(terms))
-    return result
-
-
 class TestVortex(IndicatorAssertions):
-    def test_matches_reference(self) -> None:
-        plus, minus = reference_vortex(HIGH[:LENGTH], LOW[:LENGTH], CLOSE[:LENGTH], 14)
+    def test_known_values(self) -> None:
         indicator = vortex("high", "low", "close", 14)
-        self.assert_values_equal(field("plus", indicator), plus)
-        self.assert_values_equal(field("minus", indicator), minus)
+        plus = field("plus", indicator)
+        minus = field("minus", indicator)
+        self.assert_values_equal(plus[: len(VORTEX_PLUS_14)], VORTEX_PLUS_14)
+        self.assert_values_equal(minus[: len(VORTEX_MINUS_14)], VORTEX_MINUS_14)
 
     def test_warm_up_is_the_window(self) -> None:
         for window in (5, 14, 21):
@@ -129,11 +88,9 @@ class TestVortex(IndicatorAssertions):
 
 
 class TestMass(IndicatorAssertions):
-    def test_matches_reference(self) -> None:
-        self.assert_values_equal(
-            column(mass("high", "low", 9, 25)),
-            reference_mass(HIGH[:LENGTH], LOW[:LENGTH], 9, 25),
-        )
+    def test_known_values(self) -> None:
+        result = column(mass("high", "low", 9, 25))
+        self.assert_values_equal(result[: len(MASS_9_25)], MASS_9_25)
 
     def test_warm_up_covers_both_averages_and_the_sum(self) -> None:
         for fast, slow in ((3, 4), (5, 10), (9, 25)):

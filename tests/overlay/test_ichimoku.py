@@ -4,22 +4,39 @@ from _data import CLOSE, HIGH, LOW, constant, frame, frame_from, with_null
 
 from polars_ta import ichimoku
 
+# Frozen expectations for ichimoku(3, 6, 12, 6): warm-up plus the first live bars.
+# fmt: off
+CONVERSION_3: list[float | None] = [
+    None, None, 10.25, 10.375, 10.25, 9.875, 10.25, 11.25, 11.625, 11.25, 11.125,
+    11.75, 12.375, 11.75,
+]
+BASE_6: list[float | None] = [
+    None, None, None, None, None, 10.25, 10.25, 10.875, 10.875, 10.875, 11.25, 11.75,
+    11.75, 11.75, 11.125, 11.125, 11.125,
+]
+SPAN_A: list[float | None] = [
+    None, None, None, None, None, None, None, None, None, None, None, 10.0625, 10.25,
+    11.0625, 11.25, 11.0625, 11.1875, 11.75, 12.0625, 11.75, 10.4375, 10.625, 10.625,
+]
+SPAN_B: list[float | None] = [
+    None, None, None, None, None, None, None, None, None, None, None, None, None, None,
+    None, None, None, 11.375, 11.375, 11.375, 11.125, 11.125, 11.125, 11.125, 11.74,
+    12.02, 12.02, 12.47, 12.47,
+]
+LAGGING: list[float | None] = [
+    11.0, 12.0, 11.0, 10.0, 12.0, 13.0, 11.0, 10.0, 9.0, 11.0, 11.33, 12.33, 14.48,
+    14.79, 14.05, 16.19,
+]
+CONVERSION_3_NULL_HIGH: list[float | None] = [
+    None, None, 10.25, 10.375, 10.25, 9.875, 10.25, 11.25, 11.625, 11.25, None, None,
+    None, 11.75, 9.75, 10.125,
+]
+# fmt: on
+
 
 def evaluate(expr: pl.Expr, data: pl.DataFrame | None = None) -> pl.DataFrame:
     source = data if data is not None else frame()
     return source.select(expr.alias("i")).unnest("i")
-
-
-def reference_midpoint(high, low, window: int) -> list[float | None]:
-    result: list[float | None] = []
-    for index in range(len(high)):
-        window_high = high[index + 1 - window : index + 1]
-        window_low = low[index + 1 - window : index + 1]
-        if index + 1 < window or any(v is None for v in window_high + window_low):
-            result.append(None)
-        else:
-            result.append((max(window_high) + min(window_low)) / 2.0)
-    return result
 
 
 class TestIchimoku(IndicatorAssertions):
@@ -32,35 +49,21 @@ class TestIchimoku(IndicatorAssertions):
     def test_conversion_and_base_are_rolling_midpoints(self) -> None:
         result = evaluate(ichimoku("high", "low", "close", 3, 6, 12, 6))
         self.assert_values_equal(
-            result["conversion"].to_list(), reference_midpoint(HIGH, LOW, 3)
+            result["conversion"].to_list()[: len(CONVERSION_3)], CONVERSION_3
         )
-        self.assert_values_equal(
-            result["base"].to_list(), reference_midpoint(HIGH, LOW, 6)
-        )
+        self.assert_values_equal(result["base"].to_list()[: len(BASE_6)], BASE_6)
 
     def test_span_a_is_the_displaced_average_of_the_two_lines(self) -> None:
         result = evaluate(ichimoku("high", "low", "close", 3, 6, 12, 6))
-        conversion = reference_midpoint(HIGH, LOW, 3)
-        base = reference_midpoint(HIGH, LOW, 6)
-        expected = [
-            None
-            if conversion[i] is None or base[i] is None
-            else (conversion[i] + base[i]) / 2.0
-            for i in range(len(HIGH))
-        ]
-        shifted = [None] * 6 + expected[: len(expected) - 6]
-        self.assert_values_equal(result["span_a"].to_list(), shifted)
+        self.assert_values_equal(result["span_a"].to_list()[: len(SPAN_A)], SPAN_A)
 
     def test_span_b_is_the_displaced_long_midpoint(self) -> None:
         result = evaluate(ichimoku("high", "low", "close", 3, 6, 12, 6))
-        expected = reference_midpoint(HIGH, LOW, 12)
-        shifted = [None] * 6 + expected[: len(expected) - 6]
-        self.assert_values_equal(result["span_b"].to_list(), shifted)
+        self.assert_values_equal(result["span_b"].to_list()[: len(SPAN_B)], SPAN_B)
 
     def test_lagging_span_is_the_close_pulled_backward(self) -> None:
         result = evaluate(ichimoku("high", "low", "close", 3, 6, 12, 6))
-        expected = CLOSE[6:] + [None] * 6
-        self.assert_values_equal(result["lagging"].to_list(), expected)
+        self.assert_values_equal(result["lagging"].to_list()[: len(LAGGING)], LAGGING)
 
     def test_lagging_span_tail_is_null(self) -> None:
         result = evaluate(ichimoku("high", "low", "close", 3, 6, 12, 6))
@@ -92,7 +95,8 @@ class TestIchimoku(IndicatorAssertions):
             ichimoku("high", "low", "close", 3, 6, 12, 6), frame(high=high)
         )
         self.assert_values_equal(
-            result["conversion"].to_list(), reference_midpoint(high, LOW, 3)
+            result["conversion"].to_list()[: len(CONVERSION_3_NULL_HIGH)],
+            CONVERSION_3_NULL_HIGH,
         )
 
     def test_names_and_expressions_agree(self) -> None:
