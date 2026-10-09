@@ -6,7 +6,7 @@ A Python technical-indicator library designed around Polars and PyArrow.
 
 ### 1. Install
 
-The library requires Python 3.10+ and depends on `polars` and `pyarrow`. From a clone of the repository:
+The library requires Python 3.12+ and depends on `polars` and `pyarrow`. From a clone of the repository:
 
 ```sh
 uv sync        # or: pip install .
@@ -165,7 +165,7 @@ Output columns are ordinary Polars columns, so filter, join, or group them as us
 oversold = out.filter((pl.col("rsi_14") < 30) | (pl.col("close") < pl.col("lower")))
 ```
 
-Find the function you need in the [Indicators](#indicators) table below, and use [docs/indicators.md](docs/indicators.md) for shared conventions and links to the formula pages.
+Every function is listed in the [Indicators](#indicators) table below.
 
 ## Inputs are expressions only
 
@@ -293,7 +293,7 @@ Indicators are grouped by how they are charted. *Overlay* indicators are drawn o
 | Returns | `returns.performance` | `daily_log_return(column)` | Daily log return, in percent |
 | Returns | `returns.performance` | `cumulative_return(column)` | Return from the first known value |
 
-The [indicator reference](docs/indicators.md) contains the shared conventions and links to focused formula pages for all indicator groups.
+Formulas, warm-up lengths, and shared conventions are in the [indicator reference](docs/indicators.md).
 
 ## Missing values: null and NaN
 
@@ -314,13 +314,10 @@ uv sync --dev
 uv run pytest
 ```
 
-Test classes use `unittest.TestCase` assertions; exception checks use pytest's `raises` context manager. Run them with pytest, and follow [AGENTS.md](AGENTS.md) for the Python linting and formatting workflow.
-
-Expected values are checked-in constants. Each test module declares frozen tables such as `MACD_LINE` or `ATR_5` near the top and compares the indicator against them, rather than recomputing an expectation while the test runs. A table covers the indicator's warm-up plus the first live bars; warm-up length, value bounds, and null propagation are asserted separately over the full series. Tests that state a relationship between two public calls — `pvo` against `ppo`, `macdfix` against `macd(12, 26)`, a column name against the equivalent expression — compare the two calls directly and are not frozen.
+Tests use plain pytest assertions, `raises` for exceptions, and `mark.parametrize` for repeated cases. Expected outputs are fixed constants; warm-up, bounds, null handling, and relationships between indicators are tested separately.
 
 ## Project References
 
 - [docs/indicators.md](docs/indicators.md): shared conventions, the complete indicator index, and links to all formula pages.
-- [docs/indicators-oscillators.md](docs/indicators-oscillators.md): navigation for momentum and other non-overlay indicator references.
-- [KNOWLEDGE.md](KNOWLEDGE.md): package structure, design principles, and dependency guidance.
+- Detailed formula guides: [moving averages](docs/indicators-overlays-averages.md), [price overlays](docs/indicators-overlays-price.md), [momentum oscillators](docs/indicators-momentum-oscillators.md), [trend and direction](docs/indicators-momentum-trend.md), [other momentum](docs/indicators-momentum-other.md), [volume and returns](docs/indicators-volume-returns.md), and [volatility and cycle](docs/indicators-volatility-cycle.md).
 - [AGENTS.md](AGENTS.md): repository-wide development and validation requirements.
