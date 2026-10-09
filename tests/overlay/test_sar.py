@@ -1,9 +1,9 @@
 from typing import Any, cast
 
 import polars as pl
-from _assertions import IndicatorAssertions
+from _assertions import assert_values_equal
 from _data import HIGH, LOW, ramp_down, ramp_up
-from pytest import raises
+from pytest import mark, raises
 
 from polars_ta import sar, sarext
 
@@ -27,27 +27,31 @@ def column(expr: pl.Expr, bars: pl.DataFrame | None = None) -> list:
     return source.select(expr).to_series().to_list()
 
 
-class TestSar(IndicatorAssertions):
-    def test_known_values(self) -> None:
-        for (acceleration, maximum), expected in (
-            ((0.02, 0.2), SAR_SLOW),
-            ((0.05, 0.3), SAR_FAST),
-        ):
-            with self.subTest(acceleration=acceleration, maximum=maximum):
-                result = column(sar("high", "low", acceleration, maximum))
-                self.assert_values_equal(result[: len(expected)], expected)
+class TestSar:
+    @mark.parametrize(
+        ("acceleration", "maximum", "expected"),
+        (
+            (0.02, 0.2, SAR_SLOW),
+            (0.05, 0.3, SAR_FAST),
+        ),
+    )
+    def test_known_values(
+        self, acceleration: float, maximum: float, expected: list[float | None]
+    ) -> None:
+        result = column(sar("high", "low", acceleration, maximum))
+        assert_values_equal(result[: len(expected)], expected)
 
     def test_warm_up_is_one_row(self) -> None:
         result = column(sar("high", "low"))
-        self.assertIsNone(result[0])
-        self.assertIsNotNone(result[1])
+        assert result[0] is None
+        assert result[1] is not None
 
     def test_stays_below_price_in_a_sustained_rise(self) -> None:
         rising = ramp_up(40)
         bars = pl.DataFrame({"high": rising, "low": [value - 1.0 for value in rising]})
         result = column(sar("high", "low"), bars)
         for index in range(2, 40):
-            self.assertLessEqual(result[index], rising[index])
+            assert result[index] <= rising[index]
 
     def test_stays_above_price_in_a_sustained_fall(self) -> None:
         falling = ramp_down(40, 60.0)
@@ -56,19 +60,19 @@ class TestSar(IndicatorAssertions):
         )
         result = column(sar("high", "low"), bars)
         for index in range(2, 40):
-            self.assertGreaterEqual(result[index], falling[index])
+            assert result[index] >= falling[index]
 
     def test_null_ends_the_scan(self) -> None:
         highs: list[float | None] = list(HIGH[:20])
         lows = list(LOW[:20])
         highs[10] = None
         result = column(sar("high", "low"), pl.DataFrame({"high": highs, "low": lows}))
-        self.assertIsNotNone(result[9])
-        self.assertEqual(result[10:], [None] * 10)
+        assert result[9] is not None
+        assert result[10:] == [None] * 10
 
     def test_too_short_an_input_is_all_null(self) -> None:
         bars = pl.DataFrame({"high": [2.0], "low": [1.0]})
-        self.assertEqual(column(sar("high", "low"), bars), [None])
+        assert column(sar("high", "low"), bars) == [None]
 
     def test_series_input_is_rejected(self) -> None:
         with raises(TypeError):
@@ -81,43 +85,43 @@ class TestSar(IndicatorAssertions):
         collected = (
             pl.LazyFrame(BARS).with_columns(sar("high", "low").alias("sar")).collect()
         )
-        self.assert_values_equal(collected["sar"].to_list(), column(sar("high", "low")))
+        assert_values_equal(collected["sar"].to_list(), column(sar("high", "low")))
 
-    def test_invalid_arguments_raise(self) -> None:
-        for acceleration in (0.0, -0.1, "fast"):
-            with self.subTest(acceleration=acceleration), raises(ValueError):
-                sar("high", "low", cast(Any, acceleration))
+    @mark.parametrize("acceleration", (0.0, -0.1, "fast"))
+    def test_invalid_arguments_raise(self, acceleration: float | str) -> None:
+        with raises(ValueError):
+            sar("high", "low", cast(Any, acceleration))
 
 
-class TestSarext(IndicatorAssertions):
+class TestSarext:
     def test_matches_plain_sar_up_to_the_sign(self) -> None:
         plain = column(sar("high", "low"))
         extended = column(sarext("high", "low"))
-        self.assert_values_equal(
+        assert_values_equal(
             [None if value is None else abs(value) for value in extended], plain
         )
 
     def test_short_readings_are_negative(self) -> None:
         extended = column(sarext("high", "low"))
-        self.assertTrue(any(value < 0.0 for value in extended[1:]))
-        self.assertTrue(any(value > 0.0 for value in extended[1:]))
+        assert any(value < 0.0 for value in extended[1:])
+        assert any(value > 0.0 for value in extended[1:])
 
     def test_positive_start_value_begins_long(self) -> None:
         rising = ramp_up(30)
         bars = pl.DataFrame({"high": rising, "low": [value - 1.0 for value in rising]})
         result = column(sarext("high", "low", start_value=0.5), bars)
-        self.assertGreater(result[1], 0.0)
+        assert result[1] > 0.0
 
     def test_negative_start_value_begins_short(self) -> None:
         rising = ramp_up(30)
         bars = pl.DataFrame({"high": rising, "low": [value - 1.0 for value in rising]})
         result = column(sarext("high", "low", start_value=-100.0), bars)
-        self.assertLess(result[1], 0.0)
+        assert result[1] < 0.0
 
     def test_offset_on_reverse_widens_the_stop(self) -> None:
         plain = column(sarext("high", "low"))
         offset = column(sarext("high", "low", offset_on_reverse=0.05))
-        self.assertNotEqual(plain, offset)
+        assert plain != offset
 
     def test_asymmetric_acceleration_changes_the_result(self) -> None:
         symmetric = column(sarext("high", "low"))
@@ -129,7 +133,7 @@ class TestSarext(IndicatorAssertions):
                 acceleration_max_long=0.5,
             )
         )
-        self.assertNotEqual(symmetric, skewed)
+        assert symmetric != skewed
 
     def test_invalid_arguments_raise(self) -> None:
         with raises(ValueError):

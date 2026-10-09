@@ -1,9 +1,9 @@
 from typing import Any, cast
 
 import polars as pl
-from _assertions import IndicatorAssertions
+from _assertions import assert_values_equal
 from _data import CLOSE, HAND_CHECKED, HIGH, LOW, constant, frame, ramp_up
-from pytest import raises
+from pytest import mark, raises
 
 from polars_ta import macd, macdext, macdfix, natr, trix, ultosc
 
@@ -51,17 +51,16 @@ def column(expr: pl.Expr, bars: pl.DataFrame | None = None) -> list:
     return source.select(expr).to_series().to_list()
 
 
-class TestNatr(IndicatorAssertions):
+class TestNatr:
     def test_is_atr_as_a_percentage_of_close(self) -> None:
         result = column(natr("high", "low", "close", 14))
-        self.assert_values_equal(result[: len(NATR_14)], NATR_14)
+        assert_values_equal(result[: len(NATR_14)], NATR_14)
 
-    def test_warm_up_matches_atr(self) -> None:
-        for window in (3, 7, 14):
-            with self.subTest(window=window):
-                result = column(natr("high", "low", "close", window))
-                self.assertEqual(result[:window], [None] * window)
-                self.assertIsNotNone(result[window])
+    @mark.parametrize("window", (3, 7, 14))
+    def test_warm_up_matches_atr(self, window: int) -> None:
+        result = column(natr("high", "low", "close", window))
+        assert result[:window] == [None] * window
+        assert result[window] is not None
 
     def test_zero_close_reports_zero(self) -> None:
         bars = pl.DataFrame(
@@ -71,7 +70,7 @@ class TestNatr(IndicatorAssertions):
                 "close": [0.0] * 8,
             }
         )
-        self.assert_values_equal(
+        assert_values_equal(
             column(natr("high", "low", "close", 3), bars)[3:], [0.0] * 5
         )
 
@@ -80,33 +79,32 @@ class TestNatr(IndicatorAssertions):
             natr("high", "low", "close", 0)
 
 
-class TestTrix(IndicatorAssertions):
+class TestTrix:
     def test_is_the_one_period_roc_of_a_triple_ema(self) -> None:
         bars = pl.DataFrame({"close": CLOSE[:LENGTH]})
         result = column(trix("close", 5), bars)
-        self.assert_values_equal(result[: len(TRIX_5)], TRIX_5)
+        assert_values_equal(result[: len(TRIX_5)], TRIX_5)
 
     def test_warm_up_is_three_passes_plus_one(self) -> None:
         bars = pl.DataFrame({"close": CLOSE[:LENGTH]})
         for window in (3, 5, 8):
-            with self.subTest(window=window):
-                result = column(trix("close", window), bars)
-                lookback = 3 * (window - 1) + 1
-                self.assertEqual(result[:lookback], [None] * lookback)
-                self.assertIsNotNone(result[lookback])
+            result = column(trix("close", window), bars)
+            lookback = 3 * (window - 1) + 1
+            assert result[:lookback] == [None] * lookback, f"{window=}"
+            assert result[lookback] is not None, f"{window=}"
 
     def test_flat_series_has_no_slope(self) -> None:
         bars = pl.DataFrame({"close": constant(40, 6.0)})
-        self.assert_values_equal(column(trix("close", 3), bars)[7:], [0.0] * 33)
+        assert_values_equal(column(trix("close", 3), bars)[7:], [0.0] * 33)
 
     def test_rising_series_is_positive(self) -> None:
         bars = pl.DataFrame({"close": ramp_up(40)})
         for value in column(trix("close", 3), bars)[7:]:
-            self.assertGreater(value, 0.0)
+            assert value > 0.0
 
     def test_default_window_is_thirty(self) -> None:
         bars = pl.DataFrame({"close": CLOSE[:LENGTH]})
-        self.assert_values_equal(
+        assert_values_equal(
             column(trix("close"), bars), column(trix("close", 30), bars)
         )
 
@@ -115,29 +113,28 @@ class TestTrix(IndicatorAssertions):
             trix("close", 0)
 
 
-class TestUltosc(IndicatorAssertions):
+class TestUltosc:
     def test_known_values(self) -> None:
         result = column(ultosc("high", "low", "close"))
-        self.assert_values_equal(result[: len(ULTOSC)], ULTOSC)
+        assert_values_equal(result[: len(ULTOSC)], ULTOSC)
 
-    def test_warm_up_is_the_longest_period(self) -> None:
-        for periods in ((7, 14, 28), (3, 5, 9), (9, 5, 3)):
-            with self.subTest(periods=periods):
-                result = column(ultosc("high", "low", "close", *periods))
-                lookback = max(periods)
-                self.assertEqual(result[:lookback], [None] * lookback)
-                self.assertIsNotNone(result[lookback])
+    @mark.parametrize("periods", ((7, 14, 28), (3, 5, 9), (9, 5, 3)))
+    def test_warm_up_is_the_longest_period(self, periods: tuple[int, int, int]) -> None:
+        result = column(ultosc("high", "low", "close", *periods))
+        lookback = max(periods)
+        assert result[:lookback] == [None] * lookback
+        assert result[lookback] is not None
 
     def test_output_stays_within_zero_and_one_hundred(self) -> None:
         for value in column(ultosc("high", "low", "close")):
             if value is not None:
-                self.assertGreaterEqual(value, 0.0)
-                self.assertLessEqual(value, 100.0)
+                assert value >= 0.0
+                assert value <= 100.0
 
     def test_flat_market_reports_zero(self) -> None:
         flat = constant(20, 5.0)
         bars = frame(high=flat, low=flat, close=flat)
-        self.assert_values_equal(
+        assert_values_equal(
             column(ultosc("high", "low", "close", 2, 3, 5), bars)[5:], [0.0] * 15
         )
 
@@ -146,21 +143,20 @@ class TestUltosc(IndicatorAssertions):
             ultosc("high", "low", "close", 0, 14, 28)
 
 
-class TestMacdVariants(IndicatorAssertions):
+class TestMacdVariants:
     def test_macdfix_is_macd_at_twelve_and_twenty_six(self) -> None:
         bars = pl.DataFrame({"close": CLOSE[:LENGTH]})
         fixed = bars.select(macdfix("close", 9).alias("m")).unnest("m")
         plain = bars.select(macd("close", 12, 26, 9).alias("m")).unnest("m")
         for name in ("macd", "signal", "histogram"):
-            with self.subTest(name=name):
-                self.assert_values_equal(fixed[name].to_list(), plain[name].to_list())
+            assert_values_equal(fixed[name].to_list(), plain[name].to_list())
 
     def test_macdext_defaults_to_simple_averages(self) -> None:
         bars = pl.DataFrame({"close": CLOSE[:LENGTH]})
         fields = bars.select(macdext("close", 5, 12, 4).alias("m")).unnest("m")
         size = len(MACDEXT_MACD)
-        self.assert_values_equal(fields["macd"].to_list()[:size], MACDEXT_MACD)
-        self.assert_values_equal(fields["signal"].to_list()[:size], MACDEXT_SIGNAL)
+        assert_values_equal(fields["macd"].to_list()[:size], MACDEXT_MACD)
+        assert_values_equal(fields["signal"].to_list()[:size], MACDEXT_SIGNAL)
 
     def test_macdext_honours_each_ma_type(self) -> None:
         bars = pl.DataFrame({"close": CLOSE[:LENGTH]})
@@ -176,16 +172,15 @@ class TestMacdVariants(IndicatorAssertions):
             ).alias("m")
         ).unnest("m")
         plain = bars.select(macd("close", 5, 12, 4).alias("m")).unnest("m")
-        self.assert_values_equal(fields["signal"].to_list(), plain["signal"].to_list())
+        assert_values_equal(fields["signal"].to_list(), plain["signal"].to_list())
 
     def test_macdext_fields_start_together(self) -> None:
         bars = pl.DataFrame({"close": CLOSE[:LENGTH]})
         fields = bars.select(macdext("close", 5, 12, 4).alias("m")).unnest("m")
         lookback = (12 - 1) + (4 - 1)
         for name in ("macd", "signal", "histogram"):
-            with self.subTest(name=name):
-                self.assertEqual(fields[name].to_list()[:lookback], [None] * lookback)
-                self.assertIsNotNone(fields[name][lookback])
+            assert fields[name].to_list()[:lookback] == [None] * lookback, f"{name=}"
+            assert fields[name][lookback] is not None, f"{name=}"
 
     def test_invalid_arguments_raise(self) -> None:
         with raises(ValueError):

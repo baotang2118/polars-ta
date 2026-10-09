@@ -1,9 +1,9 @@
 from typing import Any, cast
 
 import polars as pl
-from _assertions import IndicatorAssertions
+from _assertions import assert_values_equal
 from _data import CLOSE, constant, with_null
-from pytest import raises
+from pytest import approx, mark, raises
 
 from polars_ta import (
     ht_dcperiod,
@@ -105,7 +105,7 @@ def unnest(expr: pl.Expr, bars: pl.DataFrame | None = None) -> dict[str, list]:
     return {name: result[name].to_list() for name in result.columns}
 
 
-class TestHilbertCore(IndicatorAssertions):
+class TestHilbertCore:
     def test_known_values(self) -> None:
         cases = (
             (ht_dcperiod("close"), HT_DCPERIOD),
@@ -113,121 +113,123 @@ class TestHilbertCore(IndicatorAssertions):
             (ht_trendline("close"), HT_TRENDLINE),
         )
         for expr, expected in cases:
-            with self.subTest(expr=str(expr)):
-                self.assert_values_equal(column(expr)[: len(expected)], expected)
+            assert_values_equal(column(expr)[: len(expected)], expected)
 
-    def test_short_lookback_indicators_warm_up_in_thirty_two_rows(self) -> None:
-        for expr in (ht_dcperiod("close"),):
-            with self.subTest(expr=str(expr)):
-                result = column(expr)
-                self.assertEqual(result[:SHORT_LOOKBACK], [None] * SHORT_LOOKBACK)
-                self.assertIsNotNone(result[SHORT_LOOKBACK])
+    @mark.parametrize("expr", (ht_dcperiod("close"),))
+    def test_short_lookback_indicators_warm_up_in_thirty_two_rows(
+        self, expr: pl.Expr
+    ) -> None:
+        result = column(expr)
+        assert result[:SHORT_LOOKBACK] == [None] * SHORT_LOOKBACK
+        assert result[SHORT_LOOKBACK] is not None
 
-    def test_long_lookback_indicators_warm_up_in_sixty_three_rows(self) -> None:
-        for expr in (ht_dcphase("close"), ht_trendline("close"), ht_trendmode("close")):
-            with self.subTest(expr=str(expr)):
-                result = column(expr)
-                self.assertEqual(result[:LONG_LOOKBACK], [None] * LONG_LOOKBACK)
-                self.assertIsNotNone(result[LONG_LOOKBACK])
+    @mark.parametrize(
+        "expr",
+        (ht_dcphase("close"), ht_trendline("close"), ht_trendmode("close")),
+    )
+    def test_long_lookback_indicators_warm_up_in_sixty_three_rows(
+        self, expr: pl.Expr
+    ) -> None:
+        result = column(expr)
+        assert result[:LONG_LOOKBACK] == [None] * LONG_LOOKBACK
+        assert result[LONG_LOOKBACK] is not None
 
     def test_null_input_ends_the_recursion(self) -> None:
         bars = pl.DataFrame({"close": with_null(VALUES, 70)})
         result = column(ht_dcperiod("close"), bars)
-        self.assertIsNotNone(result[69])
-        self.assertEqual(result[70:], [None] * (len(VALUES) - 70))
+        assert result[69] is not None
+        assert result[70:] == [None] * (len(VALUES) - 70)
 
     def test_input_shorter_than_the_priming_window_is_all_null(self) -> None:
         bars = pl.DataFrame({"close": VALUES[:10]})
-        self.assertEqual(column(ht_dcperiod("close"), bars), [None] * 10)
+        assert column(ht_dcperiod("close"), bars) == [None] * 10
 
 
-class TestHtDcperiod(IndicatorAssertions):
+class TestHtDcperiod:
     def test_period_stays_within_its_clamp(self) -> None:
         for value in column(ht_dcperiod("close")):
             if value is not None:
-                self.assertGreaterEqual(value, 0.0)
-                self.assertLessEqual(value, 50.0)
+                assert value >= 0.0
+                assert value <= 50.0
 
     def test_series_input_is_rejected(self) -> None:
         with raises(TypeError):
             ht_dcperiod(cast(Any, pl.Series("close", VALUES)))
 
 
-class TestHtDcphase(IndicatorAssertions):
+class TestHtDcphase:
     def test_phase_is_wrapped_below_three_hundred_and_fifteen(self) -> None:
         for value in column(ht_dcphase("close")):
             if value is not None:
-                self.assertLessEqual(value, 315.0)
+                assert value <= 315.0
 
 
-class TestHtPhasor(IndicatorAssertions):
+class TestHtPhasor:
     def test_field_names_and_warm_up(self) -> None:
         fields = unnest(ht_phasor("close"))
-        self.assertEqual(list(fields), ["in_phase", "quadrature"])
+        assert list(fields) == ["in_phase", "quadrature"]
         for name in fields:
-            self.assertEqual(fields[name][:SHORT_LOOKBACK], [None] * SHORT_LOOKBACK)
-            self.assertIsNotNone(fields[name][SHORT_LOOKBACK])
+            assert fields[name][:SHORT_LOOKBACK] == [None] * SHORT_LOOKBACK, f"{name=}"
+            assert fields[name][SHORT_LOOKBACK] is not None, f"{name=}"
 
     def test_known_values(self) -> None:
         fields = unnest(ht_phasor("close"))
-        self.assert_values_equal(fields["in_phase"][: len(HT_IN_PHASE)], HT_IN_PHASE)
-        self.assert_values_equal(
-            fields["quadrature"][: len(HT_QUADRATURE)], HT_QUADRATURE
-        )
+        assert_values_equal(fields["in_phase"][: len(HT_IN_PHASE)], HT_IN_PHASE)
+        assert_values_equal(fields["quadrature"][: len(HT_QUADRATURE)], HT_QUADRATURE)
 
 
-class TestHtSine(IndicatorAssertions):
+class TestHtSine:
     def test_both_lines_stay_within_minus_one_and_one(self) -> None:
         fields = unnest(ht_sine("close"))
-        self.assertEqual(list(fields), ["sine", "lead_sine"])
+        assert list(fields) == ["sine", "lead_sine"]
         for name in fields:
             for value in fields[name]:
                 if value is not None:
-                    self.assertGreaterEqual(value, -1.0)
-                    self.assertLessEqual(value, 1.0)
+                    assert value >= -1.0
+                    assert value <= 1.0
 
     def test_lead_sine_leads_by_forty_five_degrees(self) -> None:
         fields = unnest(ht_sine("close"))
-        self.assert_values_equal(fields["lead_sine"][: len(HT_LEAD_SINE)], HT_LEAD_SINE)
+        assert_values_equal(fields["lead_sine"][: len(HT_LEAD_SINE)], HT_LEAD_SINE)
 
 
-class TestHtTrendmode(IndicatorAssertions):
+class TestHtTrendmode:
     def test_reports_only_zero_or_one(self) -> None:
         for value in column(ht_trendmode("close")):
             if value is not None:
-                self.assertIn(value, (0, 1))
+                assert value in (0, 1)
 
     def test_a_straight_line_is_always_trending(self) -> None:
         rising = [float(index) + 10.0 for index in range(120)]
         bars = pl.DataFrame({"close": rising})
         result = column(ht_trendmode("close"), bars)
-        self.assertEqual(set(result[LONG_LOOKBACK:]), {1})
+        assert set(result[LONG_LOOKBACK:]) == {1}
 
 
-class TestHtTrendline(IndicatorAssertions):
+class TestHtTrendline:
     def test_tracks_a_flat_series_at_its_level(self) -> None:
         bars = pl.DataFrame({"close": constant(120, 20.0)})
         result = column(ht_trendline("close"), bars)
-        self.assert_values_equal(result[LONG_LOOKBACK:], [20.0] * (120 - LONG_LOOKBACK))
+        assert_values_equal(result[LONG_LOOKBACK:], [20.0] * (120 - LONG_LOOKBACK))
 
 
-class TestMama(IndicatorAssertions):
+class TestMama:
     def test_field_names_and_warm_up(self) -> None:
         fields = unnest(mama("close"))
-        self.assertEqual(list(fields), ["mama", "fama"])
+        assert list(fields) == ["mama", "fama"]
         for name in fields:
-            self.assertEqual(fields[name][:SHORT_LOOKBACK], [None] * SHORT_LOOKBACK)
-            self.assertIsNotNone(fields[name][SHORT_LOOKBACK])
+            assert fields[name][:SHORT_LOOKBACK] == [None] * SHORT_LOOKBACK, f"{name=}"
+            assert fields[name][SHORT_LOOKBACK] is not None, f"{name=}"
 
     def test_known_values(self) -> None:
         fields = unnest(mama("close"))
-        self.assert_values_equal(fields["mama"][: len(MAMA)], MAMA)
-        self.assert_values_equal(fields["fama"][: len(FAMA)], FAMA)
+        assert_values_equal(fields["mama"][: len(MAMA)], MAMA)
+        assert_values_equal(fields["fama"][: len(FAMA)], FAMA)
 
     def test_flat_series_settles_on_its_level(self) -> None:
         bars = pl.DataFrame({"close": constant(120, 7.0)})
         fields = unnest(mama("close"), bars)
-        self.assertAlmostEqual(fields["mama"][-1], 7.0, places=6)
+        assert fields["mama"][-1] == approx(7.0, rel=0, abs=5e-7)
 
     def test_a_faster_limit_tracks_price_more_closely(self) -> None:
         quick = unnest(mama("close", fast_limit=0.9, slow_limit=0.5))["mama"]
@@ -238,16 +240,16 @@ class TestMama(IndicatorAssertions):
         slow_error = sum(
             abs(a - b) for a, b in zip(slow[SHORT_LOOKBACK:], VALUES[SHORT_LOOKBACK:])
         )
-        self.assertLess(quick_error, slow_error)
+        assert quick_error < slow_error
 
     def test_dispatcher_exposes_the_mama_line(self) -> None:
         from polars_ta import ma
 
-        self.assert_values_equal(
+        assert_values_equal(
             column(ma("close", ma_type="mama")), unnest(mama("close"))["mama"]
         )
 
-    def test_invalid_limits_raise(self) -> None:
-        for limit in (0.0, -0.1, 1.5, "fast"):
-            with self.subTest(limit=limit), raises(ValueError):
-                mama("close", fast_limit=cast(Any, limit))
+    @mark.parametrize("limit", (0.0, -0.1, 1.5, "fast"))
+    def test_invalid_limits_raise(self, limit: float | str) -> None:
+        with raises(ValueError):
+            mama("close", fast_limit=cast(Any, limit))

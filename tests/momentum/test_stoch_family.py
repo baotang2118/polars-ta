@@ -1,9 +1,9 @@
 from collections.abc import Sequence
 
 import polars as pl
-from _assertions import IndicatorAssertions
+from _assertions import assert_values_equal
 from _data import CLOSE, HIGH, LOW, constant, frame, ramp_down, ramp_up
-from pytest import raises
+from pytest import approx, mark, raises
 
 from polars_ta import cmo, rsi, stochf, stochrsi, willr
 
@@ -41,56 +41,54 @@ def unnest(expr: pl.Expr, bars: pl.DataFrame) -> dict[str, list]:
     return {name: result[name].to_list() for name in result.columns}
 
 
-class TestCmo(IndicatorAssertions):
+class TestCmo:
     def test_is_rsi_rescaled_around_zero(self) -> None:
         strength = evaluate(rsi("close", 14))
         expected = [None if v is None else 2.0 * v - 100.0 for v in strength]
-        self.assert_values_equal(evaluate(cmo("close", 14)), expected)
+        assert_values_equal(evaluate(cmo("close", 14)), expected)
 
-    def test_warm_up_is_window_nulls(self) -> None:
-        for window in (2, 5, 14):
-            with self.subTest(window=window):
-                result = evaluate(cmo("close", window))
-                self.assertEqual(result[:window], [None] * window)
-                self.assertIsNotNone(result[window])
+    @mark.parametrize("window", (2, 5, 14))
+    def test_warm_up_is_window_nulls(self, window: int) -> None:
+        result = evaluate(cmo("close", window))
+        assert result[:window] == [None] * window
+        assert result[window] is not None
 
     def test_monotonic_rise_reaches_one_hundred(self) -> None:
-        self.assert_values_equal(
+        assert_values_equal(
             evaluate(cmo("close", 3), ramp_up(10, 0.0))[3:], [100.0] * 7
         )
 
     def test_monotonic_fall_reaches_minus_one_hundred(self) -> None:
-        self.assert_values_equal(
-            evaluate(cmo("close", 3), ramp_down(10))[3:], [-100.0] * 7
-        )
+        assert_values_equal(evaluate(cmo("close", 3), ramp_down(10))[3:], [-100.0] * 7)
 
     def test_flat_series_reports_zero_not_fifty(self) -> None:
-        self.assert_values_equal(evaluate(cmo("close", 3), constant(8))[3:], [0.0] * 5)
+        assert_values_equal(evaluate(cmo("close", 3), constant(8))[3:], [0.0] * 5)
 
     def test_default_window_is_fourteen(self) -> None:
-        self.assert_values_equal(evaluate(cmo("close")), evaluate(cmo("close", 14)))
+        assert_values_equal(evaluate(cmo("close")), evaluate(cmo("close", 14)))
 
     def test_invalid_window_raises(self) -> None:
         with raises(ValueError):
             cmo("close", 0)
 
 
-class TestStochf(IndicatorAssertions):
+class TestStochf:
     def test_known_values(self) -> None:
         bars = frame(high=HIGH[:60], low=LOW[:60], close=VALUES)
         fields = unnest(stochf("high", "low", "close", 5, 3), bars)
-        self.assert_values_equal(fields["fast_k"][: len(FAST_K_5)], FAST_K_5)
-        self.assert_values_equal(fields["fast_d"][: len(FAST_D_5_3)], FAST_D_5_3)
+        assert_values_equal(fields["fast_k"][: len(FAST_K_5)], FAST_K_5)
+        assert_values_equal(fields["fast_d"][: len(FAST_D_5_3)], FAST_D_5_3)
 
     def test_warm_up_sums_both_periods(self) -> None:
         bars = frame(high=HIGH[:60], low=LOW[:60], close=VALUES)
         for fastk, fastd in ((5, 3), (3, 4), (8, 2)):
-            with self.subTest(fastk=fastk, fastd=fastd):
-                fields = unnest(stochf("high", "low", "close", fastk, fastd), bars)
-                lookback = (fastk - 1) + (fastd - 1)
-                for name in ("fast_k", "fast_d"):
-                    self.assertEqual(fields[name][:lookback], [None] * lookback)
-                    self.assertIsNotNone(fields[name][lookback])
+            fields = unnest(stochf("high", "low", "close", fastk, fastd), bars)
+            lookback = (fastk - 1) + (fastd - 1)
+            for name in ("fast_k", "fast_d"):
+                assert fields[name][:lookback] == [None] * lookback, (
+                    f"{fastk=} {fastd=} {name=}"
+                )
+                assert fields[name][lookback] is not None, f"{fastk=} {fastd=} {name=}"
 
     def test_output_stays_within_zero_and_one_hundred(self) -> None:
         bars = frame(high=HIGH[:60], low=LOW[:60], close=VALUES)
@@ -98,21 +96,21 @@ class TestStochf(IndicatorAssertions):
         for name in ("fast_k", "fast_d"):
             for value in fields[name]:
                 if value is not None:
-                    self.assertGreaterEqual(value, 0.0)
-                    self.assertLessEqual(value, 100.0)
+                    assert value >= 0.0
+                    assert value <= 100.0
 
     def test_flat_range_reports_zero(self) -> None:
         flat = constant(20, 4.0)
         bars = frame(high=flat, low=flat, close=flat)
         fields = unnest(stochf("high", "low", "close", 5, 3), bars)
-        self.assert_values_equal(fields["fast_k"][6:], [0.0] * 14)
+        assert_values_equal(fields["fast_k"][6:], [0.0] * 14)
 
     def test_invalid_period_raises(self) -> None:
         with raises(ValueError):
             stochf("high", "low", "close", 0, 3)
 
 
-class TestStochrsi(IndicatorAssertions):
+class TestStochrsi:
     def test_is_the_fast_stochastic_of_the_rsi(self) -> None:
         strength = evaluate(rsi("close", 14))
         known = [value for value in strength if value is not None]
@@ -121,67 +119,67 @@ class TestStochrsi(IndicatorAssertions):
         )
         expected = inner.unnest("out")["fast_k"].to_list()
         fields = unnest(stochrsi("close", 14, 5, 3), pl.DataFrame({"close": VALUES}))
-        self.assert_values_equal(fields["fast_k"][14:], expected)
+        assert_values_equal(fields["fast_k"][14:], expected)
 
     def test_warm_up_sums_every_period(self) -> None:
         bars = pl.DataFrame({"close": VALUES})
         for window, fastk, fastd in ((14, 5, 3), (5, 4, 2)):
-            with self.subTest(window=window, fastk=fastk, fastd=fastd):
-                fields = unnest(stochrsi("close", window, fastk, fastd), bars)
-                lookback = window + (fastk - 1) + (fastd - 1)
-                for name in ("fast_k", "fast_d"):
-                    self.assertEqual(fields[name][:lookback], [None] * lookback)
-                    self.assertIsNotNone(fields[name][lookback])
+            fields = unnest(stochrsi("close", window, fastk, fastd), bars)
+            lookback = window + (fastk - 1) + (fastd - 1)
+            for name in ("fast_k", "fast_d"):
+                assert fields[name][:lookback] == [None] * lookback, (
+                    f"{window=} {fastk=} {fastd=} {name=}"
+                )
+                assert fields[name][lookback] is not None, (
+                    f"{window=} {fastk=} {fastd=} {name=}"
+                )
 
     def test_output_stays_within_zero_and_one_hundred(self) -> None:
         fields = unnest(stochrsi("close"), pl.DataFrame({"close": VALUES}))
         for name in ("fast_k", "fast_d"):
             for value in fields[name]:
                 if value is not None:
-                    self.assertGreaterEqual(value, 0.0)
-                    self.assertAlmostEqual(min(value, 100.0), value, places=10)
+                    assert value >= 0.0
+                    assert min(value, 100.0) == approx(value, rel=0, abs=5e-11)
 
     def test_invalid_period_raises(self) -> None:
         with raises(ValueError):
             stochrsi("close", 0)
 
 
-class TestWillr(IndicatorAssertions):
+class TestWillr:
     def test_known_values(self) -> None:
         bars = frame(high=HIGH[:60], low=LOW[:60], close=VALUES)
         result = bars.select(willr("high", "low", "close", 14)).to_series().to_list()
-        self.assert_values_equal(result[: len(WILLR_14)], WILLR_14)
+        assert_values_equal(result[: len(WILLR_14)], WILLR_14)
 
     def test_warm_up_is_window_minus_one_nulls(self) -> None:
         bars = frame(high=HIGH[:60], low=LOW[:60], close=VALUES)
         for window in (3, 7, 14):
-            with self.subTest(window=window):
-                result = (
-                    bars.select(willr("high", "low", "close", window))
-                    .to_series()
-                    .to_list()
-                )
-                self.assertEqual(result[: window - 1], [None] * (window - 1))
-                self.assertIsNotNone(result[window - 1])
+            result = (
+                bars.select(willr("high", "low", "close", window)).to_series().to_list()
+            )
+            assert result[: window - 1] == [None] * (window - 1), f"{window=}"
+            assert result[window - 1] is not None, f"{window=}"
 
     def test_output_stays_within_minus_one_hundred_and_zero(self) -> None:
         bars = frame(high=HIGH[:60], low=LOW[:60], close=VALUES)
         for value in bars.select(willr("high", "low", "close")).to_series():
             if value is not None:
-                self.assertGreaterEqual(value, -100.0)
-                self.assertLessEqual(value, 0.0)
+                assert value >= -100.0
+                assert value <= 0.0
 
     def test_close_at_the_high_reports_zero(self) -> None:
         rising = ramp_up(20)
         bars = frame(high=rising, low=rising, close=rising)
         result = bars.select(willr("high", "low", "close", 5)).to_series().to_list()
-        self.assert_values_equal(result[4:], [0.0] * 16)
+        assert_values_equal(result[4:], [0.0] * 16)
 
     def test_flat_range_reports_zero(self) -> None:
         flat = constant(20, 4.0)
         bars = frame(high=flat, low=flat, close=flat)
         result = bars.select(willr("high", "low", "close", 5)).to_series().to_list()
-        self.assert_values_equal(result[4:], [0.0] * 16)
+        assert_values_equal(result[4:], [0.0] * 16)
 
     def test_invalid_window_raises(self) -> None:
         with raises(ValueError):

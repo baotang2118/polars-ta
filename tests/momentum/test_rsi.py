@@ -2,9 +2,9 @@ from collections.abc import Sequence
 from typing import Any, cast
 
 import polars as pl
-from _assertions import IndicatorAssertions
+from _assertions import assert_values_equal
 from _data import HAND_CHECKED, WILDER_CLOSE, constant, ramp_down, ramp_up
-from pytest import raises
+from pytest import approx, mark, raises
 
 from polars_ta import rsi
 
@@ -30,60 +30,57 @@ def evaluate(expr: pl.Expr, values: Sequence[float | None] | None = None):
     return pl.DataFrame({"close": data}).select(expr).to_series().to_list()
 
 
-class TestRsi(IndicatorAssertions):
+class TestRsi:
     def test_matches_wilders_published_value(self) -> None:
         result = evaluate(rsi("close", 14), WILDER_CLOSE)
-        self.assertAlmostEqual(result[14], 70.4641, places=4)
+        assert result[14] == approx(70.4641, rel=0, abs=5e-5)
 
     def test_known_values_on_wilders_series(self) -> None:
-        self.assert_values_equal(
-            evaluate(rsi("close", 14), WILDER_CLOSE), RSI_14_WILDER
-        )
+        assert_values_equal(evaluate(rsi("close", 14), WILDER_CLOSE), RSI_14_WILDER)
 
     def test_known_values_on_a_short_window(self) -> None:
-        self.assert_values_equal(evaluate(rsi("close", 3)), RSI_3)
+        assert_values_equal(evaluate(rsi("close", 3)), RSI_3)
 
-    def test_warm_up_is_window_nulls(self) -> None:
-        for window in (2, 3, 5):
-            with self.subTest(window=window):
-                result = evaluate(rsi("close", window))
-                self.assertEqual(result[:window], [None] * window)
-                self.assertIsNotNone(result[window])
+    @mark.parametrize("window", (2, 3, 5))
+    def test_warm_up_is_window_nulls(self, window: int) -> None:
+        result = evaluate(rsi("close", window))
+        assert result[:window] == [None] * window
+        assert result[window] is not None
 
     def test_output_stays_within_zero_and_one_hundred(self) -> None:
         for value in evaluate(rsi("close", 3)):
             if value is not None:
-                self.assertGreaterEqual(value, 0.0)
-                self.assertLessEqual(value, 100.0)
+                assert value >= 0.0
+                assert value <= 100.0
 
     def test_monotonic_rise_reaches_one_hundred(self) -> None:
         rising = ramp_up(10, 0.0)
-        self.assert_values_equal(evaluate(rsi("close", 3), rising)[3:], [100.0] * 7)
+        assert_values_equal(evaluate(rsi("close", 3), rising)[3:], [100.0] * 7)
 
     def test_monotonic_fall_reaches_zero(self) -> None:
         falling = ramp_down(10)
-        self.assert_values_equal(evaluate(rsi("close", 3), falling)[3:], [0.0] * 7)
+        assert_values_equal(evaluate(rsi("close", 3), falling)[3:], [0.0] * 7)
 
     def test_flat_series_reports_the_neutral_fifty(self) -> None:
-        self.assert_values_equal(evaluate(rsi("close", 3), constant(8))[3:], [50.0] * 5)
+        assert_values_equal(evaluate(rsi("close", 3), constant(8))[3:], [50.0] * 5)
 
     def test_input_shorter_than_warm_up_is_all_null(self) -> None:
-        self.assertEqual(evaluate(rsi("close", len(VALUES))), [None] * len(VALUES))
+        assert evaluate(rsi("close", len(VALUES))) == [None] * len(VALUES)
 
     def test_null_delays_the_seed(self) -> None:
         result = evaluate(rsi("close", 2), NULL_VALUES)
-        self.assertEqual(result[:5], [None] * 5)
-        self.assertIsNotNone(result[5])
+        assert result[:5] == [None] * 5
+        assert result[5] is not None
 
     def test_default_window_is_fourteen(self) -> None:
-        self.assert_values_equal(
+        assert_values_equal(
             evaluate(rsi("close"), WILDER_CLOSE),
             evaluate(rsi("close", 14), WILDER_CLOSE),
         )
 
     def test_name_and_expression_agree(self) -> None:
         from_name = evaluate(rsi("close", 3))
-        self.assert_values_equal(evaluate(rsi(pl.col("close"), 3)), from_name)
+        assert_values_equal(evaluate(rsi(pl.col("close"), 3)), from_name)
 
     def test_series_input_is_rejected(self) -> None:
         with raises(TypeError):
@@ -95,9 +92,9 @@ class TestRsi(IndicatorAssertions):
             .with_columns(rsi("close", 3).alias("rsi"))
             .collect()
         )
-        self.assert_values_equal(collected["rsi"].to_list(), RSI_3)
+        assert_values_equal(collected["rsi"].to_list(), RSI_3)
 
-    def test_invalid_window_raises(self) -> None:
-        for window in (0, -1, 2.5):
-            with self.subTest(window=window), raises(ValueError):
-                rsi("close", cast(Any, window))
+    @mark.parametrize("window", (0, -1, 2.5))
+    def test_invalid_window_raises(self, window: float) -> None:
+        with raises(ValueError):
+            rsi("close", cast(Any, window))

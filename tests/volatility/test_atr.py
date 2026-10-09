@@ -1,9 +1,9 @@
 from typing import Any, cast
 
 import polars as pl
-from _assertions import IndicatorAssertions
+from _assertions import assert_values_equal
 from _data import CLOSE, HIGH, LOW, constant, frame, frame_from, with_null
-from pytest import raises
+from pytest import approx, mark, raises
 
 from polars_ta import atr, true_range
 
@@ -35,38 +35,35 @@ def evaluate(expr: pl.Expr, data: pl.DataFrame | None = None):
     return (data if data is not None else frame()).select(expr).to_series().to_list()
 
 
-class TestTrueRange(IndicatorAssertions):
+class TestTrueRange:
     def test_known_values(self) -> None:
         result = evaluate(true_range("high", "low", "close"))
-        self.assert_values_equal(result[: len(TRUE_RANGE)], TRUE_RANGE)
+        assert_values_equal(result[: len(TRUE_RANGE)], TRUE_RANGE)
 
     def test_first_row_is_null(self) -> None:
-        self.assertIsNone(evaluate(true_range("high", "low", "close"))[0])
+        assert evaluate(true_range("high", "low", "close"))[0] is None
 
     def test_is_never_negative(self) -> None:
         for value in evaluate(true_range("high", "low", "close"))[1:]:
-            self.assertGreaterEqual(value, 0.0)
+            assert value >= 0.0
 
     def test_gap_up_widens_the_range_beyond_the_bar(self) -> None:
         data = frame([10.0, 20.0], [9.0, 19.0], [9.5, 19.5])
         # The bar spans 1.0, but the gap from the previous close is 10.5.
-        self.assertAlmostEqual(
-            evaluate(true_range("high", "low", "close"), data)[1], 10.5
-        )
+        result = evaluate(true_range("high", "low", "close"), data)[1]
+        assert result == approx(10.5, rel=0, abs=5e-8)
 
     def test_null_input_propagates(self) -> None:
         high = with_null(HIGH, 4)
         result = evaluate(true_range("high", "low", "close"), frame(high=high))
-        self.assert_values_equal(
-            result[: len(TRUE_RANGE_NULL_HIGH)], TRUE_RANGE_NULL_HIGH
-        )
+        assert_values_equal(result[: len(TRUE_RANGE_NULL_HIGH)], TRUE_RANGE_NULL_HIGH)
 
     def test_names_and_expressions_agree(self) -> None:
         from_names = evaluate(true_range("high", "low", "close"))
         from_exprs = evaluate(
             true_range(pl.col("high"), pl.col("low"), pl.col("close"))
         )
-        self.assert_values_equal(from_exprs, from_names)
+        assert_values_equal(from_exprs, from_names)
 
     def test_series_input_is_rejected(self) -> None:
         with raises(TypeError):
@@ -77,46 +74,43 @@ class TestTrueRange(IndicatorAssertions):
             )
 
 
-class TestAtr(IndicatorAssertions):
+class TestAtr:
     def test_known_values(self) -> None:
         result = evaluate(atr("high", "low", "close", 5))
-        self.assert_values_equal(result[: len(ATR_5)], ATR_5)
+        assert_values_equal(result[: len(ATR_5)], ATR_5)
 
-    def test_warm_up_is_window_nulls(self) -> None:
-        for window in (3, 5, 7):
-            with self.subTest(window=window):
-                result = evaluate(atr("high", "low", "close", window))
-                self.assertEqual(result[:window], [None] * window)
-                self.assertIsNotNone(result[window])
+    @mark.parametrize("window", (3, 5, 7))
+    def test_warm_up_is_window_nulls(self, window: int) -> None:
+        result = evaluate(atr("high", "low", "close", window))
+        assert result[:window] == [None] * window
+        assert result[window] is not None
 
     def test_is_never_negative(self) -> None:
         for value in evaluate(atr("high", "low", "close", 5)):
             if value is not None:
-                self.assertGreaterEqual(value, 0.0)
+                assert value >= 0.0
 
     def test_constant_range_gives_that_range(self) -> None:
         data = frame_from(constant(8), 1.0)
-        self.assert_values_equal(
+        assert_values_equal(
             evaluate(atr("high", "low", "close", 3), data)[3:], [2.0] * 5
         )
 
     def test_seed_is_the_mean_of_the_first_true_ranges(self) -> None:
         # The first five true ranges are 2.5, 3.0, 3.5, 2.0 and 2.5.
         result = evaluate(atr("high", "low", "close", 5))
-        self.assertAlmostEqual(result[5], 2.7, places=10)
+        assert result[5] == approx(2.7, rel=0, abs=5e-11)
 
     def test_null_input_delays_the_seed(self) -> None:
         high = with_null(HIGH, 2)
         result = evaluate(atr("high", "low", "close", 3), frame(high=high))
-        self.assert_values_equal(result[: len(ATR_3_NULL_HIGH)], ATR_3_NULL_HIGH)
+        assert_values_equal(result[: len(ATR_3_NULL_HIGH)], ATR_3_NULL_HIGH)
 
     def test_input_shorter_than_warm_up_is_all_null(self) -> None:
-        self.assertEqual(
-            evaluate(atr("high", "low", "close", len(HIGH))), [None] * len(HIGH)
-        )
+        assert evaluate(atr("high", "low", "close", len(HIGH))) == [None] * len(HIGH)
 
     def test_default_window_is_fourteen(self) -> None:
-        self.assert_values_equal(
+        assert_values_equal(
             evaluate(atr("high", "low", "close")),
             evaluate(atr("high", "low", "close", 14)),
         )
@@ -124,7 +118,7 @@ class TestAtr(IndicatorAssertions):
     def test_names_and_expressions_agree(self) -> None:
         from_names = evaluate(atr("high", "low", "close", 5))
         from_exprs = evaluate(atr(pl.col("high"), pl.col("low"), pl.col("close"), 5))
-        self.assert_values_equal(from_exprs, from_names)
+        assert_values_equal(from_exprs, from_names)
 
     def test_series_input_is_rejected(self) -> None:
         with raises(TypeError):
@@ -141,9 +135,9 @@ class TestAtr(IndicatorAssertions):
             .with_columns(atr("high", "low", "close", 5).alias("atr"))
             .collect()
         )
-        self.assert_values_equal(collected["atr"].to_list()[: len(ATR_5)], ATR_5)
+        assert_values_equal(collected["atr"].to_list()[: len(ATR_5)], ATR_5)
 
-    def test_invalid_window_raises(self) -> None:
-        for window in (0, -1, 2.5):
-            with self.subTest(window=window), raises(ValueError):
-                atr("high", "low", "close", cast(Any, window))
+    @mark.parametrize("window", (0, -1, 2.5))
+    def test_invalid_window_raises(self, window: float) -> None:
+        with raises(ValueError):
+            atr("high", "low", "close", cast(Any, window))

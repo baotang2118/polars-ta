@@ -1,9 +1,9 @@
 from typing import Any, cast
 
 import polars as pl
-from _assertions import IndicatorAssertions
+from _assertions import assert_values_equal
 from _data import CLOSE, constant, frame, ramp_down, ramp_up
-from pytest import raises
+from pytest import mark, raises
 
 from polars_ta import ulcer
 
@@ -27,36 +27,31 @@ def column(expr: pl.Expr, bars: pl.DataFrame | None = None) -> list:
     return source.select(expr).to_series().to_list()
 
 
-class TestUlcer(IndicatorAssertions):
+class TestUlcer:
     def test_known_values(self) -> None:
         result = column(ulcer("close", 14))
-        self.assert_values_equal(result[: len(ULCER_14)], ULCER_14)
+        assert_values_equal(result[: len(ULCER_14)], ULCER_14)
 
-    def test_warm_up_is_twice_the_window_minus_two(self) -> None:
-        for window in (3, 5, 14):
-            with self.subTest(window=window):
-                result = column(ulcer("close", window))
-                warm_up = 2 * (window - 1)
-                self.assertEqual(result[:warm_up], [None] * warm_up)
-                self.assertIsNotNone(result[warm_up])
+    @mark.parametrize("window", (3, 5, 14))
+    def test_warm_up_is_twice_the_window_minus_two(self, window: int) -> None:
+        result = column(ulcer("close", window))
+        warm_up = 2 * (window - 1)
+        assert result[:warm_up] == [None] * warm_up
+        assert result[warm_up] is not None
 
     def test_a_rising_series_never_draws_down(self) -> None:
         bars = pl.DataFrame({"close": ramp_up(12)})
-        self.assert_values_equal(
-            column(ulcer("close", 3), bars), [None] * 4 + [0.0] * 8
-        )
+        assert_values_equal(column(ulcer("close", 3), bars), [None] * 4 + [0.0] * 8)
 
     def test_a_flat_series_never_draws_down(self) -> None:
         bars = pl.DataFrame({"close": constant(8, 7.0)})
-        self.assert_values_equal(
-            column(ulcer("close", 3), bars), [None] * 4 + [0.0] * 4
-        )
+        assert_values_equal(column(ulcer("close", 3), bars), [None] * 4 + [0.0] * 4)
 
     def test_a_falling_series_draws_down(self) -> None:
         bars = pl.DataFrame({"close": ramp_down(10, 100.0)})
         result = column(ulcer("close", 3), bars)
         # Peaks sit two bars back, so each drawdown is -2%, -1%, 0% of 100ish.
-        self.assertGreater(result[4], 0.0)
+        assert result[4] > 0.0
 
     def test_invalid_window_raises(self) -> None:
         with raises(ValueError):

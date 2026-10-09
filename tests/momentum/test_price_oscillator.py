@@ -1,10 +1,10 @@
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from typing import Any, cast
 
 import polars as pl
-from _assertions import IndicatorAssertions
+from _assertions import assert_values_equal
 from _data import CLOSE, constant, ramp_down, ramp_up
-from pytest import raises
+from pytest import mark, raises
 
 from polars_ta import apo, ppo
 
@@ -38,54 +38,56 @@ def evaluate(expr: pl.Expr, values: Sequence[float | None] | None = None):
     return pl.DataFrame({"close": data}).select(expr).to_series().to_list()
 
 
-class TestPriceOscillators(IndicatorAssertions):
+class TestPriceOscillators:
     def test_apo_is_the_difference_of_two_averages(self) -> None:
         result = evaluate(apo("close", 5, 12))
-        self.assert_values_equal(result[: len(APO_5_12)], APO_5_12)
+        assert_values_equal(result[: len(APO_5_12)], APO_5_12)
 
     def test_ppo_scales_apo_by_the_slow_average(self) -> None:
         result = evaluate(ppo("close", 5, 12))
-        self.assert_values_equal(result[: len(PPO_5_12)], PPO_5_12)
+        assert_values_equal(result[: len(PPO_5_12)], PPO_5_12)
 
-    def test_warm_up_follows_the_slower_average(self) -> None:
-        for function in (apo, ppo):
-            with self.subTest(function=function.__name__):
-                result = evaluate(function("close", 4, 11))
-                self.assertEqual(result[:10], [None] * 10)
-                self.assertIsNotNone(result[10])
+    @mark.parametrize("function", (apo, ppo))
+    def test_warm_up_follows_the_slower_average(
+        self, function: Callable[..., pl.Expr]
+    ) -> None:
+        result = evaluate(function("close", 4, 11))
+        assert result[:10] == [None] * 10
+        assert result[10] is not None
 
     def test_periods_are_ordered_before_use(self) -> None:
-        self.assert_values_equal(
+        assert_values_equal(
             evaluate(apo("close", 20, 6)), evaluate(apo("close", 6, 20))
         )
 
     def test_flat_series_has_no_spread(self) -> None:
         flat = constant(30, 9.0)
-        self.assert_values_equal(evaluate(apo("close", 3, 8), flat)[7:], [0.0] * 23)
-        self.assert_values_equal(evaluate(ppo("close", 3, 8), flat)[7:], [0.0] * 23)
+        assert_values_equal(evaluate(apo("close", 3, 8), flat)[7:], [0.0] * 23)
+        assert_values_equal(evaluate(ppo("close", 3, 8), flat)[7:], [0.0] * 23)
 
     def test_rising_series_is_positive(self) -> None:
         for value in evaluate(apo("close", 3, 8), ramp_up(30))[7:]:
-            self.assertGreater(value, 0.0)
+            assert value > 0.0
 
     def test_falling_series_is_negative(self) -> None:
         for value in evaluate(apo("close", 3, 8), ramp_down(30, 40.0))[7:]:
-            self.assertLess(value, 0.0)
+            assert value < 0.0
 
     def test_zero_slow_average_reports_zero(self) -> None:
         zeros = constant(10, 0.0)
-        self.assert_values_equal(evaluate(ppo("close", 2, 4), zeros)[3:], [0.0] * 7)
+        assert_values_equal(evaluate(ppo("close", 2, 4), zeros)[3:], [0.0] * 7)
 
     def test_ma_type_is_honoured(self) -> None:
         result = evaluate(apo("close", 5, 12, ma_type="ema"))
-        self.assert_values_equal(result[: len(APO_EMA_5_12)], APO_EMA_5_12)
+        assert_values_equal(result[: len(APO_EMA_5_12)], APO_EMA_5_12)
 
-    def test_default_periods_are_twelve_and_twenty_six(self) -> None:
-        for function in (apo, ppo):
-            with self.subTest(function=function.__name__):
-                self.assert_values_equal(
-                    evaluate(function("close")), evaluate(function("close", 12, 26))
-                )
+    @mark.parametrize("function", (apo, ppo))
+    def test_default_periods_are_twelve_and_twenty_six(
+        self, function: Callable[..., pl.Expr]
+    ) -> None:
+        assert_values_equal(
+            evaluate(function("close")), evaluate(function("close", 12, 26))
+        )
 
     def test_series_input_is_rejected(self) -> None:
         with raises(TypeError):

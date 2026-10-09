@@ -1,7 +1,7 @@
 from typing import Any, cast
 
 import polars as pl
-from _assertions import IndicatorAssertions
+from _assertions import assert_values_equal
 from _data import (
     CLOSE,
     HIGH,
@@ -13,7 +13,7 @@ from _data import (
     ramp_up,
     with_null,
 )
-from pytest import raises
+from pytest import mark, raises
 
 from polars_ta import stoch
 
@@ -45,72 +45,73 @@ def evaluate(expr: pl.Expr, data: pl.DataFrame | None = None) -> pl.DataFrame:
     return source.select(expr.alias("s")).unnest("s")
 
 
-class TestStoch(IndicatorAssertions):
+class TestStoch:
     def test_known_values(self) -> None:
         result = evaluate(stoch("high", "low", "close", 5, 3, 3))
-        self.assert_values_equal(result["k"].to_list()[: len(STOCH_K)], STOCH_K)
-        self.assert_values_equal(result["d"].to_list()[: len(STOCH_D)], STOCH_D)
+        assert_values_equal(result["k"].to_list()[: len(STOCH_K)], STOCH_K)
+        assert_values_equal(result["d"].to_list()[: len(STOCH_D)], STOCH_D)
 
     def test_field_names_and_order(self) -> None:
-        self.assertEqual(evaluate(stoch("high", "low", "close")).columns, ["k", "d"])
+        assert evaluate(stoch("high", "low", "close")).columns == ["k", "d"]
 
-    def test_warm_up_matches_the_talib_lookback(self) -> None:
-        for fastk, slowk, slowd in ((5, 3, 3), (3, 2, 2), (4, 1, 1)):
-            with self.subTest(periods=(fastk, slowk, slowd)):
-                result = evaluate(stoch("high", "low", "close", fastk, slowk, slowd))
-                lookback = (fastk - 1) + (slowk - 1) + (slowd - 1)
-                self.assertEqual(result["k"].to_list()[:lookback], [None] * lookback)
-                self.assertIsNotNone(result["k"][lookback])
-                self.assertIsNotNone(result["d"][lookback])
+    @mark.parametrize(("fastk", "slowk", "slowd"), ((5, 3, 3), (3, 2, 2), (4, 1, 1)))
+    def test_warm_up_matches_the_talib_lookback(
+        self, fastk: int, slowk: int, slowd: int
+    ) -> None:
+        result = evaluate(stoch("high", "low", "close", fastk, slowk, slowd))
+        lookback = (fastk - 1) + (slowk - 1) + (slowd - 1)
+        assert result["k"].to_list()[:lookback] == [None] * lookback
+        assert result["k"][lookback] is not None
+        assert result["d"][lookback] is not None
 
     def test_both_lines_start_on_the_same_row(self) -> None:
         result = evaluate(stoch("high", "low", "close", 5, 3, 3))
-        self.assertEqual(result["k"].null_count(), result["d"].null_count())
+        assert result["k"].null_count() == result["d"].null_count()
 
     def test_output_stays_within_zero_and_one_hundred(self) -> None:
         result = evaluate(stoch("high", "low", "close", 5, 3, 3))
         for field in ("k", "d"):
             for value in result[field].to_list():
                 if value is not None:
-                    self.assertGreaterEqual(value, 0.0)
-                    self.assertLessEqual(value, 100.0)
+                    assert value >= 0.0
+                    assert value <= 100.0
 
     def test_close_at_the_window_high_is_one_hundred(self) -> None:
         rising = ramp_up(10)
         result = evaluate(
             stoch("high", "low", "close", 3, 1, 1), frame_from(rising, 0.0)
         )
-        self.assert_values_equal(result["k"].to_list()[2:], [100.0] * 8)
+        assert_values_equal(result["k"].to_list()[2:], [100.0] * 8)
 
     def test_close_at_the_window_low_is_zero(self) -> None:
         falling = ramp_down(10)
         result = evaluate(
             stoch("high", "low", "close", 3, 1, 1), frame_from(falling, 0.0)
         )
-        self.assert_values_equal(result["k"].to_list()[2:], [0.0] * 8)
+        assert_values_equal(result["k"].to_list()[2:], [0.0] * 8)
 
     def test_flat_range_reports_zero(self) -> None:
         data = frame_from(constant(8), 0.0)
         result = evaluate(stoch("high", "low", "close", 3, 2, 2), data)
-        self.assert_values_equal(result["k"].to_list()[4:], [0.0] * 4)
+        assert_values_equal(result["k"].to_list()[4:], [0.0] * 4)
 
     def test_null_input_propagates(self) -> None:
         close = with_null(CLOSE, 6)
         result = evaluate(stoch("high", "low", "close", 3, 2, 2), frame(close=close))
-        self.assert_values_equal(
+        assert_values_equal(
             result["k"].to_list()[: len(STOCH_K_NULL_CLOSE)], STOCH_K_NULL_CLOSE
         )
 
     def test_input_shorter_than_warm_up_is_all_null(self) -> None:
         result = evaluate(stoch("high", "low", "close", len(HIGH), 3, 3))
-        self.assertEqual(result["k"].to_list(), [None] * len(HIGH))
+        assert result["k"].to_list() == [None] * len(HIGH)
 
     def test_names_and_expressions_agree(self) -> None:
         from_names = evaluate(stoch("high", "low", "close", 5, 3, 3))["k"].to_list()
         from_exprs = evaluate(
             stoch(pl.col("high"), pl.col("low"), pl.col("close"), 5, 3, 3)
         )["k"].to_list()
-        self.assert_values_equal(from_exprs, from_names)
+        assert_values_equal(from_exprs, from_names)
 
     def test_series_input_is_rejected(self) -> None:
         with raises(TypeError):
@@ -129,9 +130,9 @@ class TestStoch(IndicatorAssertions):
             .with_columns(stoch("high", "low", "close", 5, 3, 3).alias("s"))
             .collect()
         )
-        self.assertEqual(collected.columns[-1], "s")
+        assert collected.columns[-1] == "s"
 
-    def test_invalid_periods_raise(self) -> None:
-        for periods in ((0, 3, 3), (5, 0, 3), (5, 3, -1), (5, 2.5, 3)):
-            with self.subTest(periods=periods), raises(ValueError):
-                stoch("high", "low", "close", *cast(Any, periods))
+    @mark.parametrize("periods", ((0, 3, 3), (5, 0, 3), (5, 3, -1), (5, 2.5, 3)))
+    def test_invalid_periods_raise(self, periods: tuple[float, ...]) -> None:
+        with raises(ValueError):
+            stoch("high", "low", "close", *cast(Any, periods))
