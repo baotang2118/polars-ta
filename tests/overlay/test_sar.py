@@ -3,6 +3,7 @@ from typing import Any, cast
 import polars as pl
 from _assertions import IndicatorAssertions
 from _data import HIGH, LOW, ramp_down, ramp_up
+from pytest import raises
 
 from polars_ta import sar, sarext
 
@@ -70,7 +71,7 @@ class TestSar(IndicatorAssertions):
         self.assertEqual(column(sar("high", "low"), bars), [None])
 
     def test_series_input_is_rejected(self) -> None:
-        with self.assertRaises(TypeError):
+        with raises(TypeError):
             sar(
                 cast(Any, pl.Series("high", HIGH[:LENGTH])),
                 cast(Any, pl.Series("low", LOW[:LENGTH])),
@@ -84,7 +85,7 @@ class TestSar(IndicatorAssertions):
 
     def test_invalid_arguments_raise(self) -> None:
         for acceleration in (0.0, -0.1, "fast"):
-            with self.subTest(acceleration=acceleration), self.assertRaises(ValueError):
+            with self.subTest(acceleration=acceleration), raises(ValueError):
                 sar("high", "low", cast(Any, acceleration))
 
 
@@ -131,7 +132,7 @@ class TestSarext(IndicatorAssertions):
         self.assertNotEqual(symmetric, skewed)
 
     def test_invalid_arguments_raise(self) -> None:
-        with self.assertRaises(ValueError):
+        with raises(ValueError):
             sarext("high", "low", acceleration_long=0.0)
-        with self.assertRaises(ValueError):
+        with raises(ValueError):
             sarext("high", "low", offset_on_reverse=-0.1)

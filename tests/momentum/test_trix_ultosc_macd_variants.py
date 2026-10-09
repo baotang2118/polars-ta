@@ -3,6 +3,7 @@ from typing import Any, cast
 import polars as pl
 from _assertions import IndicatorAssertions
 from _data import CLOSE, HAND_CHECKED, HIGH, LOW, constant, frame, ramp_up
+from pytest import raises
 
 from polars_ta import macd, macdext, macdfix, natr, trix, ultosc
 
@@ -75,7 +76,7 @@ class TestNatr(IndicatorAssertions):
         )
 
     def test_invalid_window_raises(self) -> None:
-        with self.assertRaises(ValueError):
+        with raises(ValueError):
             natr("high", "low", "close", 0)
 
 
@@ -110,7 +111,7 @@ class TestTrix(IndicatorAssertions):
         )
 
     def test_invalid_window_raises(self) -> None:
-        with self.assertRaises(ValueError):
+        with raises(ValueError):
             trix("close", 0)
 
 
@@ -141,7 +142,7 @@ class TestUltosc(IndicatorAssertions):
         )
 
     def test_invalid_period_raises(self) -> None:
-        with self.assertRaises(ValueError):
+        with raises(ValueError):
             ultosc("high", "low", "close", 0, 14, 28)
 
 
@@ -187,13 +188,13 @@ class TestMacdVariants(IndicatorAssertions):
                 self.assertIsNotNone(fields[name][lookback])
 
     def test_invalid_arguments_raise(self) -> None:
-        with self.assertRaises(ValueError):
+        with raises(ValueError):
             macdext("close", 0)
-        with self.assertRaises(ValueError):
+        with raises(ValueError):
             macdext("close", 5, 12, 4, fast_ma_type=cast(Any, "mesa"))
-        with self.assertRaises(ValueError):
+        with raises(ValueError):
             macdfix("close", 0)
 
     def test_series_input_is_rejected(self) -> None:
-        with self.assertRaises(TypeError):
+        with raises(TypeError):
             macdfix(cast(Any, pl.Series("close", HAND_CHECKED)))

@@ -13,6 +13,7 @@ from _data import (
     ramp_up,
     with_null,
 )
+from pytest import raises
 
 from polars_ta import adx
 
@@ -106,7 +107,7 @@ class TestAdx(IndicatorAssertions):
         self.assert_values_equal(from_exprs, from_names)
 
     def test_series_input_is_rejected(self) -> None:
-        with self.assertRaises(TypeError):
+        with raises(TypeError):
             adx(
                 cast(Any, pl.Series("high", HIGH)),
                 cast(Any, pl.Series("low", LOW)),
@@ -124,5 +125,5 @@ class TestAdx(IndicatorAssertions):
 
     def test_invalid_window_raises(self) -> None:
         for window in (0, -1, 2.5):
-            with self.subTest(window=window), self.assertRaises(ValueError):
+            with self.subTest(window=window), raises(ValueError):
                 adx("high", "low", "close", cast(Any, window))

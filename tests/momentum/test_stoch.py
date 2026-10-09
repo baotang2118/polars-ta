@@ -13,6 +13,7 @@ from _data import (
     ramp_up,
     with_null,
 )
+from pytest import raises
 
 from polars_ta import stoch
 
@@ -112,7 +113,7 @@ class TestStoch(IndicatorAssertions):
         self.assert_values_equal(from_exprs, from_names)
 
     def test_series_input_is_rejected(self) -> None:
-        with self.assertRaises(TypeError):
+        with raises(TypeError):
             stoch(
                 cast(Any, pl.Series("high", HIGH)),
                 cast(Any, pl.Series("low", LOW)),
@@ -132,5 +133,5 @@ class TestStoch(IndicatorAssertions):
 
     def test_invalid_periods_raise(self) -> None:
         for periods in ((0, 3, 3), (5, 0, 3), (5, 3, -1), (5, 2.5, 3)):
-            with self.subTest(periods=periods), self.assertRaises(ValueError):
+            with self.subTest(periods=periods), raises(ValueError):
                 stoch("high", "low", "close", *cast(Any, periods))

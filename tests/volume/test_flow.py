@@ -3,6 +3,7 @@ from typing import Any, cast
 import polars as pl
 from _assertions import IndicatorAssertions
 from _data import CLOSE, HIGH, LOW, VOLUME, constant, frame, ramp_up
+from pytest import raises
 
 from polars_ta import ad, adosc, cmf, obv
 
@@ -71,7 +72,7 @@ class TestAd(IndicatorAssertions):
         )
 
     def test_series_input_is_rejected(self) -> None:
-        with self.assertRaises(TypeError):
+        with raises(TypeError):
             ad(cast(Any, pl.Series("high", HIGH[:5])), "low", "close", "volume")
 
 
@@ -88,7 +89,7 @@ class TestAdosc(IndicatorAssertions):
                 self.assertIsNotNone(result[slow - 1])
 
     def test_invalid_period_raises(self) -> None:
-        with self.assertRaises(ValueError):
+        with raises(ValueError):
             adosc("high", "low", "close", "volume", 0, 10)
 
 
@@ -113,7 +114,7 @@ class TestObv(IndicatorAssertions):
         self.assert_values_equal(column(obv("close", "volume"), bars), [30.0] * 5)
 
     def test_series_input_is_rejected(self) -> None:
-        with self.assertRaises(TypeError):
+        with raises(TypeError):
             obv(
                 cast(Any, pl.Series("close", CLOSE[:LENGTH])),
                 cast(Any, pl.Series("volume", VOLUME[:LENGTH])),
@@ -163,5 +164,5 @@ class TestCmf(IndicatorAssertions):
         )
 
     def test_invalid_window_raises(self) -> None:
-        with self.assertRaises(ValueError):
+        with raises(ValueError):
             cmf("high", "low", "close", "volume", 0)

@@ -3,6 +3,7 @@ from typing import Any, cast
 import polars as pl
 from _assertions import IndicatorAssertions
 from _data import CLOSE, HIGH, LOW, constant, frame, frame_from, with_null
+from pytest import raises
 
 from polars_ta import ichimoku
 
@@ -111,7 +112,7 @@ class TestIchimoku(IndicatorAssertions):
         self.assert_values_equal(from_exprs, from_names)
 
     def test_series_input_is_rejected(self) -> None:
-        with self.assertRaises(TypeError):
+        with raises(TypeError):
             ichimoku(
                 cast(Any, pl.Series("high", HIGH)),
                 cast(Any, pl.Series("low", LOW)),
@@ -137,5 +138,5 @@ class TestIchimoku(IndicatorAssertions):
             (9, 26, 0, 26),
             (9, 26, 52, 0),
         ):
-            with self.subTest(periods=periods), self.assertRaises(ValueError):
+            with self.subTest(periods=periods), raises(ValueError):
                 ichimoku("high", "low", "close", *periods)

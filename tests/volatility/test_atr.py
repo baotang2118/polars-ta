@@ -3,6 +3,7 @@ from typing import Any, cast
 import polars as pl
 from _assertions import IndicatorAssertions
 from _data import CLOSE, HIGH, LOW, constant, frame, frame_from, with_null
+from pytest import raises
 
 from polars_ta import atr, true_range
 
@@ -68,7 +69,7 @@ class TestTrueRange(IndicatorAssertions):
         self.assert_values_equal(from_exprs, from_names)
 
     def test_series_input_is_rejected(self) -> None:
-        with self.assertRaises(TypeError):
+        with raises(TypeError):
             true_range(
                 cast(Any, pl.Series("high", HIGH)),
                 cast(Any, pl.Series("low", LOW)),
@@ -126,7 +127,7 @@ class TestAtr(IndicatorAssertions):
         self.assert_values_equal(from_exprs, from_names)
 
     def test_series_input_is_rejected(self) -> None:
-        with self.assertRaises(TypeError):
+        with raises(TypeError):
             atr(
                 cast(Any, pl.Series("high", HIGH)),
                 cast(Any, pl.Series("low", LOW)),
@@ -144,5 +145,5 @@ class TestAtr(IndicatorAssertions):
 
     def test_invalid_window_raises(self) -> None:
         for window in (0, -1, 2.5):
-            with self.subTest(window=window), self.assertRaises(ValueError):
+            with self.subTest(window=window), raises(ValueError):
                 atr("high", "low", "close", cast(Any, window))

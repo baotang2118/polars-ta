@@ -3,6 +3,7 @@ from typing import Any, cast
 import polars as pl
 from _assertions import IndicatorAssertions
 from _data import CLOSE, HIGH, LOW, frame, frame_from, ramp_up, with_null
+from pytest import raises
 
 from polars_ta import supertrend
 
@@ -90,7 +91,7 @@ class TestSupertrend(IndicatorAssertions):
         self.assertEqual(result["supertrend"].to_list(), [None] * len(HIGH))
 
     def test_series_input_is_rejected(self) -> None:
-        with self.assertRaises(TypeError):
+        with raises(TypeError):
             supertrend(
                 cast(Any, pl.Series("high", HIGH)),
                 cast(Any, pl.Series("low", LOW)),
@@ -113,8 +114,8 @@ class TestSupertrend(IndicatorAssertions):
 
     def test_invalid_arguments_raise(self) -> None:
         for window in (0, -1, 2.5):
-            with self.subTest(window=window), self.assertRaises(ValueError):
+            with self.subTest(window=window), raises(ValueError):
                 supertrend("high", "low", "close", cast(Any, window), 2.0)
         for multiplier in (0.0, -1.0):
-            with self.subTest(multiplier=multiplier), self.assertRaises(ValueError):
+            with self.subTest(multiplier=multiplier), raises(ValueError):
                 supertrend("high", "low", "close", 5, multiplier)

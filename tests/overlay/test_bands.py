@@ -4,6 +4,7 @@ from typing import Any, cast
 import polars as pl
 from _assertions import IndicatorAssertions
 from _data import HAND_CHECKED, constant, ramp_up
+from pytest import raises
 
 from polars_ta import bbands
 
@@ -101,7 +102,7 @@ class TestBbands(IndicatorAssertions):
         )
 
     def test_series_input_is_rejected(self) -> None:
-        with self.assertRaises(TypeError):
+        with raises(TypeError):
             bbands(cast(Any, pl.Series("close", VALUES)), 3)
 
     def test_expression_works_in_a_lazy_frame(self) -> None:
@@ -114,11 +115,11 @@ class TestBbands(IndicatorAssertions):
 
     def test_invalid_arguments_raise(self) -> None:
         for window in (0, -1, 2.5):
-            with self.subTest(window=window), self.assertRaises(ValueError):
+            with self.subTest(window=window), raises(ValueError):
                 bbands("close", cast(Any, window))
         for num_std in (0.0, -1.0):
-            with self.subTest(num_std=num_std), self.assertRaises(ValueError):
+            with self.subTest(num_std=num_std), raises(ValueError):
                 bbands("close", 3, num_std=num_std)
         for ddof in (-1, 3, 4):
-            with self.subTest(ddof=ddof), self.assertRaises(ValueError):
+            with self.subTest(ddof=ddof), raises(ValueError):
                 bbands("close", 3, ddof=ddof)

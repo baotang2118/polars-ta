@@ -4,6 +4,7 @@ from typing import Any, cast
 import polars as pl
 from _assertions import IndicatorAssertions
 from _data import HAND_CHECKED
+from pytest import raises
 
 from polars_ta import dema, ema, sma, tema, wma
 
@@ -177,11 +178,11 @@ class TestSma(IndicatorAssertions):
 
     def test_invalid_window_raises(self) -> None:
         for window in (0, -1):
-            with self.subTest(window=window), self.assertRaises(ValueError):
+            with self.subTest(window=window), raises(ValueError):
                 sma("close", window)
 
     def test_non_integer_window_raises(self) -> None:
-        with self.assertRaises(ValueError):
+        with raises(ValueError):
             sma("close", cast(Any, 2.5))
 
 
@@ -225,18 +226,18 @@ class TestEma(IndicatorAssertions):
 
     def test_invalid_alpha_raises(self) -> None:
         for alpha in (0.0, -0.5, 1.5):
-            with self.subTest(alpha=alpha), self.assertRaises(ValueError):
+            with self.subTest(alpha=alpha), raises(ValueError):
                 ema("close", 3, alpha=alpha)
 
     def test_alpha_of_one_is_allowed(self) -> None:
         self.assert_values_equal(evaluate(ema("close", 1, alpha=1.0)), VALUES)
 
     def test_invalid_mode_raises(self) -> None:
-        with self.assertRaises(ValueError):
+        with raises(ValueError):
             ema("close", 3, mode=cast(Any, "exponential"))
 
     def test_invalid_window_raises(self) -> None:
-        with self.assertRaises(ValueError):
+        with raises(ValueError):
             ema("close", 0)
 
 
@@ -275,7 +276,7 @@ class TestWma(IndicatorAssertions):
 
     def test_invalid_window_raises(self) -> None:
         for window in (0, -1):
-            with self.subTest(window=window), self.assertRaises(ValueError):
+            with self.subTest(window=window), raises(ValueError):
                 wma("close", window)
 
 
@@ -310,11 +311,11 @@ class TestDema(IndicatorAssertions):
         self.assertEqual(evaluate(dema("close", len(VALUES))), [None] * len(VALUES))
 
     def test_invalid_arguments_raise(self) -> None:
-        with self.assertRaises(ValueError):
+        with raises(ValueError):
             dema("close", 0)
-        with self.assertRaises(ValueError):
+        with raises(ValueError):
             dema("close", 3, alpha=0.0)
-        with self.assertRaises(ValueError):
+        with raises(ValueError):
             dema("close", 3, mode=cast(Any, "double"))
 
 
@@ -349,11 +350,11 @@ class TestTema(IndicatorAssertions):
         self.assertEqual(evaluate(tema("close", len(VALUES))), [None] * len(VALUES))
 
     def test_invalid_arguments_raise(self) -> None:
-        with self.assertRaises(ValueError):
+        with raises(ValueError):
             tema("close", 0)
-        with self.assertRaises(ValueError):
+        with raises(ValueError):
             tema("close", 3, alpha=1.5)
-        with self.assertRaises(ValueError):
+        with raises(ValueError):
             tema("close", 3, mode=cast(Any, "triple"))
 
 
@@ -369,7 +370,7 @@ class TestInputForms(IndicatorAssertions):
         for indicator in (sma, ema, wma, dema, tema):
             with (
                 self.subTest(indicator=indicator.__name__),
-                self.assertRaises(TypeError),
+                raises(TypeError),
             ):
                 indicator(cast(Any, pl.Series("close", VALUES)), 3)
 
@@ -388,5 +389,5 @@ class TestInputForms(IndicatorAssertions):
         self.assertEqual(result["ema"].dtype, pl.Float64)
 
     def test_unsupported_input_type_raises(self) -> None:
-        with self.assertRaises(TypeError):
+        with raises(TypeError):
             sma(cast(Any, [1.0, 2.0]), 2)

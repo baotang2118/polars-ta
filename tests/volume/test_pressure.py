@@ -3,6 +3,7 @@ from typing import Any, cast
 import polars as pl
 from _assertions import IndicatorAssertions
 from _data import CLOSE, VOLUME, constant, frame, ramp_up
+from pytest import raises
 
 from polars_ta import eom, fi, nvi, vpt
 
@@ -38,7 +39,7 @@ class TestFi(IndicatorAssertions):
         )
 
     def test_invalid_window_raises(self) -> None:
-        with self.assertRaises(ValueError):
+        with raises(ValueError):
             fi("close", "volume", 0)
 
 
@@ -80,7 +81,7 @@ class TestEom(IndicatorAssertions):
         )
 
     def test_invalid_window_raises(self) -> None:
-        with self.assertRaises(ValueError):
+        with raises(ValueError):
             eom("high", "low", "volume", 0)
 
 
@@ -102,7 +103,7 @@ class TestVpt(IndicatorAssertions):
         self.assert_values_equal(column(vpt("close", "volume"), bars), [0.0] * 5)
 
     def test_series_input_is_rejected(self) -> None:
-        with self.assertRaises(TypeError):
+        with raises(TypeError):
             vpt(
                 cast(Any, pl.Series("close", CLOSE[:LENGTH])),
                 cast(Any, pl.Series("volume", VOLUME[:LENGTH])),
@@ -130,5 +131,5 @@ class TestNvi(IndicatorAssertions):
         self.assert_values_equal(column(nvi("close", "volume"), bars), [1000.0] * 5)
 
     def test_invalid_start_value_raises(self) -> None:
-        with self.assertRaises(ValueError):
+        with raises(ValueError):
             nvi("close", "volume", start_value=0.0)

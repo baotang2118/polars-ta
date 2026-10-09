@@ -3,6 +3,7 @@ from typing import Any, cast
 import polars as pl
 from _assertions import IndicatorAssertions
 from _data import CLOSE, HIGH, constant, frame, ramp_up
+from pytest import raises
 
 from polars_ta import mass, vortex
 
@@ -81,11 +82,11 @@ class TestVortex(IndicatorAssertions):
         self.assert_values_equal(field("plus", indicator, bars), [None] * 4 + [0.0] * 8)
 
     def test_invalid_window_raises(self) -> None:
-        with self.assertRaises(ValueError):
+        with raises(ValueError):
             vortex("high", "low", "close", 0)
 
     def test_series_input_is_rejected(self) -> None:
-        with self.assertRaises(TypeError):
+        with raises(TypeError):
             vortex(cast(Any, pl.Series("high", HIGH[:5])), "low", "close")
 
 
@@ -113,5 +114,5 @@ class TestMass(IndicatorAssertions):
         self.assertAlmostEqual(column(mass("high", "low", 3, 4), bars)[-1], 4.0)
 
     def test_invalid_period_raises(self) -> None:
-        with self.assertRaises(ValueError):
+        with raises(ValueError):
             mass("high", "low", 0, 25)

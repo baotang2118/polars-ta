@@ -3,6 +3,7 @@ from typing import Any, cast
 import polars as pl
 from _assertions import IndicatorAssertions
 from _data import CLOSE, HIGH, LOW, VOLUME, constant, frame, ramp_down, ramp_up
+from pytest import raises
 
 from polars_ta import ao, ppo, pvo, tsi
 
@@ -53,7 +54,7 @@ class TestTsi(IndicatorAssertions):
         self.assertAlmostEqual(column(tsi("close", 5, 10), bars)[-1], 0.0)
 
     def test_invalid_period_raises(self) -> None:
-        with self.assertRaises(ValueError):
+        with raises(ValueError):
             tsi("close", 0)
 
 
@@ -84,11 +85,11 @@ class TestAo(IndicatorAssertions):
         self.assertAlmostEqual(column(ao("high", "low", 5, 34), bars)[-1], 0.0)
 
     def test_invalid_period_raises(self) -> None:
-        with self.assertRaises(ValueError):
+        with raises(ValueError):
             ao("high", "low", 0)
 
     def test_series_input_is_rejected(self) -> None:
-        with self.assertRaises(TypeError):
+        with raises(TypeError):
             ao(cast(Any, pl.Series("high", HIGH[:5])), "low")
 
 
@@ -109,11 +110,11 @@ class TestPvo(IndicatorAssertions):
         self.assertAlmostEqual(column(pvo("volume", 5, 10), bars)[-1], 0.0)
 
     def test_invalid_period_raises(self) -> None:
-        with self.assertRaises(ValueError):
+        with raises(ValueError):
             pvo("volume", 0)
 
     def test_series_input_is_rejected(self) -> None:
-        with self.assertRaises(TypeError):
+        with raises(TypeError):
             pvo(cast(Any, pl.Series("volume", VOLUME[:LENGTH])), 5, 10)
 
 

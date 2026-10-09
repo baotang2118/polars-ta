@@ -3,6 +3,7 @@ from typing import Any, cast
 import polars as pl
 from _assertions import IndicatorAssertions
 from _data import CLOSE, constant, frame, ramp_down, ramp_up
+from pytest import raises
 
 from polars_ta import ulcer
 
@@ -58,9 +59,9 @@ class TestUlcer(IndicatorAssertions):
         self.assertGreater(result[4], 0.0)
 
     def test_invalid_window_raises(self) -> None:
-        with self.assertRaises(ValueError):
+        with raises(ValueError):
             ulcer("close", 0)
 
     def test_series_input_is_rejected(self) -> None:
-        with self.assertRaises(TypeError):
+        with raises(TypeError):
             ulcer(cast(Any, pl.Series("close", CLOSE[:LENGTH])), 14)

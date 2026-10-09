@@ -3,6 +3,7 @@ from typing import Any, cast
 import polars as pl
 from _assertions import IndicatorAssertions
 from _data import CLOSE, ramp_up
+from pytest import raises
 
 from polars_ta import ema, macd
 
@@ -109,7 +110,7 @@ class TestMacd(IndicatorAssertions):
         self.assertEqual(result["macd"].to_list(), [None] * 5)
 
     def test_series_input_is_rejected(self) -> None:
-        with self.assertRaises(TypeError):
+        with raises(TypeError):
             macd(cast(Any, pl.Series("close", VALUES)), 3, 6, 4)
 
     def test_expression_works_in_a_lazy_frame(self) -> None:
@@ -122,7 +123,7 @@ class TestMacd(IndicatorAssertions):
 
     def test_invalid_arguments_raise(self) -> None:
         for periods in ((0, 26, 9), (12, -1, 9), (12, 26, 0), (12, 26, 2.5)):
-            with self.subTest(periods=periods), self.assertRaises(ValueError):
+            with self.subTest(periods=periods), raises(ValueError):
                 macd("close", *cast(Any, periods))
-        with self.assertRaises(ValueError):
+        with raises(ValueError):
             macd("close", 12, 26, 9, mode=cast(Any, "convergence"))

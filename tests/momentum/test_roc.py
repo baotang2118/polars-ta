@@ -4,6 +4,7 @@ from typing import Any, cast
 import polars as pl
 from _assertions import IndicatorAssertions
 from _data import HAND_CHECKED, constant, with_null
+from pytest import raises
 
 from polars_ta import mom, roc, rocp, rocr, rocr100
 
@@ -173,7 +174,7 @@ class TestRateOfChange(IndicatorAssertions):
         self.assert_values_equal(evaluate(roc(pl.col("close"), 3)), from_name)
 
     def test_series_input_is_rejected(self) -> None:
-        with self.assertRaises(TypeError):
+        with raises(TypeError):
             mom(cast(Any, pl.Series("close", VALUES)), 3)
 
     def test_expression_works_in_a_lazy_frame(self) -> None:
@@ -189,6 +190,6 @@ class TestRateOfChange(IndicatorAssertions):
             for window in (0, -1, 2.5):
                 with (
                     self.subTest(function=function.__name__, window=window),
-                    self.assertRaises(ValueError),
+                    raises(ValueError),
                 ):
                     function("close", cast(Any, window))

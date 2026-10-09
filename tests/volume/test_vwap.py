@@ -3,6 +3,7 @@ from typing import Any, cast
 import polars as pl
 from _assertions import IndicatorAssertions
 from _data import CLOSE, HIGH, frame
+from pytest import raises
 
 from polars_ta import vwap
 
@@ -77,9 +78,9 @@ class TestVwap(IndicatorAssertions):
         )
 
     def test_invalid_window_raises(self) -> None:
-        with self.assertRaises(ValueError):
+        with raises(ValueError):
             vwap("high", "low", "close", "volume", 0)
 
     def test_series_input_is_rejected(self) -> None:
-        with self.assertRaises(TypeError):
+        with raises(TypeError):
             vwap(cast(Any, pl.Series("high", HIGH[:5])), "low", "close", "volume")

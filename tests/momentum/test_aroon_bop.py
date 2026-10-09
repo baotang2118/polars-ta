@@ -3,6 +3,7 @@ from typing import Any, cast
 import polars as pl
 from _assertions import IndicatorAssertions
 from _data import HIGH, LOW, OPEN, constant, frame, ramp_down, ramp_up
+from pytest import raises
 
 from polars_ta import aroon, aroonosc, bop
 
@@ -133,7 +134,7 @@ class TestAroon(IndicatorAssertions):
         for function in (aroon, aroonosc):
             with (
                 self.subTest(function=function.__name__),
-                self.assertRaises(ValueError),
+                raises(ValueError),
             ):
                 function("high", "low", 0)
 
@@ -181,5 +182,5 @@ class TestBop(IndicatorAssertions):
         self.assertIsNone(result[1])
 
     def test_series_input_is_rejected(self) -> None:
-        with self.assertRaises(TypeError):
+        with raises(TypeError):
             bop(cast(Any, pl.Series("open", OPEN[:5])), "high", "low", "close")

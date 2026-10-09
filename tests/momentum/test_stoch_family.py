@@ -3,6 +3,7 @@ from collections.abc import Sequence
 import polars as pl
 from _assertions import IndicatorAssertions
 from _data import CLOSE, HIGH, LOW, constant, frame, ramp_down, ramp_up
+from pytest import raises
 
 from polars_ta import cmo, rsi, stochf, stochrsi, willr
 
@@ -70,7 +71,7 @@ class TestCmo(IndicatorAssertions):
         self.assert_values_equal(evaluate(cmo("close")), evaluate(cmo("close", 14)))
 
     def test_invalid_window_raises(self) -> None:
-        with self.assertRaises(ValueError):
+        with raises(ValueError):
             cmo("close", 0)
 
 
@@ -107,7 +108,7 @@ class TestStochf(IndicatorAssertions):
         self.assert_values_equal(fields["fast_k"][6:], [0.0] * 14)
 
     def test_invalid_period_raises(self) -> None:
-        with self.assertRaises(ValueError):
+        with raises(ValueError):
             stochf("high", "low", "close", 0, 3)
 
 
@@ -141,7 +142,7 @@ class TestStochrsi(IndicatorAssertions):
                     self.assertAlmostEqual(min(value, 100.0), value, places=10)
 
     def test_invalid_period_raises(self) -> None:
-        with self.assertRaises(ValueError):
+        with raises(ValueError):
             stochrsi("close", 0)
 
 
@@ -183,5 +184,5 @@ class TestWillr(IndicatorAssertions):
         self.assert_values_equal(result[4:], [0.0] * 16)
 
     def test_invalid_window_raises(self) -> None:
-        with self.assertRaises(ValueError):
+        with raises(ValueError):
             willr("high", "low", "close", 0)

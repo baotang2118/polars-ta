@@ -3,6 +3,7 @@ from typing import Any, cast
 import polars as pl
 from _assertions import IndicatorAssertions
 from _data import CLOSE, constant, frame, ramp_up
+from pytest import raises
 
 from polars_ta import cumulative_return, daily_log_return, daily_return
 
@@ -36,7 +37,7 @@ class TestDailyReturn(IndicatorAssertions):
         self.assert_values_equal(column(daily_return("close"), bars), [None, 0.0])
 
     def test_series_input_is_rejected(self) -> None:
-        with self.assertRaises(TypeError):
+        with raises(TypeError):
             daily_return(cast(Any, pl.Series("close", CLOSE[:LENGTH])))
 
 

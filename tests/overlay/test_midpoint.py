@@ -4,6 +4,7 @@ from typing import Any, cast
 import polars as pl
 from _assertions import IndicatorAssertions
 from _data import CLOSE, HIGH, LOW, constant, frame, ramp_up, with_null
+from pytest import raises
 
 from polars_ta import midpoint, midprice
 
@@ -92,12 +93,12 @@ class TestMidpoint(IndicatorAssertions):
         self.assert_values_equal(evaluate(midpoint(pl.col("close"), 5)), from_name)
 
     def test_series_input_is_rejected(self) -> None:
-        with self.assertRaises(TypeError):
+        with raises(TypeError):
             midpoint(cast(Any, pl.Series("close", VALUES)), 5)
 
     def test_invalid_window_raises(self) -> None:
         for window in (0, -1, 2.5):
-            with self.subTest(window=window), self.assertRaises(ValueError):
+            with self.subTest(window=window), raises(ValueError):
                 midpoint("close", cast(Any, window))
 
 
@@ -129,7 +130,7 @@ class TestMidprice(IndicatorAssertions):
         )
 
     def test_series_input_is_rejected(self) -> None:
-        with self.assertRaises(TypeError):
+        with raises(TypeError):
             midprice(
                 cast(Any, pl.Series("high", HIGH[:40])),
                 cast(Any, pl.Series("low", LOW[:40])),
@@ -138,5 +139,5 @@ class TestMidprice(IndicatorAssertions):
 
     def test_invalid_window_raises(self) -> None:
         for window in (0, -1, 2.5):
-            with self.subTest(window=window), self.assertRaises(ValueError):
+            with self.subTest(window=window), raises(ValueError):
                 midprice("high", "low", cast(Any, window))

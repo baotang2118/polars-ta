@@ -12,6 +12,7 @@ from _data import (
     ramp_up,
     with_null,
 )
+from pytest import raises
 
 from polars_ta import cci
 from polars_ta.momentum.cci import CCI_SCALE
@@ -100,7 +101,7 @@ class TestCci(IndicatorAssertions):
         self.assert_values_equal(from_exprs, from_names)
 
     def test_series_input_is_rejected(self) -> None:
-        with self.assertRaises(TypeError):
+        with raises(TypeError):
             cci(cast(Any, pl.Series("high", HIGH)), "low", "close", 5)
 
     def test_expression_works_in_a_lazy_frame(self) -> None:
@@ -113,5 +114,5 @@ class TestCci(IndicatorAssertions):
 
     def test_invalid_window_raises(self) -> None:
         for window in (0, -1, 2.5):
-            with self.subTest(window=window), self.assertRaises(ValueError):
+            with self.subTest(window=window), raises(ValueError):
                 cci("high", "low", "close", cast(Any, window))

@@ -4,6 +4,7 @@ from typing import Any, cast
 import polars as pl
 from _assertions import IndicatorAssertions
 from _data import CLOSE, constant, with_null
+from pytest import raises
 
 from polars_ta import kama, ma, mavp, sma, t3, trima
 from polars_ta.overlay import MA_TYPES
@@ -113,7 +114,7 @@ class TestTrima(IndicatorAssertions):
 
     def test_invalid_window_raises(self) -> None:
         for window in (0, -1, 2.5):
-            with self.subTest(window=window), self.assertRaises(ValueError):
+            with self.subTest(window=window), raises(ValueError):
                 trima("close", cast(Any, window))
 
 
@@ -150,7 +151,7 @@ class TestT3(IndicatorAssertions):
 
     def test_invalid_vfactor_raises(self) -> None:
         for vfactor in (-0.1, 1.1, "fast"):
-            with self.subTest(vfactor=vfactor), self.assertRaises(ValueError):
+            with self.subTest(vfactor=vfactor), raises(ValueError):
                 t3("close", 5, vfactor=cast(Any, vfactor))
 
 
@@ -186,12 +187,12 @@ class TestKama(IndicatorAssertions):
         self.assertLess(quick_error, slow_error)
 
     def test_series_input_is_rejected(self) -> None:
-        with self.assertRaises(TypeError):
+        with raises(TypeError):
             kama(cast(Any, pl.Series("close", VALUES)), 10)
 
     def test_invalid_window_raises(self) -> None:
         for window in (0, -1, 2.5):
-            with self.subTest(window=window), self.assertRaises(ValueError):
+            with self.subTest(window=window), raises(ValueError):
                 kama("close", cast(Any, window))
 
 
@@ -218,7 +219,7 @@ class TestMa(IndicatorAssertions):
         self.assert_values_equal(evaluate(ma("close")), evaluate(sma("close", 30)))
 
     def test_unknown_type_raises(self) -> None:
-        with self.assertRaises(ValueError):
+        with raises(ValueError):
             ma("close", 5, ma_type=cast(Any, "mesa"))
 
 
@@ -249,7 +250,7 @@ class TestMavp(IndicatorAssertions):
         self.assert_values_equal(result[: len(MAVP_VARYING)], MAVP_VARYING)
 
     def test_invalid_bounds_raise(self) -> None:
-        with self.assertRaises(ValueError):
+        with raises(ValueError):
             mavp("close", "periods", 10, 4)
-        with self.assertRaises(ValueError):
+        with raises(ValueError):
             mavp("close", "periods", 0, 4)

@@ -3,6 +3,7 @@ from typing import Any, cast
 import polars as pl
 from _assertions import IndicatorAssertions
 from _data import CLOSE, constant, with_null
+from pytest import raises
 
 from polars_ta import (
     ht_dcperiod,
@@ -148,7 +149,7 @@ class TestHtDcperiod(IndicatorAssertions):
                 self.assertLessEqual(value, 50.0)
 
     def test_series_input_is_rejected(self) -> None:
-        with self.assertRaises(TypeError):
+        with raises(TypeError):
             ht_dcperiod(cast(Any, pl.Series("close", VALUES)))
 
 
@@ -248,5 +249,5 @@ class TestMama(IndicatorAssertions):
 
     def test_invalid_limits_raise(self) -> None:
         for limit in (0.0, -0.1, 1.5, "fast"):
-            with self.subTest(limit=limit), self.assertRaises(ValueError):
+            with self.subTest(limit=limit), raises(ValueError):
                 mama("close", fast_limit=cast(Any, limit))

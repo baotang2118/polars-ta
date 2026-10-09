@@ -4,6 +4,7 @@ from typing import Any, cast
 import polars as pl
 from _assertions import IndicatorAssertions
 from _data import CLOSE, constant, ramp_down, ramp_up
+from pytest import raises
 
 from polars_ta import apo, ppo
 
@@ -87,11 +88,11 @@ class TestPriceOscillators(IndicatorAssertions):
                 )
 
     def test_series_input_is_rejected(self) -> None:
-        with self.assertRaises(TypeError):
+        with raises(TypeError):
             apo(cast(Any, pl.Series("close", VALUES)), 5, 12)
 
     def test_invalid_arguments_raise(self) -> None:
-        with self.assertRaises(ValueError):
+        with raises(ValueError):
             apo("close", 0, 12)
-        with self.assertRaises(ValueError):
+        with raises(ValueError):
             ppo("close", 5, 12, ma_type=cast(Any, "mesa"))

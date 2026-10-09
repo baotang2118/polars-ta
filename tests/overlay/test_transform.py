@@ -3,6 +3,7 @@ from typing import Any, cast
 import polars as pl
 from _assertions import IndicatorAssertions
 from _data import CLOSE, HIGH, LOW, OPEN, frame
+from pytest import raises
 
 from polars_ta import avgprice, medprice, typprice, wclprice
 
@@ -35,7 +36,7 @@ class TestAvgprice(IndicatorAssertions):
         )
 
     def test_series_input_is_rejected(self) -> None:
-        with self.assertRaises(TypeError):
+        with raises(TypeError):
             avgprice(
                 cast(Any, pl.Series("open", OPEN[:5])),
                 cast(Any, pl.Series("high", HIGH[:5])),

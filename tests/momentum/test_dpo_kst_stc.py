@@ -3,6 +3,7 @@ from typing import Any, cast
 import polars as pl
 from _assertions import IndicatorAssertions
 from _data import CLOSE, HAND_CHECKED, constant, frame, ramp_up
+from pytest import raises
 
 from polars_ta import dpo, kst, stc
 
@@ -71,7 +72,7 @@ class TestDpo(IndicatorAssertions):
         self.assertLess(column(dpo("close", 6), bars)[-1], 0.0)
 
     def test_invalid_window_raises(self) -> None:
-        with self.assertRaises(ValueError):
+        with raises(ValueError):
             dpo("close", 0)
 
 
@@ -105,11 +106,11 @@ class TestKst(IndicatorAssertions):
         )
 
     def test_invalid_periods_raise(self) -> None:
-        with self.assertRaises(ValueError):
+        with raises(ValueError):
             kst("close", (10, 15, 20), (10, 10, 10, 15))
-        with self.assertRaises(ValueError):
+        with raises(ValueError):
             kst("close", (10, 15, 20, 0))
-        with self.assertRaises(ValueError):
+        with raises(ValueError):
             kst("close", signal_period=0)
 
 
@@ -132,11 +133,11 @@ class TestStc(IndicatorAssertions):
         self.assertAlmostEqual(result[-1], 0.0)
 
     def test_invalid_period_raises(self) -> None:
-        with self.assertRaises(ValueError):
+        with raises(ValueError):
             stc("close", 0)
-        with self.assertRaises(ValueError):
+        with raises(ValueError):
             stc("close", cycle=0)
 
     def test_series_input_is_rejected(self) -> None:
-        with self.assertRaises(TypeError):
+        with raises(TypeError):
             stc(cast(Any, pl.Series("close", CLOSE[:LENGTH])), 5, 10, 4)
