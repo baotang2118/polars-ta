@@ -325,8 +325,8 @@ returns the MAMA line and ignores `window`, as TA-Lib does.
 
 `mavp(column, periods, min_period, max_period, ma_type=...)` reads the period
 from a second column. Each row's period is truncated to an integer and clamped
-to $[\texttt{min\_period}, \texttt{max\_period}]$. One average is built per
-candidate period and selected row by row, so the expression grows linearly in
-$\texttt{max\_period} - \texttt{min\_period}$ — keep that span small, especially
-for the chained averages. Output starts only once the `max_period` average is
-available, so the warm-up does not change from row to row.
+between `min_period` and `max_period`. One average is built per candidate
+period and selected row by row, so the expression grows linearly with
+`max_period - min_period` — keep that span small, especially for the chained
+averages. Output starts only once the `max_period` average is available, so the
+warm-up does not change from row to row.
