@@ -113,7 +113,8 @@ The MACD line put through two stochastic passes:
 
 $$
 K_t = 100 \cdot
-\frac{M_t - \min_{i<c} M_{t-i}}{\max_{i<c} M_{t-i} - \min_{i<c} M_{t-i}},
+\left(M_t - \min_{i<c} M_{t-i}\right)
+/ \left(\max_{i<c} M_{t-i} - \min_{i<c} M_{t-i}\right),
 \qquad D_t = \mathrm{EMA}_{k}(K)_t
 $$
 
