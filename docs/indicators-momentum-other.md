@@ -129,7 +129,7 @@ $$
 \right)_t
 $$
 
-where $M$ is $\mathrm{EMA}_{\text{fast}}(P) - \mathrm{EMA}_{\text{slow}}(P)$.
+where $M = \mathrm{EMA}_{\mathrm{fast}}(P) - \mathrm{EMA}_{\mathrm{slow}}(P)$.
 The MACD line is unbounded and slow to turn; measuring where it sits inside its
 own recent range, twice over, bounds it to $[0, 100]$ and sharpens the turns
 enough to read as overbought and oversold. Defaults are 23, 50, a cycle of 10,
