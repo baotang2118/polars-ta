@@ -273,9 +273,9 @@ it.
 $$\mathrm{ER}_t = \frac{\left|P_t - P_{t-n}\right|}
 {\sum_{i=0}^{n-1}\left|P_{t-i} - P_{t-i-1}\right|}$$
 
-$$\alpha_t = \left(\mathrm{ER}_t\left(\tfrac{2}{f+1} - \tfrac{2}{s+1}\right)
-+ \tfrac{2}{s+1}\right)^{2}, \qquad
-\mathrm{KAMA}_t = \mathrm{KAMA}_{t-1} + \alpha_t\left(P_t - \mathrm{KAMA}_{t-1}\right)$$
+$$
+\alpha_t = \left(\mathrm{ER}_t\left(\tfrac{2}{f+1} - \tfrac{2}{s+1}\right) + \tfrac{2}{s+1}\right)^{2}, \qquad \mathrm{KAMA}_t = \mathrm{KAMA}_{t-1} + \alpha_t\left(P_t - \mathrm{KAMA}_{t-1}\right)
+$$
 
 with $f$ = `fast_period` (default 2) and $s$ = `slow_period` (default 30). A
 straight-line move scores $\mathrm{ER} = 1$ and smooths at the fast rate; a
