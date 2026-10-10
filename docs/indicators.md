@@ -5,12 +5,15 @@ Indicators are grouped by how they are charted: *overlay* indicators share the
 price axis, *momentum* oscillators occupy a separate pane, *volume* indicators
 weight movement by how much traded, *volatility* indicators measure the size of
 movement, *cycle* indicators measure its rhythm, and *returns* restate price on
-a percentage scale. Each group is a subpackage (`polars_ta.overlay`,
+a percentage scale. Two further groups are not chart placements at all:
+*statistics* summarise a window of values, and *patterns* score the shape of
+recent bars. Each group is a subpackage (`polars_ta.overlay`,
 `polars_ta.momentum`, `polars_ta.volume`, `polars_ta.volatility`,
-`polars_ta.cycle`, `polars_ta.returns`), and every public indicator is also
-re-exported from the package root.
+`polars_ta.cycle`, `polars_ta.returns`, `polars_ta.statistic`,
+`polars_ta.pattern`), and every public indicator is also re-exported from the
+package root.
 
-The reference is organized as an index and shared conventions, followed by seven focused formula pages. The detail pages are grouped to keep related indicators together and generally cover 10–15 functions.
+The reference is organized as an index and shared conventions, followed by nine focused formula pages. The detail pages are grouped to keep related indicators together and generally cover 10–15 functions.
 
 ## Detailed Reference Pages
 
@@ -23,6 +26,8 @@ The reference is organized as an index and shared conventions, followed by seven
 | [Other momentum](indicators-momentum-other.md) | Rate-of-change, price oscillators, and related measures (15) |
 | [Volume and returns](indicators-volume-returns.md) | Volume indicators and return measures (12) |
 | [Volatility and cycle](indicators-volatility-cycle.md) | Volatility and Hilbert cycle indicators (10) |
+| [Statistics](indicators-statistics.md) | Dispersion, correlation, and linear regression (9) |
+| [Candlestick patterns](patterns.md) | Candle settings and the pattern recognisers (61) |
 
 The conventions below apply to every page.
 
@@ -80,6 +85,10 @@ Every indicator listed in the table below is implemented.
 | `ht_phasor`, `ht_sine` | `cycle.hilbert` | one column | struct of two `Float64` fields |
 | `ht_trendmode` | `cycle.hilbert` | one column | one `Int8` column |
 | `daily_return`, `daily_log_return`, `cumulative_return` | `returns.performance` | one column | one `Float64` column |
+| `var`, `stddev`, `zscore` | `statistic.dispersion` | one column | one `Float64` column |
+| `correl`, `beta` | `statistic.correlation` | two columns | one `Float64` column |
+| `linearreg`, `linearreg_angle`, `linearreg_intercept`, `linearreg_slope`, `tsf` | `statistic.regression` | one column | one `Float64` column |
+| `cdl*` (61 recognisers) | `pattern.*` | open, high, low, close | one `Int32` column |
 
 Detailed formulas are in the topic pages listed above.
 
@@ -133,6 +142,9 @@ Detailed formulas are in the topic pages listed above.
   | `ichimoku` | per field; see [price overlays](indicators-overlays-price.md) |
   | `kst` | per field; see [other momentum](indicators-momentum-other.md) |
   | `stc` | the chained averages' own lookbacks |
+  | `var`, `stddev`, `zscore`, `correl`, `linearreg`, `linearreg_angle`, `linearreg_intercept`, `linearreg_slope`, `tsf` | `window - 1` |
+  | `beta` | `window` |
+  | `cdl*` | per pattern; see [candlestick patterns](patterns.md) |
 
   There is no `min_periods` parameter, so a simple and an exponential moving
   average of the same window line up row for row.
