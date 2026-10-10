@@ -106,14 +106,18 @@ scale.
 Where the close sits inside its recent high/low range, as a percentage. Raw
 fast %K is
 
-$$\mathrm{FastK}_t = 100 \cdot
-\frac{C_t - \min(L_{t-n+1 \ldots t})}{\max(H_{t-n+1 \ldots t}) - \min(L_{t-n+1 \ldots t})}$$
+$$
+\mathrm{FastK}_t = 100 \cdot
+\frac{C_t - \min(L_{t-n+1 \ldots t})}{\max(H_{t-n+1 \ldots t}) - \min(L_{t-n+1 \ldots t})}
+$$
 
 with $n$ = `fastk_period`. Raw fast %K is noisy, so it is smoothed twice, each
 time with a simple moving average:
 
-$$\%K = \mathrm{SMA}(\mathrm{FastK},\ \texttt{slowk\_period}), \qquad
-\%D = \mathrm{SMA}(\%K,\ \texttt{slowd\_period})$$
+$$
+\%K = \mathrm{SMA}(\mathrm{FastK},\ \texttt{slowk\_period}), \qquad
+\%D = \mathrm{SMA}(\%K,\ \texttt{slowd\_period})
+$$
 
 `stoch` returns these *slow* lines, which is what TA-Lib's `STOCH` returns and
 what charting packages normally plot. %D is the signal line, drawn over %K.
