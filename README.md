@@ -209,7 +209,7 @@ ohlcv.with_columns(
 
 ## Indicators
 
-Indicators are grouped by how they are charted. *Overlay* indicators are drawn on the price axis; *momentum* oscillators occupy a separate pane; *volume* indicators weight movement by how much traded; *volatility* indicators measure the size of movement; *cycle* indicators measure its rhythm; *returns* restate price on a percentage scale. Every public indicator is also re-exported from the package root.
+Indicators are grouped by how they are charted. *Overlay* indicators are drawn on the price axis; *momentum* oscillators occupy a separate pane; *volume* indicators weight movement by how much traded; *volatility* indicators measure the size of movement; *cycle* indicators measure its rhythm; *returns* restate price on a percentage scale; *statistics* summarise a window of values rather than reading price action. Every public indicator is also re-exported from the package root. The 61 candlestick recognisers have [their own section](#candlestick-patterns).
 
 | Category | Module | Function | Description |
 | ----- | ------ | -------- | ----------- |
@@ -292,8 +292,36 @@ Indicators are grouped by how they are charted. *Overlay* indicators are drawn o
 | Returns | `returns.performance` | `daily_return(column)` | Daily return, in percent |
 | Returns | `returns.performance` | `daily_log_return(column)` | Daily log return, in percent |
 | Returns | `returns.performance` | `cumulative_return(column)` | Return from the first known value |
+| Statistics | `statistic.dispersion` | `var(column, window=5)` | Population variance |
+| Statistics | `statistic.dispersion` | `stddev(column, window=5, nbdev=1.0)` | Standard deviation, scaled by `nbdev` |
+| Statistics | `statistic.dispersion` | `zscore(column, window=20, ddof=0)` | Deviation from the rolling mean, in standard deviations |
+| Statistics | `statistic.correlation` | `correl(first, second, window=30)` | Pearson's correlation coefficient |
+| Statistics | `statistic.correlation` | `beta(asset, market, window=5)` | Beta against a reference series |
+| Statistics | `statistic.regression` | `linearreg(column, window=14)` | Fitted line at the current bar |
+| Statistics | `statistic.regression` | `linearreg_slope(column, window=14)` | Fitted line's change per bar |
+| Statistics | `statistic.regression` | `linearreg_intercept(column, window=14)` | Fitted line at the window's first bar |
+| Statistics | `statistic.regression` | `linearreg_angle(column, window=14)` | Fitted slope in degrees |
+| Statistics | `statistic.regression` | `tsf(column, window=14)` | Fitted line one bar past the window |
 
 Formulas, warm-up lengths, and shared conventions are in the [indicator reference](docs/indicators.md).
+
+## Candlestick patterns
+
+`polars_ta.pattern` holds all 61 of TA-Lib's candlestick recognisers, from `cdl2crows` to `cdlxsidegap3methods`. Each takes the four price columns and returns an `Int32` column: `0` where the formation is absent, `100` for a bullish reading, `-100` for a bearish one, and null during the warm-up. `cdlhikkake` and `cdlhikkakemod` add `±200` for a later bar that confirms an earlier reading.
+
+```python
+from polars_ta import cdlengulfing, cdlhammer, cdlmorningstar
+
+out = bars.with_columns(
+    cdlengulfing("open", "high", "low", "close").alias("engulfing"),
+    cdlhammer("open", "high", "low", "close").alias("hammer"),
+    cdlmorningstar("open", "high", "low", "close").alias("morning_star"),
+)
+```
+
+"Long", "short" and "near" are judged against the preceding bars, which is why the leading rows of a frame are null: there is nothing yet to compare against. The sign reports the formation's own orientation, not a forecast — a Hammer and a Hanging Man are the same shape, told apart by the trend they appear in, and neither function looks at the trend.
+
+The complete list, with each recogniser's warm-up and the candle settings behind the comparisons, is in the [candlestick pattern reference](docs/patterns.md).
 
 ## Missing values: null and NaN
 
@@ -319,5 +347,6 @@ Tests use plain pytest assertions, `raises` for exceptions, and `mark.parametriz
 ## Project References
 
 - [docs/indicators.md](docs/indicators.md): shared conventions, the complete indicator index, and links to all formula pages.
-- Detailed formula guides: [moving averages](docs/indicators-overlays-averages.md), [price overlays](docs/indicators-overlays-price.md), [momentum oscillators](docs/indicators-momentum-oscillators.md), [trend and direction](docs/indicators-momentum-trend.md), [other momentum](docs/indicators-momentum-other.md), [volume and returns](docs/indicators-volume-returns.md), and [volatility and cycle](docs/indicators-volatility-cycle.md).
+- Detailed formula guides: [moving averages](docs/indicators-overlays-averages.md), [price overlays](docs/indicators-overlays-price.md), [momentum oscillators](docs/indicators-momentum-oscillators.md), [trend and direction](docs/indicators-momentum-trend.md), [other momentum](docs/indicators-momentum-other.md), [volume and returns](docs/indicators-volume-returns.md), [volatility and cycle](docs/indicators-volatility-cycle.md), and [statistics](docs/indicators-statistics.md).
+- [docs/patterns.md](docs/patterns.md): the candlestick recognisers and the candle settings they measure against.
 - [AGENTS.md](AGENTS.md): repository-wide development and validation requirements.
