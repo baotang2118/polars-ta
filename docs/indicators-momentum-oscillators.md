@@ -131,10 +131,10 @@ ohlc.with_columns(stoch("high", "low", "close", 5, 3, 3).alias("st")).unnest("st
 
 The result is a **struct** with fields `k` and `d`, both in $[0, 100]$.
 
-**Warm-up.** $(\texttt{fastk\_period} - 1) + (\texttt{slowk\_period} - 1) +
-(\texttt{slowd\_period} - 1)$ leading nulls, matching the TA-Lib lookback. Both
-fields start on that same row: `k` is held back until `d` exists, because
-TA-Lib emits the two lines aligned.
+**Warm-up.** $(f - 1) + (k - 1) + (d - 1)$ leading nulls, where $f$, $k$, and
+$d$ are `fastk_period`, `slowk_period`, and `slowd_period`, respectively. This
+matches the TA-Lib lookback. Both fields start on that same row: `k` is held
+back until `d` exists, because TA-Lib emits the two lines aligned.
 
 **Degenerate windows.** A window whose high equals its low has no range to
 divide by; that bar's raw %K is **0.0**, following TA-Lib.

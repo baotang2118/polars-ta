@@ -112,14 +112,23 @@ zero reference price contributes `0.0`.
 The MACD line put through two stochastic passes:
 
 $$
-K_t = 100 \cdot \frac{M_t - \min_{i<c} M_{t-i}}
-{\max_{i<c} M_{t-i} - \min_{i<c} M_{t-i}},
+K_t = 100 \cdot
+\frac{
+	M_t - \min_{i<c}(M_{t-i})
+}{
+	\max_{i<c}(M_{t-i}) - \min_{i<c}(M_{t-i})
+},
 \qquad D_t = \mathrm{EMA}_{k}(K)_t
 $$
 
 $$
-\mathrm{STC}_t = \mathrm{EMA}_{d}\!\left(
-100 \cdot \frac{D_t - \min_{i<c} D_{t-i}}{\max_{i<c} D_{t-i} - \min_{i<c} D_{t-i}}
+\mathrm{STC}_t = \mathrm{EMA}_{d}\left(
+	100 \cdot
+	\frac{
+		D_t - \min_{i<c}(D_{t-i})
+	}{
+		\max_{i<c}(D_{t-i}) - \min_{i<c}(D_{t-i})
+	}
 \right)_t
 $$
 
