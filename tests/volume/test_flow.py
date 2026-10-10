@@ -1,8 +1,9 @@
 from typing import Any, cast
 
 import polars as pl
-from _assertions import IndicatorAssertions
+from _assertions import assert_values_equal
 from _data import CLOSE, HIGH, LOW, VOLUME, constant, frame, ramp_up
+from pytest import approx, mark, raises
 
 from polars_ta import ad, adosc, cmf, obv
 
@@ -38,13 +39,13 @@ def column(expr: pl.Expr, bars: pl.DataFrame | None = None) -> list:
     return source.select(expr).to_series().to_list()
 
 
-class TestAd(IndicatorAssertions):
+class TestAd:
     def test_known_values(self) -> None:
         result = column(ad("high", "low", "close", "volume"))
-        self.assert_values_equal(result[: len(AD)], AD)
+        assert_values_equal(result[: len(AD)], AD)
 
     def test_has_no_warm_up(self) -> None:
-        self.assertIsNotNone(column(ad("high", "low", "close", "volume"))[0])
+        assert column(ad("high", "low", "close", "volume"))[0] is not None
 
     def test_close_at_the_high_accumulates_full_volume(self) -> None:
         rising = ramp_up(10)
@@ -56,7 +57,7 @@ class TestAd(IndicatorAssertions):
                 "volume": [100.0] * 10,
             }
         )
-        self.assert_values_equal(
+        assert_values_equal(
             column(ad("high", "low", "close", "volume"), bars),
             [100.0, 200.0, 300.0, 400.0, 500.0, 600.0, 700.0, 800.0, 900.0, 1000.0],
         )
@@ -66,71 +67,70 @@ class TestAd(IndicatorAssertions):
         bars = pl.DataFrame(
             {"high": flat, "low": flat, "close": flat, "volume": [50.0] * 6}
         )
-        self.assert_values_equal(
+        assert_values_equal(
             column(ad("high", "low", "close", "volume"), bars), [0.0] * 6
         )
 
     def test_series_input_is_rejected(self) -> None:
-        with self.assertRaises(TypeError):
+        with raises(TypeError):
             ad(cast(Any, pl.Series("high", HIGH[:5])), "low", "close", "volume")
 
 
-class TestAdosc(IndicatorAssertions):
+class TestAdosc:
     def test_known_values(self) -> None:
         result = column(adosc("high", "low", "close", "volume"))
-        self.assert_values_equal(result[: len(ADOSC_3_10)], ADOSC_3_10)
+        assert_values_equal(result[: len(ADOSC_3_10)], ADOSC_3_10)
 
-    def test_warm_up_is_slow_period_minus_one(self) -> None:
-        for fast, slow in ((3, 10), (2, 6)):
-            with self.subTest(fast=fast, slow=slow):
-                result = column(adosc("high", "low", "close", "volume", fast, slow))
-                self.assertEqual(result[: slow - 1], [None] * (slow - 1))
-                self.assertIsNotNone(result[slow - 1])
+    @mark.parametrize(("fast", "slow"), ((3, 10), (2, 6)))
+    def test_warm_up_is_slow_period_minus_one(self, fast: int, slow: int) -> None:
+        result = column(adosc("high", "low", "close", "volume", fast, slow))
+        assert result[: slow - 1] == [None] * (slow - 1)
+        assert result[slow - 1] is not None
 
     def test_invalid_period_raises(self) -> None:
-        with self.assertRaises(ValueError):
+        with raises(ValueError):
             adosc("high", "low", "close", "volume", 0, 10)
 
 
-class TestObv(IndicatorAssertions):
+class TestObv:
     def test_known_values(self) -> None:
         result = column(obv("close", "volume"))
-        self.assert_values_equal(result[: len(OBV)], OBV)
+        assert_values_equal(result[: len(OBV)], OBV)
 
     def test_first_bar_seeds_with_its_own_volume(self) -> None:
-        self.assertAlmostEqual(column(obv("close", "volume"))[0], VOLUME[0], places=10)
+        result = column(obv("close", "volume"))[0]
+        assert result == approx(VOLUME[0], rel=0, abs=5e-11)
 
     def test_rising_series_accumulates(self) -> None:
         rising = ramp_up(10)
         bars = pl.DataFrame({"close": rising, "volume": [20.0] * 10})
-        self.assert_values_equal(
+        assert_values_equal(
             column(obv("close", "volume"), bars),
             [20.0, 40.0, 60.0, 80.0, 100.0, 120.0, 140.0, 160.0, 180.0, 200.0],
         )
 
     def test_unchanged_close_contributes_nothing(self) -> None:
         bars = pl.DataFrame({"close": constant(5, 2.0), "volume": [30.0] * 5})
-        self.assert_values_equal(column(obv("close", "volume"), bars), [30.0] * 5)
+        assert_values_equal(column(obv("close", "volume"), bars), [30.0] * 5)
 
     def test_series_input_is_rejected(self) -> None:
-        with self.assertRaises(TypeError):
+        with raises(TypeError):
             obv(
                 cast(Any, pl.Series("close", CLOSE[:LENGTH])),
                 cast(Any, pl.Series("volume", VOLUME[:LENGTH])),
             )
 
 
-class TestCmf(IndicatorAssertions):
+class TestCmf:
     def test_known_values(self) -> None:
         result = column(cmf("high", "low", "close", "volume", 20))
-        self.assert_values_equal(result[: len(CMF_20)], CMF_20)
+        assert_values_equal(result[: len(CMF_20)], CMF_20)
 
-    def test_warm_up_is_window_minus_one(self) -> None:
-        for window in (5, 14, 20):
-            with self.subTest(window=window):
-                result = column(cmf("high", "low", "close", "volume", window))
-                self.assertEqual(result[: window - 1], [None] * (window - 1))
-                self.assertIsNotNone(result[window - 1])
+    @mark.parametrize("window", (5, 14, 20))
+    def test_warm_up_is_window_minus_one(self, window: int) -> None:
+        result = column(cmf("high", "low", "close", "volume", window))
+        assert result[: window - 1] == [None] * (window - 1)
+        assert result[window - 1] is not None
 
     def test_close_at_the_high_reads_one(self) -> None:
         rising = ramp_up(10)
@@ -142,7 +142,7 @@ class TestCmf(IndicatorAssertions):
                 "volume": [100.0] * 10,
             }
         )
-        self.assert_values_equal(
+        assert_values_equal(
             column(cmf("high", "low", "close", "volume", 4), bars),
             [None, None, None] + [1.0] * 7,
         )
@@ -157,11 +157,11 @@ class TestCmf(IndicatorAssertions):
                 "volume": [0.0] * 5,
             }
         )
-        self.assert_values_equal(
+        assert_values_equal(
             column(cmf("high", "low", "close", "volume", 3), bars),
             [None, None, 0.0, 0.0, 0.0],
         )
 
     def test_invalid_window_raises(self) -> None:
-        with self.assertRaises(ValueError):
+        with raises(ValueError):
             cmf("high", "low", "close", "volume", 0)

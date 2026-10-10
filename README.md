@@ -2,28 +2,11 @@
 
 A Python technical-indicator library designed around Polars and PyArrow.
 
-Indicators are expression-only: every function returns a `pl.Expr` that composes inside `select`/`with_columns` and runs lazily. Series and DataFrame inputs are not accepted — convert them outside the library.
-
-Hilbert cycle indicators use datatype instances internally for static type compatibility; their output types and calculations are unchanged.
-
-The shared Hilbert engine initializes independent, typed output buffers; cycle and MAMA calculations are unchanged.
-It also checks non-null reads within the prefix preceding the first null; recursion still stops at that null.
-
-DX, ADX, ADXR, stochastic oscillators, Williams %R, Aroon, Awesome Oscillator, CCI, Mass Index, Vortex, and Ultimate Oscillator explicitly unpack converted price inputs for static argument checking; their public APIs and calculations are unchanged.
-
-Money Flow Index likewise explicitly unpacks its price and volume inputs for static argument checking, with no calculation or API changes.
-Channel overlays, MAVP, Ichimoku, Midprice, SAR, Supertrend, and parameterized volume indicators follow the same input-unpacking pattern. SAR checks its non-null initial and preceding bars internally while preserving its null termination and reversal rules.
-
-KST and Ultimate Oscillator check their internal non-empty accumulation invariants for static type compatibility; their weighted formulas and warm-ups are unchanged.
-
 ## Quick start
-
-Test maintenance: the read-only OHLCV fixture helper accepts nullable and non-null price sequences; indicator APIs and calculations are unchanged.
-Rejection tests across the indicator groups use explicit casts for deliberately invalid inputs, and read-only evaluation helpers accept sequences; runtime validation coverage is unchanged.
 
 ### 1. Install
 
-The library requires Python 3.10+ and depends on `polars` and `pyarrow`. From a clone of the repository:
+The library requires Python 3.12+ and depends on `polars` and `pyarrow`. From a clone of the repository:
 
 ```sh
 uv sync        # or: pip install .
@@ -182,7 +165,7 @@ Output columns are ordinary Polars columns, so filter, join, or group them as us
 oversold = out.filter((pl.col("rsi_14") < 30) | (pl.col("close") < pl.col("lower")))
 ```
 
-Find the function you need in the [Indicators](#indicators) table below, and see [docs/indicators.md](docs/indicators.md) for formulas and worked examples.
+Every function is listed in the [Indicators](#indicators) table below.
 
 ## Inputs are expressions only
 
@@ -227,8 +210,6 @@ ohlcv.with_columns(
 ## Indicators
 
 Indicators are grouped by how they are charted. *Overlay* indicators are drawn on the price axis; *momentum* oscillators occupy a separate pane; *volume* indicators weight movement by how much traded; *volatility* indicators measure the size of movement; *cycle* indicators measure its rhythm; *returns* restate price on a percentage scale. Every public indicator is also re-exported from the package root.
-
-Every indicator in [indicators.md](indicators.md) is implemented, along with a few TA-Lib does not carry: `donchian`, `keltner`, `supertrend`, and `ichimoku`.
 
 | Category | Module | Function | Description |
 | ----- | ------ | -------- | ----------- |
@@ -312,80 +293,17 @@ Every indicator in [indicators.md](indicators.md) is implemented, along with a f
 | Returns | `returns.performance` | `daily_log_return(column)` | Daily log return, in percent |
 | Returns | `returns.performance` | `cumulative_return(column)` | Return from the first known value |
 
-
-```python
-import polars as pl
-from polars_ta import adx, atr, bbands, cci, ema, macd, mfi, rsi, sma, stoch, wma
-
-df = pl.DataFrame({"close": [1.0, 3.0, 2.0, 6.0, 5.0, 9.0]})
-df.with_columns(
-    sma("close", 3).alias("sma_3"),
-    wma("close", 3).alias("wma_3"),
-    ema("close", 3).alias("ema_3"),
-    rsi("close", 3).alias("rsi_3"),
-)
-```
-
-`bbands` returns a single struct column, so one call stays one expression. `stoch` and `macd` work the same way:
-
-```python
-df.with_columns(bbands("close", 20).alias("bb")).unnest("bb")  # three columns
-df.with_columns(bbands("close", 20).struct.field("upper"))  # just one band
-df.with_columns(macd("close").alias("m")).unnest("m")  # macd, signal, histogram
-```
-
-Indicators needing several price columns take them positionally, in TA-Lib's order:
-
-```python
-ohlcv.with_columns(
-    mfi("high", "low", "close", "volume", 14).alias("mfi_14"),
-    cci("high", "low", "close", 14).alias("cci_14"),
-    atr("high", "low", "close", 14).alias("atr_14"),
-    stoch("high", "low", "close").alias("st"),
-    adx("high", "low", "close").alias("a"),
-)
-```
-
-Two caveats worth knowing before you reach for them:
-
-- `supertrend`, `kama`, `sar`, `sarext`, `mama`, and the `ht_*` cycle indicators are sequential recursions with no Polars primitive, so they run a Python scan inside `map_batches`. They still return a `pl.Expr` and still work lazily, but they are much slower than the other indicators.
-- `ichimoku`'s `lagging` line is the close shifted *backward*, so each row holds a future close. That is correct for plotting but is a lookahead bug if fed straight into a backtest signal. `dpo` has the mirror-image property: it compares against a *centred* average, so it describes past cycles rather than the current bar.
-
-`vwap` is the rolling form rather than the session-anchored one, so set `window` to the number of bars in your session if that is what you need:
-
-```python
-ohlcv.with_columns(
-    vwap("high", "low", "close", "volume", 14).alias("vwap_14"),
-    cmf("high", "low", "close", "volume", 20).alias("cmf_20"),
-    vortex("high", "low", "close", 14).alias("vi"),
-)
-```
-
-A few indicators take a runtime-selected average through `ma_type`, which accepts any name in `polars_ta.MA_TYPES` (`"sma"`, `"ema"`, `"wma"`, `"dema"`, `"tema"`, `"trima"`, `"kama"`, `"mama"`, `"t3"`):
-
-```python
-ma("close", 20, ma_type="trima")
-apo("close", 12, 26, ma_type="ema")
-macdext("close", 12, 26, 9, signal_ma_type="wma")
-```
-
-`ema` defaults to the TA-Lib convention, seeding the recursion with the simple moving average of the first complete window. Pass `mode="recursive"` or `mode="adjust"` for the pandas `ewm(adjust=False)` and `ewm(adjust=True)` conventions, or `alpha=` to override the default smoothing factor of `2 / (window + 1)`. `dema`, `tema`, and `macd` chain further EMA passes and accept the same `mode`.
-
-Every indicator emits exactly the TA-Lib lookback as leading nulls: `window - 1` for the single-pass moving averages, `bbands`, `cci`, `donchian`, `midpoint`, `midprice`, `trima`, `willr`, `cmf`, and `vwap`; `2 * (window - 1)`, `3 * (window - 1)`, and `6 * (window - 1)` for `dema`, `tema`, and `t3`; `window` for `rsi`, `cmo`, `mfi`, `atr`, `natr`, `kama`, `supertrend`, `aroon`, `dx`, `fi`, `eom`, `vortex`, and the directional indicators; `window - 1` for `plus_dm`/`minus_dm`; `2 * window - 1` for `adx` and `3 * window - 2` for `adxr`; `1` for `sar`, `sarext`, `daily_return`, and `daily_log_return`; `2 * (window - 1)` for `ulcer`; `32` for `ht_dcperiod`, `ht_phasor`, and `mama`; `63` for the remaining `ht_*` indicators; and nothing at all for `bop`, `ad`, `obv`, `vpt`, `nvi`, `cumulative_return`, and the price transforms. Struct fields start on the same row where TA-Lib emits them together, and keep their own warm-ups where TA-Lib treats them as separate functions. `donchian`, `keltner`, `ichimoku`, and `kst` likewise let each field reflect only the inputs it depends on — `keltner`'s `middle` starts after `window - 1` rows while its edges wait for the ATR. See [docs/indicators.md](docs/indicators.md) for the formulas, null-handling rules, and worked examples.
+Formulas, warm-up lengths, and shared conventions are in the [indicator reference](docs/indicators.md).
 
 ## Missing values: null and NaN
 
 Null is the convention. Warm-up rows, rows whose window contains a null input, and unavailable results are all reported as null.
 
-NaN is a different value in Polars: `is_null()` is false for NaN, and `fill_null()` does not replace it. NaN can still appear in two ways:
-
-- **Input NaN.** The indicators do not convert NaN to null, so a NaN input propagates into the output rows that depend on it. Convert it first if you want it treated as missing:
+NaN is a different value in Polars: `is_null()` is false for NaN, and `fill_null()` does not replace it. Indicator functions do not convert NaN inputs to null, so a NaN propagates into the output rows that depend on it. Convert it first if you want it treated as missing:
 
   ```python
   df = df.with_columns(pl.col(pl.Float64).fill_nan(None))
   ```
-
-- **Undefined results.** `daily_log_return` yields NaN where the price changes sign, because the logarithm is undefined there.
 
 ## Development
 
@@ -396,13 +314,10 @@ uv sync --dev
 uv run pytest
 ```
 
-Tests use `unittest.TestCase` assertions and are executed with pytest. Module-level fixtures such as `LENGTH` and `BARS` are explicitly annotated. Follow [AGENTS.md](AGENTS.md) for the Python linting and formatting workflow.
-
-Expected values are checked-in constants. Each test module declares frozen tables such as `MACD_LINE` or `ATR_5` near the top and compares the indicator against them, rather than recomputing an expectation while the test runs. A table covers the indicator's warm-up plus the first live bars; warm-up length, value bounds, and null propagation are asserted separately over the full series. Tests that state a relationship between two public calls — `pvo` against `ppo`, `macdfix` against `macd(12, 26)`, a column name against the equivalent expression — compare the two calls directly and are not frozen.
+Tests use plain pytest assertions, `raises` for exceptions, and `mark.parametrize` for repeated cases. Expected outputs are fixed constants; warm-up, bounds, null handling, and relationships between indicators are tested separately.
 
 ## Project References
 
-- [docs/indicators.md](docs/indicators.md): shared conventions, the indicator index, and the overlay formulas.
-- [docs/indicators-oscillators.md](docs/indicators-oscillators.md): momentum, volume, volatility, cycle, and returns formulas.
-- [KNOWLEDGE.md](KNOWLEDGE.md): package structure, design principles, and dependency guidance.
+- [docs/indicators.md](docs/indicators.md): shared conventions, the complete indicator index, and links to all formula pages.
+- Detailed formula guides: [moving averages](docs/indicators-overlays-averages.md), [price overlays](docs/indicators-overlays-price.md), [momentum oscillators](docs/indicators-momentum-oscillators.md), [trend and direction](docs/indicators-momentum-trend.md), [other momentum](docs/indicators-momentum-other.md), [volume and returns](docs/indicators-volume-returns.md), and [volatility and cycle](docs/indicators-volatility-cycle.md).
 - [AGENTS.md](AGENTS.md): repository-wide development and validation requirements.

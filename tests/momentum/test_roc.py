@@ -1,9 +1,10 @@
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from typing import Any, cast
 
 import polars as pl
-from _assertions import IndicatorAssertions
+from _assertions import assert_values_equal
 from _data import HAND_CHECKED, constant, with_null
+from pytest import mark, raises
 
 from polars_ta import mom, roc, rocp, rocr, rocr100
 
@@ -100,7 +101,7 @@ def evaluate(expr: pl.Expr, values: Sequence[float | None] | None = None):
     return pl.DataFrame({"close": data}).select(expr).to_series().to_list()
 
 
-class TestRateOfChange(IndicatorAssertions):
+class TestRateOfChange:
     def test_known_values(self) -> None:
         cases = (
             (MOM, mom),
@@ -111,69 +112,65 @@ class TestRateOfChange(IndicatorAssertions):
         )
         for table, function in cases:
             for window, expected in table.items():
-                with self.subTest(function=function.__name__, window=window):
-                    self.assert_values_equal(
-                        evaluate(function("close", window)), expected
-                    )
+                assert_values_equal(evaluate(function("close", window)), expected)
 
-    def test_warm_up_is_window_nulls(self) -> None:
-        for function in (mom, roc, rocp, rocr, rocr100):
-            for window in (1, 4, 7):
-                with self.subTest(function=function.__name__, window=window):
-                    result = evaluate(function("close", window))
-                    self.assertEqual(result[:window], [None] * window)
-                    self.assertIsNotNone(result[window])
+    @mark.parametrize("function", (mom, roc, rocp, rocr, rocr100))
+    @mark.parametrize("window", (1, 4, 7))
+    def test_warm_up_is_window_nulls(
+        self, function: Callable[..., pl.Expr], window: int
+    ) -> None:
+        result = evaluate(function("close", window))
+        assert result[:window] == [None] * window
+        assert result[window] is not None
 
     def test_families_are_consistent(self) -> None:
         ratio = evaluate(rocr("close", 4))
-        self.assert_values_equal(
+        assert_values_equal(
             evaluate(rocr100("close", 4)),
             [None if value is None else value * 100.0 for value in ratio],
         )
-        self.assert_values_equal(
+        assert_values_equal(
             evaluate(roc("close", 4)),
             [None if value is None else (value - 1.0) * 100.0 for value in ratio],
         )
-        self.assert_values_equal(
+        assert_values_equal(
             evaluate(rocp("close", 4)),
             [None if value is None else value - 1.0 for value in ratio],
         )
 
     def test_flat_series_has_no_change(self) -> None:
         flat = constant(8, 4.0)
-        self.assert_values_equal(evaluate(mom("close", 3), flat)[3:], [0.0] * 5)
-        self.assert_values_equal(evaluate(roc("close", 3), flat)[3:], [0.0] * 5)
-        self.assert_values_equal(evaluate(rocr("close", 3), flat)[3:], [1.0] * 5)
+        assert_values_equal(evaluate(mom("close", 3), flat)[3:], [0.0] * 5)
+        assert_values_equal(evaluate(roc("close", 3), flat)[3:], [0.0] * 5)
+        assert_values_equal(evaluate(rocr("close", 3), flat)[3:], [1.0] * 5)
 
     def test_zero_reference_price_reports_zero(self) -> None:
         values = [0.0, 0.0, 5.0, 6.0]
         for function in (roc, rocp, rocr, rocr100):
-            with self.subTest(function=function.__name__):
-                self.assert_values_equal(
-                    evaluate(function("close", 2), values), [None, None, 0.0, 0.0]
-                )
+            assert_values_equal(
+                evaluate(function("close", 2), values), [None, None, 0.0, 0.0]
+            )
 
     def test_null_blanks_both_endpoints(self) -> None:
         values = with_null(VALUES, 4)
         result = evaluate(roc("close", 3), values)
-        self.assertIsNone(result[4])
-        self.assertIsNone(result[7])
-        self.assertIsNotNone(result[6])
-        self.assertIsNotNone(result[8])
+        assert result[4] is None
+        assert result[7] is None
+        assert result[6] is not None
+        assert result[8] is not None
 
-    def test_default_window_is_ten(self) -> None:
-        for function in (mom, roc, rocp, rocr, rocr100):
-            with self.subTest(function=function.__name__):
-                self.assert_values_equal(
-                    evaluate(function("close")), evaluate(function("close", 10))
-                )
+    @mark.parametrize("function", (mom, roc, rocp, rocr, rocr100))
+    def test_default_window_is_ten(self, function: Callable[..., pl.Expr]) -> None:
+        assert_values_equal(
+            evaluate(function("close")), evaluate(function("close", 10))
+        )
 
     def test_name_and_expression_agree(self) -> None:
         from_name = evaluate(roc("close", 3))
-        self.assert_values_equal(evaluate(roc(pl.col("close"), 3)), from_name)
+        assert_values_equal(evaluate(roc(pl.col("close"), 3)), from_name)
 
     def test_series_input_is_rejected(self) -> None:
-        with self.assertRaises(TypeError):
+        with raises(TypeError):
             mom(cast(Any, pl.Series("close", VALUES)), 3)
 
     def test_expression_works_in_a_lazy_frame(self) -> None:
@@ -182,13 +179,12 @@ class TestRateOfChange(IndicatorAssertions):
             .with_columns(roc("close", 3).alias("roc"))
             .collect()
         )
-        self.assert_values_equal(collected["roc"].to_list(), ROC[3])
+        assert_values_equal(collected["roc"].to_list(), ROC[3])
 
-    def test_invalid_window_raises(self) -> None:
-        for function in (mom, roc, rocp, rocr, rocr100):
-            for window in (0, -1, 2.5):
-                with (
-                    self.subTest(function=function.__name__, window=window),
-                    self.assertRaises(ValueError),
-                ):
-                    function("close", cast(Any, window))
+    @mark.parametrize("function", (mom, roc, rocp, rocr, rocr100))
+    @mark.parametrize("window", (0, -1, 2.5))
+    def test_invalid_window_raises(
+        self, function: Callable[..., pl.Expr], window: float
+    ) -> None:
+        with raises(ValueError):
+            function("close", cast(Any, window))

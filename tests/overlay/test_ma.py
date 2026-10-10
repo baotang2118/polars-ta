@@ -2,8 +2,9 @@ from collections.abc import Sequence
 from typing import Any, cast
 
 import polars as pl
-from _assertions import IndicatorAssertions
+from _assertions import assert_values_equal
 from _data import HAND_CHECKED
+from pytest import mark, raises
 
 from polars_ta import dema, ema, sma, tema, wma
 
@@ -154,239 +155,228 @@ def evaluate(
     return pl.DataFrame({"close": data}).select(expr).to_series().to_list()
 
 
-class TestSma(IndicatorAssertions):
+class TestSma:
     def test_known_values(self) -> None:
-        self.assert_values_equal(evaluate(sma("close", 3)), SMA_3)
+        assert_values_equal(evaluate(sma("close", 3)), SMA_3)
 
     def test_warm_up_is_window_minus_one_nulls(self) -> None:
         result = evaluate(sma("close", 4))
-        self.assertEqual(result[:3], [None, None, None])
-        self.assertIsNotNone(result[3])
+        assert result[:3] == [None, None, None]
+        assert result[3] is not None
 
     def test_window_of_one_is_identity(self) -> None:
-        self.assert_values_equal(evaluate(sma("close", 1)), VALUES)
+        assert_values_equal(evaluate(sma("close", 1)), VALUES)
 
     def test_null_blanks_every_overlapping_window(self) -> None:
-        self.assert_values_equal(
+        assert_values_equal(
             evaluate(sma("close", 3), NULL_VALUES),
             [None, None, None, None, None, 5.0],
         )
 
     def test_window_longer_than_input_is_all_null(self) -> None:
-        self.assertEqual(evaluate(sma("close", len(VALUES) + 1)), [None] * len(VALUES))
+        assert evaluate(sma("close", len(VALUES) + 1)) == [None] * len(VALUES)
 
-    def test_invalid_window_raises(self) -> None:
-        for window in (0, -1):
-            with self.subTest(window=window), self.assertRaises(ValueError):
-                sma("close", window)
+    @mark.parametrize("window", (0, -1))
+    def test_invalid_window_raises(self, window: int) -> None:
+        with raises(ValueError):
+            sma("close", window)
 
     def test_non_integer_window_raises(self) -> None:
-        with self.assertRaises(ValueError):
+        with raises(ValueError):
             sma("close", cast(Any, 2.5))
 
 
-class TestEma(IndicatorAssertions):
+class TestEma:
     def test_talib_mode_matches_sma_seeded_recursion(self) -> None:
-        self.assert_values_equal(evaluate(ema("close", 3)), EMA_TALIB_3)
+        assert_values_equal(evaluate(ema("close", 3)), EMA_TALIB_3)
 
     def test_recursive_mode_matches_unadjusted_recursion(self) -> None:
-        self.assert_values_equal(
+        assert_values_equal(
             evaluate(ema("close", 4, mode="recursive")), EMA_RECURSIVE_4
         )
 
     def test_adjust_mode_matches_weighted_average(self) -> None:
-        self.assert_values_equal(evaluate(ema("close", 4, mode="adjust")), EMA_ADJUST_4)
+        assert_values_equal(evaluate(ema("close", 4, mode="adjust")), EMA_ADJUST_4)
 
     def test_explicit_alpha_overrides_window_default(self) -> None:
-        self.assert_values_equal(
+        assert_values_equal(
             evaluate(ema("close", 3, alpha=0.25)), EMA_TALIB_3_ALPHA_025
         )
 
     def test_default_alpha_is_two_over_window_plus_one(self) -> None:
-        self.assert_values_equal(
+        assert_values_equal(
             evaluate(ema("close", 4)), evaluate(ema("close", 4, alpha=0.4))
         )
 
-    def test_every_mode_warms_up_for_window_minus_one_rows(self) -> None:
-        for mode in ("talib", "adjust", "recursive"):
-            with self.subTest(mode=mode):
-                result = evaluate(ema("close", 3, mode=mode))
-                self.assertEqual(result[:2], [None, None])
-                self.assertIsNotNone(result[2])
+    @mark.parametrize("mode", ("talib", "adjust", "recursive"))
+    def test_every_mode_warms_up_for_window_minus_one_rows(self, mode: str) -> None:
+        result = evaluate(ema("close", 3, mode=cast(Any, mode)))
+        assert result[:2] == [None, None]
+        assert result[2] is not None
 
     def test_null_in_seed_window_delays_the_seed(self) -> None:
-        self.assert_values_equal(
+        assert_values_equal(
             evaluate(ema("close", 3, alpha=0.5), NULL_VALUES),
             [None, None, None, None, None, 5.0],
         )
 
     def test_window_longer_than_input_is_all_null(self) -> None:
-        self.assertEqual(evaluate(ema("close", len(VALUES) + 1)), [None] * len(VALUES))
+        assert evaluate(ema("close", len(VALUES) + 1)) == [None] * len(VALUES)
 
-    def test_invalid_alpha_raises(self) -> None:
-        for alpha in (0.0, -0.5, 1.5):
-            with self.subTest(alpha=alpha), self.assertRaises(ValueError):
-                ema("close", 3, alpha=alpha)
+    @mark.parametrize("alpha", (0.0, -0.5, 1.5))
+    def test_invalid_alpha_raises(self, alpha: float) -> None:
+        with raises(ValueError):
+            ema("close", 3, alpha=alpha)
 
     def test_alpha_of_one_is_allowed(self) -> None:
-        self.assert_values_equal(evaluate(ema("close", 1, alpha=1.0)), VALUES)
+        assert_values_equal(evaluate(ema("close", 1, alpha=1.0)), VALUES)
 
     def test_invalid_mode_raises(self) -> None:
-        with self.assertRaises(ValueError):
+        with raises(ValueError):
             ema("close", 3, mode=cast(Any, "exponential"))
 
     def test_invalid_window_raises(self) -> None:
-        with self.assertRaises(ValueError):
+        with raises(ValueError):
             ema("close", 0)
 
 
-class TestWma(IndicatorAssertions):
+class TestWma:
     def test_known_values_over_the_hand_checked_series(self) -> None:
-        self.assert_values_equal(evaluate(wma("close", 3)), WMA_3)
+        assert_values_equal(evaluate(wma("close", 3)), WMA_3)
 
     def test_known_values(self) -> None:
-        self.assert_values_equal(evaluate(wma("close", 3), SHORT_VALUES), WMA_3_SHORT)
+        assert_values_equal(evaluate(wma("close", 3), SHORT_VALUES), WMA_3_SHORT)
 
     def test_weights_favour_the_most_recent_value(self) -> None:
         values = [0.0, 0.0, 3.0]
-        self.assert_values_equal(evaluate(wma("close", 3), values), [None, None, 1.5])
+        assert_values_equal(evaluate(wma("close", 3), values), [None, None, 1.5])
 
     def test_warm_up_is_window_minus_one_nulls(self) -> None:
         result = evaluate(wma("close", 4))
-        self.assertEqual(result[:3], [None, None, None])
-        self.assertIsNotNone(result[3])
+        assert result[:3] == [None, None, None]
+        assert result[3] is not None
 
     def test_window_of_one_is_identity(self) -> None:
-        self.assert_values_equal(evaluate(wma("close", 1)), VALUES)
+        assert_values_equal(evaluate(wma("close", 1)), VALUES)
 
     def test_null_blanks_every_overlapping_window(self) -> None:
-        self.assert_values_equal(
-            evaluate(wma("close", 3), NULL_VALUES), WMA_3_WITH_NULL
-        )
+        assert_values_equal(evaluate(wma("close", 3), NULL_VALUES), WMA_3_WITH_NULL)
 
     def test_integer_input_matches_float_input(self) -> None:
         integers = pl.DataFrame({"close": [1, 3, 2, 6, 5]})
-        self.assert_values_equal(
+        assert_values_equal(
             integers.select(wma("close", 3)).to_series().to_list(), WMA_3_SHORT
         )
 
     def test_window_longer_than_input_is_all_null(self) -> None:
-        self.assertEqual(evaluate(wma("close", len(VALUES) + 1)), [None] * len(VALUES))
+        assert evaluate(wma("close", len(VALUES) + 1)) == [None] * len(VALUES)
 
-    def test_invalid_window_raises(self) -> None:
-        for window in (0, -1):
-            with self.subTest(window=window), self.assertRaises(ValueError):
-                wma("close", window)
+    @mark.parametrize("window", (0, -1))
+    def test_invalid_window_raises(self, window: int) -> None:
+        with raises(ValueError):
+            wma("close", window)
 
 
-class TestDema(IndicatorAssertions):
+class TestDema:
     def test_known_values_over_the_long_series(self) -> None:
-        self.assert_values_equal(evaluate(dema("close", 3), LONG_VALUES), DEMA_3)
+        assert_values_equal(evaluate(dema("close", 3), LONG_VALUES), DEMA_3)
 
     def test_known_values(self) -> None:
         result = evaluate(dema("close", 3), LONG_VALUES)
-        self.assert_values_equal(result[4:6], [5.5, 8.375])
+        assert_values_equal(result[4:6], [5.5, 8.375])
 
-    def test_warm_up_is_twice_window_minus_one(self) -> None:
-        for window in (2, 3, 4):
-            with self.subTest(window=window):
-                result = evaluate(dema("close", window), LONG_VALUES)
-                self.assertEqual(result[: 2 * (window - 1)], [None] * 2 * (window - 1))
-                self.assertIsNotNone(result[2 * (window - 1)])
+    @mark.parametrize("window", (2, 3, 4))
+    def test_warm_up_is_twice_window_minus_one(self, window: int) -> None:
+        result = evaluate(dema("close", window), LONG_VALUES)
+        assert result[: 2 * (window - 1)] == [None] * 2 * (window - 1)
+        assert result[2 * (window - 1)] is not None
 
     def test_explicit_alpha_overrides_window_default(self) -> None:
-        self.assert_values_equal(
+        assert_values_equal(
             evaluate(dema("close", 3, alpha=0.25), LONG_VALUES), DEMA_3_ALPHA_025
         )
 
-    def test_every_mode_is_supported(self) -> None:
-        for mode in ("talib", "adjust", "recursive"):
-            with self.subTest(mode=mode):
-                result = evaluate(dema("close", 3, mode=mode), LONG_VALUES)
-                self.assertEqual(result[:4], [None] * 4)
-                self.assertIsNotNone(result[4])
+    @mark.parametrize("mode", ("talib", "adjust", "recursive"))
+    def test_every_mode_is_supported(self, mode: str) -> None:
+        result = evaluate(dema("close", 3, mode=cast(Any, mode)), LONG_VALUES)
+        assert result[:4] == [None] * 4
+        assert result[4] is not None
 
     def test_window_longer_than_input_is_all_null(self) -> None:
-        self.assertEqual(evaluate(dema("close", len(VALUES))), [None] * len(VALUES))
+        assert evaluate(dema("close", len(VALUES))) == [None] * len(VALUES)
 
     def test_invalid_arguments_raise(self) -> None:
-        with self.assertRaises(ValueError):
+        with raises(ValueError):
             dema("close", 0)
-        with self.assertRaises(ValueError):
+        with raises(ValueError):
             dema("close", 3, alpha=0.0)
-        with self.assertRaises(ValueError):
+        with raises(ValueError):
             dema("close", 3, mode=cast(Any, "double"))
 
 
-class TestTema(IndicatorAssertions):
+class TestTema:
     def test_known_values_over_the_long_series(self) -> None:
-        self.assert_values_equal(evaluate(tema("close", 3), LONG_VALUES), TEMA_3)
+        assert_values_equal(evaluate(tema("close", 3), LONG_VALUES), TEMA_3)
 
     def test_known_values(self) -> None:
         result = evaluate(tema("close", 3), LONG_VALUES)
-        self.assert_values_equal(result[6:8], [5.0, 7.453125])
+        assert_values_equal(result[6:8], [5.0, 7.453125])
 
-    def test_warm_up_is_three_times_window_minus_one(self) -> None:
-        for window in (2, 3, 4):
-            with self.subTest(window=window):
-                result = evaluate(tema("close", window), LONG_VALUES)
-                self.assertEqual(result[: 3 * (window - 1)], [None] * 3 * (window - 1))
-                self.assertIsNotNone(result[3 * (window - 1)])
+    @mark.parametrize("window", (2, 3, 4))
+    def test_warm_up_is_three_times_window_minus_one(self, window: int) -> None:
+        result = evaluate(tema("close", window), LONG_VALUES)
+        assert result[: 3 * (window - 1)] == [None] * 3 * (window - 1)
+        assert result[3 * (window - 1)] is not None
 
     def test_explicit_alpha_overrides_window_default(self) -> None:
-        self.assert_values_equal(
+        assert_values_equal(
             evaluate(tema("close", 3, alpha=0.25), LONG_VALUES), TEMA_3_ALPHA_025
         )
 
-    def test_every_mode_is_supported(self) -> None:
-        for mode in ("talib", "adjust", "recursive"):
-            with self.subTest(mode=mode):
-                result = evaluate(tema("close", 3, mode=mode), LONG_VALUES)
-                self.assertEqual(result[:6], [None] * 6)
-                self.assertIsNotNone(result[6])
+    @mark.parametrize("mode", ("talib", "adjust", "recursive"))
+    def test_every_mode_is_supported(self, mode: str) -> None:
+        result = evaluate(tema("close", 3, mode=cast(Any, mode)), LONG_VALUES)
+        assert result[:6] == [None] * 6
+        assert result[6] is not None
 
     def test_window_longer_than_input_is_all_null(self) -> None:
-        self.assertEqual(evaluate(tema("close", len(VALUES))), [None] * len(VALUES))
+        assert evaluate(tema("close", len(VALUES))) == [None] * len(VALUES)
 
     def test_invalid_arguments_raise(self) -> None:
-        with self.assertRaises(ValueError):
+        with raises(ValueError):
             tema("close", 0)
-        with self.assertRaises(ValueError):
+        with raises(ValueError):
             tema("close", 3, alpha=1.5)
-        with self.assertRaises(ValueError):
+        with raises(ValueError):
             tema("close", 3, mode=cast(Any, "triple"))
 
 
-class TestInputForms(IndicatorAssertions):
-    def test_name_and_expression_agree(self) -> None:
-        for indicator in (sma, ema, wma, dema, tema):
-            with self.subTest(indicator=indicator.__name__):
-                from_name = evaluate(indicator("close", 3), LONG_VALUES)
-                from_expr = evaluate(indicator(pl.col("close"), 3), LONG_VALUES)
-                self.assert_values_equal(from_expr, from_name)
+class TestInputForms:
+    @mark.parametrize("indicator", (sma, ema, wma, dema, tema))
+    def test_name_and_expression_agree(self, indicator: Any) -> None:
+        from_name = evaluate(indicator("close", 3), LONG_VALUES)
+        from_expr = evaluate(indicator(pl.col("close"), 3), LONG_VALUES)
+        assert_values_equal(from_expr, from_name)
 
-    def test_series_input_is_rejected(self) -> None:
-        for indicator in (sma, ema, wma, dema, tema):
-            with (
-                self.subTest(indicator=indicator.__name__),
-                self.assertRaises(TypeError),
-            ):
-                indicator(cast(Any, pl.Series("close", VALUES)), 3)
+    @mark.parametrize("indicator", (sma, ema, wma, dema, tema))
+    def test_series_input_is_rejected(self, indicator: Any) -> None:
+        with raises(TypeError):
+            indicator(cast(Any, pl.Series("close", VALUES)), 3)
 
     def test_expression_works_in_a_lazy_frame(self) -> None:
         frame = pl.LazyFrame({"close": VALUES}).with_columns(
             sma("close", 3).alias("sma"), ema("close", 3).alias("ema")
         )
         collected = frame.collect()
-        self.assertEqual(collected.columns, ["close", "sma", "ema"])
-        self.assert_values_equal(collected["ema"].to_list(), EMA_TALIB_3)
+        assert collected.columns == ["close", "sma", "ema"]
+        assert_values_equal(collected["ema"].to_list(), EMA_TALIB_3)
 
     def test_integer_input_produces_float_output(self) -> None:
         frame = pl.DataFrame({"close": [1, 2, 3, 4]})
         result = frame.select(sma("close", 2), ema("close", 2).alias("ema"))
-        self.assertEqual(result["close"].dtype, pl.Float64)
-        self.assertEqual(result["ema"].dtype, pl.Float64)
+        assert result["close"].dtype == pl.Float64
+        assert result["ema"].dtype == pl.Float64
 
     def test_unsupported_input_type_raises(self) -> None:
-        with self.assertRaises(TypeError):
+        with raises(TypeError):
             sma(cast(Any, [1.0, 2.0]), 2)

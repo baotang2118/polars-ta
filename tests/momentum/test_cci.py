@@ -1,7 +1,7 @@
 from typing import Any, cast
 
 import polars as pl
-from _assertions import IndicatorAssertions
+from _assertions import assert_values_equal
 from _data import (
     CLOSE,
     HIGH,
@@ -12,6 +12,7 @@ from _data import (
     ramp_up,
     with_null,
 )
+from pytest import approx, mark, raises
 
 from polars_ta import cci
 from polars_ta.momentum.cci import CCI_SCALE
@@ -37,59 +38,58 @@ def evaluate(expr: pl.Expr, data: pl.DataFrame | None = None):
     return (data if data is not None else frame()).select(expr).to_series().to_list()
 
 
-class TestCci(IndicatorAssertions):
+class TestCci:
     def test_known_values(self) -> None:
         result = evaluate(cci("high", "low", "close", 5))
-        self.assert_values_equal(result[: len(CCI_5)], CCI_5)
+        assert_values_equal(result[: len(CCI_5)], CCI_5)
 
     def test_known_value(self) -> None:
         # Typical prices 9, 10, 11, 10, 9 give mean 9.8 and deviation 0.64, so the
         # fifth reading is -0.8 / (0.015 * 0.64).
         result = evaluate(cci("high", "low", "close", 5))
-        self.assertAlmostEqual(result[4], -83.33333333333334, places=10)
+        assert result[4] == approx(-83.33333333333334, rel=0, abs=5e-11)
 
-    def test_warm_up_is_window_minus_one_nulls(self) -> None:
-        for window in (2, 5, 14):
-            with self.subTest(window=window):
-                result = evaluate(cci("high", "low", "close", window))
-                self.assertEqual(result[: window - 1], [None] * (window - 1))
-                self.assertIsNotNone(result[window - 1])
+    @mark.parametrize("window", (2, 5, 14))
+    def test_warm_up_is_window_minus_one_nulls(self, window: int) -> None:
+        result = evaluate(cci("high", "low", "close", window))
+        assert result[: window - 1] == [None] * (window - 1)
+        assert result[window - 1] is not None
 
     def test_typical_price_above_its_mean_is_positive(self) -> None:
         rising = ramp_up(10)
         for value in evaluate(cci("high", "low", "close", 5), frame_from(rising, 0.0))[
             4:
         ]:
-            self.assertGreater(value, 0.0)
+            assert value > 0.0
 
     def test_typical_price_below_its_mean_is_negative(self) -> None:
         falling = ramp_down(10)
         for value in evaluate(cci("high", "low", "close", 5), frame_from(falling, 0.0))[
             4:
         ]:
-            self.assertLess(value, 0.0)
+            assert value < 0.0
 
     def test_flat_input_reports_zero(self) -> None:
         data = frame_from(constant(8), 0.0)
-        self.assert_values_equal(
+        assert_values_equal(
             evaluate(cci("high", "low", "close", 3), data)[2:], [0.0] * 6
         )
 
     def test_scale_constant_is_lamberts(self) -> None:
-        self.assertEqual(CCI_SCALE, 0.015)
+        assert CCI_SCALE == 0.015
 
     def test_null_in_any_input_propagates(self) -> None:
         close = with_null(CLOSE, 6)
         result = evaluate(cci("high", "low", "close", 3), frame(close=close))
-        self.assert_values_equal(result[: len(CCI_3_NULL_CLOSE)], CCI_3_NULL_CLOSE)
+        assert_values_equal(result[: len(CCI_3_NULL_CLOSE)], CCI_3_NULL_CLOSE)
 
     def test_input_shorter_than_warm_up_is_all_null(self) -> None:
-        self.assertEqual(
-            evaluate(cci("high", "low", "close", len(HIGH) + 1)), [None] * len(HIGH)
+        assert evaluate(cci("high", "low", "close", len(HIGH) + 1)) == [None] * len(
+            HIGH
         )
 
     def test_default_window_is_fourteen(self) -> None:
-        self.assert_values_equal(
+        assert_values_equal(
             evaluate(cci("high", "low", "close")),
             evaluate(cci("high", "low", "close", 14)),
         )
@@ -97,10 +97,10 @@ class TestCci(IndicatorAssertions):
     def test_names_and_expressions_agree(self) -> None:
         from_names = evaluate(cci("high", "low", "close", 5))
         from_exprs = evaluate(cci(pl.col("high"), pl.col("low"), pl.col("close"), 5))
-        self.assert_values_equal(from_exprs, from_names)
+        assert_values_equal(from_exprs, from_names)
 
     def test_series_input_is_rejected(self) -> None:
-        with self.assertRaises(TypeError):
+        with raises(TypeError):
             cci(cast(Any, pl.Series("high", HIGH)), "low", "close", 5)
 
     def test_expression_works_in_a_lazy_frame(self) -> None:
@@ -109,9 +109,9 @@ class TestCci(IndicatorAssertions):
             .with_columns(cci("high", "low", "close", 5).alias("cci"))
             .collect()
         )
-        self.assert_values_equal(collected["cci"].to_list()[: len(CCI_5)], CCI_5)
+        assert_values_equal(collected["cci"].to_list()[: len(CCI_5)], CCI_5)
 
-    def test_invalid_window_raises(self) -> None:
-        for window in (0, -1, 2.5):
-            with self.subTest(window=window), self.assertRaises(ValueError):
-                cci("high", "low", "close", cast(Any, window))
+    @mark.parametrize("window", (0, -1, 2.5))
+    def test_invalid_window_raises(self, window: float) -> None:
+        with raises(ValueError):
+            cci("high", "low", "close", cast(Any, window))

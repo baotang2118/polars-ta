@@ -1,8 +1,9 @@
 from typing import Any, cast
 
 import polars as pl
-from _assertions import IndicatorAssertions
+from _assertions import assert_values_equal
 from _data import CLOSE, HIGH, LOW, constant, frame, frame_from, ramp_up
+from pytest import mark, raises
 
 from polars_ta import adx, adxr, dx, minus_di, minus_dm, plus_di, plus_dm
 
@@ -133,7 +134,7 @@ def column(expr: pl.Expr, bars: pl.DataFrame | None = None) -> list:
     return source.select(expr).to_series().to_list()
 
 
-class TestDirectionalMovement(IndicatorAssertions):
+class TestDirectionalMovement:
     def test_known_values(self) -> None:
         for window in (2, 5, 14):
             cases = (
@@ -148,8 +149,7 @@ class TestDirectionalMovement(IndicatorAssertions):
                 ("dx", DX[window], dx("high", "low", "close", window)),
             )
             for name, expected, expr in cases:
-                with self.subTest(window=window, name=name):
-                    self.assert_values_equal(column(expr)[: len(expected)], expected)
+                assert_values_equal(column(expr)[: len(expected)], expected)
 
     def test_adx_struct_known_values(self) -> None:
         fields = BARS.select(adx("high", "low", "close", 5).alias("a")).unnest("a")
@@ -158,54 +158,46 @@ class TestDirectionalMovement(IndicatorAssertions):
             ("plus_di", PLUS_DI[5]),
             ("minus_di", MINUS_DI[5]),
         ):
-            with self.subTest(name=name):
-                self.assert_values_equal(
-                    fields[name].to_list()[: len(expected)], expected
-                )
+            assert_values_equal(fields[name].to_list()[: len(expected)], expected)
 
-    def test_movement_warm_up_is_window_minus_one(self) -> None:
-        for window in (2, 5, 14):
-            with self.subTest(window=window):
-                for expr in (
-                    plus_dm("high", "low", window),
-                    minus_dm("high", "low", window),
-                ):
-                    result = column(expr)
-                    self.assertEqual(result[: window - 1], [None] * (window - 1))
-                    self.assertIsNotNone(result[window - 1])
+    @mark.parametrize("window", (2, 5, 14))
+    def test_movement_warm_up_is_window_minus_one(self, window: int) -> None:
+        for expr in (
+            plus_dm("high", "low", window),
+            minus_dm("high", "low", window),
+        ):
+            result = column(expr)
+            assert result[: window - 1] == [None] * (window - 1)
+            assert result[window - 1] is not None
 
-    def test_indicator_warm_up_is_window(self) -> None:
-        for window in (2, 5, 14):
-            with self.subTest(window=window):
-                for expr in (
-                    plus_di("high", "low", "close", window),
-                    minus_di("high", "low", "close", window),
-                    dx("high", "low", "close", window),
-                ):
-                    result = column(expr)
-                    self.assertEqual(result[:window], [None] * window)
-                    self.assertIsNotNone(result[window])
+    @mark.parametrize("window", (2, 5, 14))
+    def test_indicator_warm_up_is_window(self, window: int) -> None:
+        for expr in (
+            plus_di("high", "low", "close", window),
+            minus_di("high", "low", "close", window),
+            dx("high", "low", "close", window),
+        ):
+            result = column(expr)
+            assert result[:window] == [None] * window
+            assert result[window] is not None
 
     def test_adxr_averages_two_adx_readings(self) -> None:
         result = column(adxr("high", "low", "close", 5))
-        self.assert_values_equal(result[: len(ADXR_5)], ADXR_5)
+        assert_values_equal(result[: len(ADXR_5)], ADXR_5)
 
-    def test_adxr_warm_up_is_three_windows_less_two(self) -> None:
-        for window in (3, 5, 7):
-            with self.subTest(window=window):
-                result = column(adxr("high", "low", "close", window))
-                lookback = 3 * window - 2
-                self.assertEqual(result[:lookback], [None] * lookback)
-                self.assertIsNotNone(result[lookback])
+    @mark.parametrize("window", (3, 5, 7))
+    def test_adxr_warm_up_is_three_windows_less_two(self, window: int) -> None:
+        result = column(adxr("high", "low", "close", window))
+        lookback = 3 * window - 2
+        assert result[:lookback] == [None] * lookback
+        assert result[lookback] is not None
 
     def test_only_one_movement_is_non_zero_per_bar(self) -> None:
         rising = ramp_up(30)
         bars = frame_from(rising)
-        self.assert_values_equal(
-            column(minus_dm("high", "low", 5), bars)[4:], [0.0] * 26
-        )
+        assert_values_equal(column(minus_dm("high", "low", 5), bars)[4:], [0.0] * 26)
         for value in column(plus_dm("high", "low", 5), bars)[4:]:
-            self.assertGreater(value, 0.0)
+            assert value > 0.0
 
     def test_flat_market_reports_zero(self) -> None:
         bars = frame_from(constant(30), 0.0)
@@ -214,19 +206,19 @@ class TestDirectionalMovement(IndicatorAssertions):
             minus_di("high", "low", "close", 4),
             dx("high", "low", "close", 4),
         ):
-            self.assert_values_equal(column(expr, bars)[4:], [0.0] * 26)
+            assert_values_equal(column(expr, bars)[4:], [0.0] * 26)
 
     def test_window_of_one_is_unsmoothed(self) -> None:
-        self.assert_values_equal(
+        assert_values_equal(
             column(plus_dm("high", "low", 1))[: len(PLUS_DM_1)], PLUS_DM_1
         )
-        self.assert_values_equal(
+        assert_values_equal(
             column(plus_di("high", "low", "close", 1))[: len(PLUS_DI_1)], PLUS_DI_1
         )
 
-    def test_invalid_window_raises(self) -> None:
-        for window in (0, -1, 2.5):
-            with self.subTest(window=window), self.assertRaises(ValueError):
-                dx("high", "low", "close", cast(Any, window))
-            with self.subTest(window=window), self.assertRaises(ValueError):
-                plus_dm("high", "low", cast(Any, window))
+    @mark.parametrize("window", (0, -1, 2.5))
+    def test_invalid_window_raises(self, window: float) -> None:
+        with raises(ValueError):
+            dx("high", "low", "close", cast(Any, window))
+        with raises(ValueError):
+            plus_dm("high", "low", cast(Any, window))

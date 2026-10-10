@@ -1,8 +1,9 @@
 from typing import Any, cast
 
 import polars as pl
-from _assertions import IndicatorAssertions
+from _assertions import assert_values_equal
 from _data import CLOSE, HIGH, frame
+from pytest import mark, raises
 
 from polars_ta import vwap
 
@@ -30,10 +31,10 @@ def column(expr: pl.Expr, bars: pl.DataFrame | None = None) -> list:
     return source.select(expr).to_series().to_list()
 
 
-class TestVwap(IndicatorAssertions):
+class TestVwap:
     def test_known_values(self) -> None:
         result = column(vwap("high", "low", "close", "volume", 14))
-        self.assert_values_equal(result[: len(VWAP_14)], VWAP_14)
+        assert_values_equal(result[: len(VWAP_14)], VWAP_14)
 
     def test_matches_hand_checked_values(self) -> None:
         bars = pl.DataFrame(
@@ -45,23 +46,20 @@ class TestVwap(IndicatorAssertions):
             }
         )
         # Typical prices of 2 and 6, weighted 1:3.
-        self.assert_values_equal(
+        assert_values_equal(
             column(vwap("high", "low", "close", "volume", 2), bars), [None, 5.0]
         )
 
     def test_constant_volume_reduces_to_the_typical_price_average(self) -> None:
         bars = BARS.with_columns(pl.lit(100.0).alias("volume"))
         result = column(vwap("high", "low", "close", "volume", 10), bars)
-        self.assert_values_equal(
-            result[: len(VWAP_10_FLAT_VOLUME)], VWAP_10_FLAT_VOLUME
-        )
+        assert_values_equal(result[: len(VWAP_10_FLAT_VOLUME)], VWAP_10_FLAT_VOLUME)
 
-    def test_warm_up_is_window_minus_one(self) -> None:
-        for window in (3, 14, 30):
-            with self.subTest(window=window):
-                result = column(vwap("high", "low", "close", "volume", window))
-                self.assertEqual(result[: window - 1], [None] * (window - 1))
-                self.assertIsNotNone(result[window - 1])
+    @mark.parametrize("window", (3, 14, 30))
+    def test_warm_up_is_window_minus_one(self, window: int) -> None:
+        result = column(vwap("high", "low", "close", "volume", window))
+        assert result[: window - 1] == [None] * (window - 1)
+        assert result[window - 1] is not None
 
     def test_window_without_volume_is_null(self) -> None:
         bars = pl.DataFrame(
@@ -72,14 +70,14 @@ class TestVwap(IndicatorAssertions):
                 "volume": [0.0, 0.0, 0.0],
             }
         )
-        self.assert_values_equal(
+        assert_values_equal(
             column(vwap("high", "low", "close", "volume", 2), bars), [None, None, None]
         )
 
     def test_invalid_window_raises(self) -> None:
-        with self.assertRaises(ValueError):
+        with raises(ValueError):
             vwap("high", "low", "close", "volume", 0)
 
     def test_series_input_is_rejected(self) -> None:
-        with self.assertRaises(TypeError):
+        with raises(TypeError):
             vwap(cast(Any, pl.Series("high", HIGH[:5])), "low", "close", "volume")

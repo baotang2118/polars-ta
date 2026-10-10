@@ -1,8 +1,9 @@
 from typing import Any, cast
 
 import polars as pl
-from _assertions import IndicatorAssertions
+from _assertions import assert_values_equal
 from _data import CLOSE, HIGH, LOW, OPEN, frame
+from pytest import raises
 
 from polars_ta import avgprice, medprice, typprice, wclprice
 
@@ -21,21 +22,21 @@ def column(expr: pl.Expr, bars: pl.DataFrame | None = None) -> list:
     return source.select(expr).to_series().to_list()
 
 
-class TestAvgprice(IndicatorAssertions):
+class TestAvgprice:
     def test_matches_hand_checked_values(self) -> None:
-        self.assert_values_equal(
+        assert_values_equal(
             column(avgprice("open", "high", "low", "close")), [1.75, 3.5, 5.25]
         )
 
     def test_a_null_input_nulls_the_row(self) -> None:
         bars = BARS.with_columns(pl.Series("high", [4.0, None, 8.0]))
-        self.assert_values_equal(
+        assert_values_equal(
             column(avgprice("open", "high", "low", "close"), bars),
             [1.75, None, 5.25],
         )
 
     def test_series_input_is_rejected(self) -> None:
-        with self.assertRaises(TypeError):
+        with raises(TypeError):
             avgprice(
                 cast(Any, pl.Series("open", OPEN[:5])),
                 cast(Any, pl.Series("high", HIGH[:5])),
@@ -44,38 +45,34 @@ class TestAvgprice(IndicatorAssertions):
             )
 
 
-class TestMedprice(IndicatorAssertions):
+class TestMedprice:
     def test_matches_hand_checked_values(self) -> None:
-        self.assert_values_equal(column(medprice("high", "low")), [2.0, 4.0, 6.0])
+        assert_values_equal(column(medprice("high", "low")), [2.0, 4.0, 6.0])
 
     def test_sits_inside_the_bar(self) -> None:
         bars = frame()
         for value, high, low in zip(
             column(medprice("high", "low"), bars), bars["high"], bars["low"]
         ):
-            self.assertLessEqual(low, value)
-            self.assertLessEqual(value, high)
+            assert low <= value
+            assert value <= high
 
 
-class TestTypprice(IndicatorAssertions):
+class TestTypprice:
     def test_matches_hand_checked_values(self) -> None:
-        self.assert_values_equal(
-            column(typprice("high", "low", "close")), [2.0, 4.0, 6.0]
-        )
+        assert_values_equal(column(typprice("high", "low", "close")), [2.0, 4.0, 6.0])
 
     def test_a_null_input_nulls_the_row(self) -> None:
         bars = BARS.with_columns(pl.Series("close", [2.0, 4.0, None]))
-        self.assert_values_equal(
+        assert_values_equal(
             column(typprice("high", "low", "close"), bars), [2.0, 4.0, None]
         )
 
 
-class TestWclprice(IndicatorAssertions):
+class TestWclprice:
     def test_matches_hand_checked_values(self) -> None:
-        self.assert_values_equal(
-            column(wclprice("high", "low", "close")), [2.0, 4.0, 6.0]
-        )
+        assert_values_equal(column(wclprice("high", "low", "close")), [2.0, 4.0, 6.0])
 
     def test_leans_towards_the_close(self) -> None:
         bars = pl.DataFrame({"high": [10.0], "low": [0.0], "close": [8.0]})
-        self.assert_values_equal(column(wclprice("high", "low", "close"), bars), [6.5])
+        assert_values_equal(column(wclprice("high", "low", "close"), bars), [6.5])
