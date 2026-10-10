@@ -301,8 +301,7 @@ section). The smoothing factor comes from how fast the measured phase is
 turning:
 
 $$
-\alpha_t = \max\!\left(\frac{\texttt{fast\_limit}}{\Delta\phi_t},\,
-	exttt{slow\_limit}\right), \qquad \Delta\phi_t = \max(\phi_{t-1} - \phi_t,\, 1)
+\alpha_t = \max\!\left(\frac{F}{\Delta\phi_t},\, S\right), \qquad \Delta\phi_t = \max(\phi_{t-1} - \phi_t,\, 1)
 $$
 
 $$
@@ -311,8 +310,9 @@ $$
 + \left(1 - \tfrac{\alpha_t}{2}\right)\mathrm{FAMA}_{t-1}
 $$
 
-A sharp turn in phase marks a new trend and lets the average jump; a steady
-phase slows it to `slow_limit`. `fama` is the half-speed follower whose
+Here, `F` and `S` are the `fast_limit` and `slow_limit` arguments. A sharp turn
+in phase marks a new trend and lets the average jump; a steady phase slows it
+to `slow_limit`. `fama` is the half-speed follower whose
 crossings with `mama` are the usual signal. Returns a struct of `mama`/`fama`.
 
 **Warm-up.** 32 leading nulls, as for every short-lookback Hilbert indicator.
