@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import polars as pl
 
-from polars_ta._common import IntoColumn, to_exprs, validate_window
+from polars_ta._common import IntoColumn, to_expr, to_exprs, validate_window
 from polars_ta.overlay.ma import ema
 
 
@@ -81,7 +81,7 @@ def atr(
         TypeError: If an input is not a ``str`` or ``pl.Expr``.
     """
     validate_window(window)
-    return _atr_expr(*to_exprs(high, low, close), window)
+    return _atr_expr(to_expr(high), to_expr(low), to_expr(close), window)
 
 
 def natr(
@@ -110,4 +110,4 @@ def natr(
         TypeError: If an input is not a ``str`` or ``pl.Expr``.
     """
     validate_window(window)
-    return _natr_expr(*to_exprs(high, low, close), window)
+    return _natr_expr(to_expr(high), to_expr(low), to_expr(close), window)
