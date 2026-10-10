@@ -299,12 +299,16 @@ Ehlers' adaptive average, driven by the Hilbert transform (see the cycle
 section). The smoothing factor comes from how fast the measured phase is
 turning:
 
-$$\alpha_t = \max\!\left(\frac{\texttt{fast\_limit}}{\Delta\phi_t},\,
-\texttt{slow\_limit}\right), \qquad \Delta\phi_t = \max(\phi_{t-1} - \phi_t,\, 1)$$
+$$
+\alpha_t = \max\!\left(\frac{\texttt{fast\_limit}}{\Delta\phi_t},\,
+	exttt{slow\_limit}\right), \qquad \Delta\phi_t = \max(\phi_{t-1} - \phi_t,\, 1)
+$$
 
-$$\mathrm{MAMA}_t = \alpha_t P_t + (1-\alpha_t)\mathrm{MAMA}_{t-1}, \qquad
+$$
+\mathrm{MAMA}_t = \alpha_t P_t + (1-\alpha_t)\mathrm{MAMA}_{t-1}, \qquad
 \mathrm{FAMA}_t = \tfrac{\alpha_t}{2}\mathrm{MAMA}_t
-+ \left(1 - \tfrac{\alpha_t}{2}\right)\mathrm{FAMA}_{t-1}$$
++ \left(1 - \tfrac{\alpha_t}{2}\right)\mathrm{FAMA}_{t-1}
+$$
 
 A sharp turn in phase marks a new trend and lets the average jump; a steady
 phase slows it to `slow_limit`. `fama` is the half-speed follower whose

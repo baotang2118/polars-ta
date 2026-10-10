@@ -21,6 +21,6 @@ These guidelines apply to all work in this repository.
 
 ## Python Validation
 
-- After every Python code change, run the relevant unit tests with pytest before finishing: the full suite unless the change has a clearly narrower test scope. Follow the `python-pytest-unit-tests` skill for the command and reporting procedure.
-- After generating or modifying Python code, run the complete lint and formatting workflow in the `python-lint-format-code` skill before finishing.
+- After every Python code change, run the relevant tests with pytest from the project root. Run the full suite unless the change has a clearly narrower test scope.
+- After every Python code change, lint and format the relevant scope with Ruff, using the project configuration and environment.
 - Report the validation commands actually run, their results, and any unresolved issues. If tests are missing, cannot run, or fail, or a required tool is unavailable, say so rather than claiming success.
