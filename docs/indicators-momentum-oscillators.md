@@ -106,14 +106,18 @@ scale.
 Where the close sits inside its recent high/low range, as a percentage. Raw
 fast %K is
 
-$$\mathrm{FastK}_t = 100 \cdot
-\frac{C_t - \min(L_{t-n+1 \ldots t})}{\max(H_{t-n+1 \ldots t}) - \min(L_{t-n+1 \ldots t})}$$
+$$
+\mathrm{FastK}_t = 100 \cdot
+\frac{C_t - \min(L_{t-n+1 \ldots t})}{\max(H_{t-n+1 \ldots t}) - \min(L_{t-n+1 \ldots t})}
+$$
 
 with $n$ = `fastk_period`. Raw fast %K is noisy, so it is smoothed twice, each
 time with a simple moving average:
 
-$$\%K = \mathrm{SMA}(\mathrm{FastK},\ \texttt{slowk\_period}), \qquad
-\%D = \mathrm{SMA}(\%K,\ \texttt{slowd\_period})$$
+$$
+\%K = \mathrm{SMA}(\mathrm{FastK},\ \texttt{slowk\_period}), \qquad
+\%D = \mathrm{SMA}(\%K,\ \texttt{slowd\_period})
+$$
 
 `stoch` returns these *slow* lines, which is what TA-Lib's `STOCH` returns and
 what charting packages normally plot. %D is the signal line, drawn over %K.
@@ -127,10 +131,10 @@ ohlc.with_columns(stoch("high", "low", "close", 5, 3, 3).alias("st")).unnest("st
 
 The result is a **struct** with fields `k` and `d`, both in $[0, 100]$.
 
-**Warm-up.** $(\texttt{fastk\_period} - 1) + (\texttt{slowk\_period} - 1) +
-(\texttt{slowd\_period} - 1)$ leading nulls, matching the TA-Lib lookback. Both
-fields start on that same row: `k` is held back until `d` exists, because
-TA-Lib emits the two lines aligned.
+**Warm-up.** $(f - 1) + (k - 1) + (d - 1)$ leading nulls, where $f$, $k$, and
+$d$ are `fastk_period`, `slowk_period`, and `slowd_period`, respectively. This
+matches the TA-Lib lookback. Both fields start on that same row: `k` is held
+back until `d` exists, because TA-Lib emits the two lines aligned.
 
 **Degenerate windows.** A window whose high equals its low has no range to
 divide by; that bar's raw %K is **0.0**, following TA-Lib.
@@ -204,8 +208,9 @@ low and closed at its high, `-1` the reverse. A bar with no range reports `0.0`.
 
 ### AO — Awesome Oscillator
 
-$$\mathrm{AO}_t = \mathrm{SMA}_{5}(\mathrm{MEDPRICE})_t
-- \mathrm{SMA}_{34}(\mathrm{MEDPRICE})_t$$
+$$
+\mathrm{AO}_t = \mathrm{SMA}_{5}(\mathrm{MEDPRICE})_t - \mathrm{SMA}_{34}(\mathrm{MEDPRICE})_t
+$$
 
 Building on the bar's midpoint rather than its close keeps the reading out of
 the hands of a single print. The warm-up is $n_{\text{slow}} - 1$.

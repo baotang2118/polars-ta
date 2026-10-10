@@ -201,8 +201,9 @@ warm-up without any explicit offset bookkeeping.
 
 Extends the same lag-cancellation idea to a third pass:
 
-$$\mathrm{TEMA}_t = 3\,\mathrm{EMA}^{(1)}_t - 3\,\mathrm{EMA}^{(2)}_t
-+ \mathrm{EMA}^{(3)}_t$$
+$$
+\mathrm{TEMA}_t = 3\,\mathrm{EMA}^{(1)}_t - 3\,\mathrm{EMA}^{(2)}_t + \mathrm{EMA}^{(3)}_t
+$$
 
 The coefficients $3, -3, 1$ come from expanding $1 - (1 - E)^3$, where $E$ is
 the EMA operator; DEMA is the same expansion truncated at two terms.
@@ -272,9 +273,9 @@ it.
 $$\mathrm{ER}_t = \frac{\left|P_t - P_{t-n}\right|}
 {\sum_{i=0}^{n-1}\left|P_{t-i} - P_{t-i-1}\right|}$$
 
-$$\alpha_t = \left(\mathrm{ER}_t\left(\tfrac{2}{f+1} - \tfrac{2}{s+1}\right)
-+ \tfrac{2}{s+1}\right)^{2}, \qquad
-\mathrm{KAMA}_t = \mathrm{KAMA}_{t-1} + \alpha_t\left(P_t - \mathrm{KAMA}_{t-1}\right)$$
+$$
+\alpha_t = \left(\mathrm{ER}_t\left(\tfrac{2}{f+1} - \tfrac{2}{s+1}\right) + \tfrac{2}{s+1}\right)^{2}, \qquad \mathrm{KAMA}_t = \mathrm{KAMA}_{t-1} + \alpha_t\left(P_t - \mathrm{KAMA}_{t-1}\right)
+$$
 
 with $f$ = `fast_period` (default 2) and $s$ = `slow_period` (default 30). A
 straight-line move scores $\mathrm{ER} = 1$ and smooths at the fast rate; a
@@ -299,15 +300,18 @@ Ehlers' adaptive average, driven by the Hilbert transform (see the cycle
 section). The smoothing factor comes from how fast the measured phase is
 turning:
 
-$$\alpha_t = \max\!\left(\frac{\texttt{fast\_limit}}{\Delta\phi_t},\,
-\texttt{slow\_limit}\right), \qquad \Delta\phi_t = \max(\phi_{t-1} - \phi_t,\, 1)$$
+$$
+\alpha_t = \max\!\left(\frac{F}{\Delta\phi_t},\, S\right), \qquad \Delta\phi_t = \max(\phi_{t-1} - \phi_t,\, 1)
+$$
 
-$$\mathrm{MAMA}_t = \alpha_t P_t + (1-\alpha_t)\mathrm{MAMA}_{t-1}, \qquad
-\mathrm{FAMA}_t = \tfrac{\alpha_t}{2}\mathrm{MAMA}_t
-+ \left(1 - \tfrac{\alpha_t}{2}\right)\mathrm{FAMA}_{t-1}$$
+$$
+\mathrm{MAMA}_t = \alpha_t P_t + (1-\alpha_t)\mathrm{MAMA}_{t-1}, \qquad
+\mathrm{FAMA}_t = \tfrac{\alpha_t}{2}\mathrm{MAMA}_t + \left(1 - \tfrac{\alpha_t}{2}\right)\mathrm{FAMA}_{t-1}
+$$
 
-A sharp turn in phase marks a new trend and lets the average jump; a steady
-phase slows it to `slow_limit`. `fama` is the half-speed follower whose
+Here, `F` and `S` are the `fast_limit` and `slow_limit` arguments. A sharp turn
+in phase marks a new trend and lets the average jump; a steady phase slows it
+to `slow_limit`. `fama` is the half-speed follower whose
 crossings with `mama` are the usual signal. Returns a struct of `mama`/`fama`.
 
 **Warm-up.** 32 leading nulls, as for every short-lookback Hilbert indicator.
@@ -321,8 +325,8 @@ returns the MAMA line and ignores `window`, as TA-Lib does.
 
 `mavp(column, periods, min_period, max_period, ma_type=...)` reads the period
 from a second column. Each row's period is truncated to an integer and clamped
-to $[\texttt{min\_period}, \texttt{max\_period}]$. One average is built per
-candidate period and selected row by row, so the expression grows linearly in
-$\texttt{max\_period} - \texttt{min\_period}$ — keep that span small, especially
-for the chained averages. Output starts only once the `max_period` average is
-available, so the warm-up does not change from row to row.
+between `min_period` and `max_period`. One average is built per candidate
+period and selected row by row, so the expression grows linearly with
+`max_period - min_period` — keep that span small, especially for the chained
+averages. Output starts only once the `max_period` average is available, so the
+warm-up does not change from row to row.
