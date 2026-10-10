@@ -306,8 +306,7 @@ $$
 
 $$
 \mathrm{MAMA}_t = \alpha_t P_t + (1-\alpha_t)\mathrm{MAMA}_{t-1}, \qquad
-\mathrm{FAMA}_t = \tfrac{\alpha_t}{2}\mathrm{MAMA}_t
-+ \left(1 - \tfrac{\alpha_t}{2}\right)\mathrm{FAMA}_{t-1}
+\mathrm{FAMA}_t = \tfrac{\alpha_t}{2}\mathrm{MAMA}_t + \left(1 - \tfrac{\alpha_t}{2}\right)\mathrm{FAMA}_{t-1}
 $$
 
 Here, `F` and `S` are the `fast_limit` and `slow_limit` arguments. A sharp turn
