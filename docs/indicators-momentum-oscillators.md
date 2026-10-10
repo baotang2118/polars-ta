@@ -208,8 +208,10 @@ low and closed at its high, `-1` the reverse. A bar with no range reports `0.0`.
 
 ### AO — Awesome Oscillator
 
-$$\mathrm{AO}_t = \mathrm{SMA}_{5}(\mathrm{MEDPRICE})_t
-- \mathrm{SMA}_{34}(\mathrm{MEDPRICE})_t$$
+$$
+\mathrm{AO}_t = \mathrm{SMA}_{5}(\mathrm{MEDPRICE})_t
+- \mathrm{SMA}_{34}(\mathrm{MEDPRICE})_t
+$$
 
 Building on the bar's midpoint rather than its close keeps the reading out of
 the hands of a single print. The warm-up is $n_{\text{slow}} - 1$.
