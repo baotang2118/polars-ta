@@ -201,8 +201,10 @@ warm-up without any explicit offset bookkeeping.
 
 Extends the same lag-cancellation idea to a third pass:
 
-$$\mathrm{TEMA}_t = 3\,\mathrm{EMA}^{(1)}_t - 3\,\mathrm{EMA}^{(2)}_t
-+ \mathrm{EMA}^{(3)}_t$$
+$$
+\mathrm{TEMA}_t = 3\,\mathrm{EMA}^{(1)}_t - 3\,\mathrm{EMA}^{(2)}_t
++ \mathrm{EMA}^{(3)}_t
+$$
 
 The coefficients $3, -3, 1$ come from expanding $1 - (1 - E)^3$, where $E$ is
 the EMA operator; DEMA is the same expansion truncated at two terms.
