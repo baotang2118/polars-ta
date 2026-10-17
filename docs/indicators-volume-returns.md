@@ -105,7 +105,7 @@ rose or fell, then scales it by how the bar's own range compares with the ranges
 accumulated since the trend began:
 
 $$d_t = H_t - L_t, \qquad
-\tau_t = \operatorname{sgn}\!\left((H+L+C)_t - (H+L+C)_{t-1}\right)$$
+\tau_t = \mathrm{sgn}\!\left((H+L+C)_t - (H+L+C)_{t-1}\right)$$
 
 $$\mathrm{cm}_t = \begin{cases}
 d_{t-1} + d_t & \tau_t \ne \tau_{t-1} \\
