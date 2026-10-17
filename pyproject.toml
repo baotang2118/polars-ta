@@ -7,6 +7,7 @@ name = "polars-ta"
 version = "2.0.0"
 description = "Technical indicators for Polars DataFrames."
 readme = "README.md"
+license = { text = "GPL-3.0-only" }
 requires-python = ">=3.12"
 dependencies = [
     "polars==2.0.0",

@@ -58,6 +58,41 @@ while price sits below its recent high, so it measures how deep and how long the
 pain was. Because the drawdown series needs a full window before the averaging
 starts, the warm-up is $2(n-1)$ rather than $n-1$.
 
+### CVI — Chaikin's Volatility
+
+The rate of change of a smoothed bar range:
+
+$$\mathrm{CVI}_t = 100 \cdot \frac{E_t - E_{t-n}}{E_{t-n}},
+\qquad E_t = \mathrm{EMA}_n(H - L)_t$$
+
+Chaikin read a rapidly widening range as a market approaching a top and a
+narrowing one as a base forming, so the reading tracks the high-low spread
+rather than price itself. The default period is 10.
+
+**Warm-up.** $2n - 1$: $n-1$ rows for the exponential average and a further $n$
+for the comparison against its own past value.
+
+**Zero denominator.** A zero reference average reports `0.0`.
+
+### ANNUALIZED_VOLATILITY — Historical Volatility
+
+The dispersion of recent simple returns, restated on an annual scale:
+
+$$r_t = \frac{P_t}{P_{t-1}} - 1, \qquad
+\mathrm{HV}_t = \sigma_n(r)_t \cdot \sqrt{m}$$
+
+where $\sigma_n$ is the population standard deviation and $m$ =
+`periods_per_year`, defaulting to the 252 sessions of a trading year. Set it to
+match the bar size: 252 for daily, 52 for weekly, 12 for monthly. The result is
+a fraction, so `0.25` means 25% a year.
+
+This is the indicator Tulip Indicators calls `volatility`. It carries a longer
+name here so that it does not shadow the `polars_ta.volatility` subpackage.
+
+**Warm-up.** $n$: one row for the return and $n-1$ for the deviation.
+
+**Zero denominator.** A zero reference price reports a `0.0` return.
+
 ## Cycle
 
 ### HT_* — The Hilbert Transform Cycle Indicators
@@ -99,3 +134,33 @@ the scan: every row from there on is null.
 
 **Implementation.** A Python scan inside `map_batches`, like `supertrend` and
 `sar`. It is substantially slower than the expression-based indicators.
+
+### MSW — Mesa Sine Wave
+
+Each window is projected onto one full cycle of a sinusoid, and the resulting
+phase angle is read as a sine:
+
+$$R_t = \sum_{j=0}^{n-1} \cos\!\left(\tfrac{2\pi j}{n}\right) P_{t-j}, \qquad
+I_t = \sum_{j=0}^{n-1} \sin\!\left(\tfrac{2\pi j}{n}\right) P_{t-j}$$
+
+$$\varphi_t = \left(\arctan\frac{I_t}{R_t} + \pi\,[R_t < 0] + \tfrac{\pi}{2}\right)
+\bmod 2\pi$$
+
+$$\mathrm{sine}_t = \sin \varphi_t, \qquad
+\mathrm{lead}_t = \sin\!\left(\varphi_t + \tfrac{\pi}{4}\right)$$
+
+The two lines sit an eighth of a cycle apart, and their crossings call cycle
+turns early — but only while the market is actually cycling. In a trend the two
+run apart and stay there, which is itself the signal to stop using them.
+
+Unlike `ht_sine`, the cycle length is fixed by `window` rather than measured bar
+by bar, so MSW needs no Hilbert transform and no recursion.
+
+**Degenerate windows.** When $\left|R_t\right| \le 0.001$ the real part carries
+no information, and the phase is pinned to $\pm\pi/2$ by the sign of $I_t$.
+
+**Warm-up.** $n - 1$ for both fields, as for any rolling window.
+
+**Implementation.** Two weighted rolling sums, so this is a plain expression.
+As in `wma`, nulls are filled before the weighted sum and the affected rows
+masked back out afterwards.

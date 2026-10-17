@@ -72,6 +72,21 @@ def _obv_expr(close: pl.Expr, volume: pl.Expr) -> pl.Expr:
     ).cum_sum()
 
 
+def _wad_expr(high: pl.Expr, low: pl.Expr, close: pl.Expr) -> pl.Expr:
+    previous = close.shift(1)
+    step = (
+        pl.when(previous.is_null() | close.is_null())
+        .then(None)
+        .when(close > previous)
+        .then(close - pl.min_horizontal(low, previous))
+        .when(close < previous)
+        .then(close - pl.max_horizontal(high, previous))
+        .otherwise(0.0)
+    )
+    # The first bar has nothing to compare against, so it seeds the total at zero.
+    return (pl.when(pl.int_range(pl.len()) == 0).then(0.0).otherwise(step)).cum_sum()
+
+
 def ad(
     high: IntoColumn, low: IntoColumn, close: IntoColumn, volume: IntoColumn
 ) -> pl.Expr:
@@ -188,3 +203,28 @@ def cmf(
     validate_window(window)
     high_expr, low_expr, close_expr, volume_expr = to_exprs(high, low, close, volume)
     return _cmf_expr(high_expr, low_expr, close_expr, volume_expr, window)
+
+
+def wad(high: IntoColumn, low: IntoColumn, close: IntoColumn) -> pl.Expr:
+    """Williams Accumulation/Distribution: close-to-close progress, accumulated.
+
+    Where :func:`ad` signs volume by the close's place inside its own bar, this
+    ignores volume entirely and measures the ground gained against the previous
+    close. An up bar banks the move from the lower of this bar's low and the
+    previous close; a down bar banks the move from the higher of this bar's high
+    and the previous close, so gaps count towards the move that opened them.
+
+    Args:
+        high: Column name or expression of high prices.
+        low: Column name or expression of low prices.
+        close: Column name or expression of closing prices.
+
+    Returns:
+        A ``pl.Expr`` yielding a running total in price units. There is no
+        warm-up; the first bar has nothing to compare against and so seeds the
+        total at ``0.0``. An unchanged close contributes nothing.
+
+    Raises:
+        TypeError: If an input is not a ``str`` or ``pl.Expr``.
+    """
+    return _wad_expr(*to_exprs(high, low, close))
