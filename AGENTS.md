@@ -4,7 +4,7 @@ These guidelines apply to all work in this repository.
 
 ## Project Principles
 
-- Prefer Polars for dataframe operations and PyArrow where Arrow interoperability or Arrow-native functionality is needed.
+- Prefer Polars for dataframe operations where Arrow interoperability or Arrow-native functionality is needed.
 - Avoid Pandas, NumPy, TA-Lib, and indicator wrappers when the core libraries can meet the requirement. Ask the user for explicit approval before using or adding these alternatives.
 
 ## Project Layout

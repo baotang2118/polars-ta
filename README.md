@@ -1,12 +1,12 @@
 # polars-ta
 
-A Python technical-indicator library designed around Polars and PyArrow.
+A Python technical-indicator library designed around Polars.
 
 ## Quick start
 
 ### 1. Install
 
-The library requires Python 3.12+ and depends on `polars` and `pyarrow`. From a clone of the repository:
+The library requires Python 3.12+ and depends on `polars`. From a clone of the repository:
 
 ```sh
 uv sync        # or: pip install .
