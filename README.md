@@ -12,6 +12,10 @@ The library requires Python 3.12+ and depends on `polars`. From a clone of the r
 uv sync        # or: pip install .
 ```
 
+## License
+
+This project is licensed under the GNU General Public License v3.0 only. See [LICENSE](LICENSE) for the full text.
+
 ### 2. A complete example
 
 Indicators read plain columns, so any DataFrame with the right price columns works. The script below is saved as [examples/quickstart.py](examples/quickstart.py) — run it with `uv run python examples/quickstart.py`:
