@@ -47,7 +47,20 @@ def _vpt_expr(close: pl.Expr, volume: pl.Expr) -> pl.Expr:
     return (pl.when(pl.int_range(pl.len()) == 0).then(0.0).otherwise(step)).cum_sum()
 
 
-def _nvi_expr(close: pl.Expr, volume: pl.Expr, start_value: float) -> pl.Expr:
+def _marketfi_expr(high: pl.Expr, low: pl.Expr, volume: pl.Expr) -> pl.Expr:
+    span = high - low
+    return (
+        pl.when(span.is_null() | volume.is_null())
+        .then(None)
+        .when(volume != 0.0)
+        .then(span / volume)
+        .otherwise(0.0)
+    )
+
+
+def _volume_index_expr(
+    close: pl.Expr, volume: pl.Expr, start_value: float, rising: bool
+) -> pl.Expr:
     previous_close = close.shift(1)
     previous_volume = volume.shift(1)
     known = (
@@ -61,10 +74,10 @@ def _nvi_expr(close: pl.Expr, volume: pl.Expr, start_value: float) -> pl.Expr:
         .then((close - previous_close) / previous_close)
         .otherwise(0.0)
     )
-    # Bars that did not shrink in volume, and bars we cannot judge, carry the level on.
-    factor = (
-        pl.when(known & (volume < previous_volume)).then(1.0 + growth).otherwise(1.0)
-    )
+    counts = volume > previous_volume if rising else volume < previous_volume
+    # Bars on the wrong side of the volume test, and bars we cannot judge, carry
+    # the level on.
+    factor = pl.when(known & counts).then(1.0 + growth).otherwise(1.0)
     return start_value * factor.cum_prod()
 
 
@@ -169,4 +182,56 @@ def nvi(
     """
     validate_positive("start_value", start_value)
     close_expr, volume_expr = to_exprs(close, volume)
-    return _nvi_expr(close_expr, volume_expr, float(start_value))
+    return _volume_index_expr(close_expr, volume_expr, float(start_value), False)
+
+
+def pvi(
+    close: IntoColumn, volume: IntoColumn, *, start_value: float = 1000.0
+) -> pl.Expr:
+    """Positive Volume Index: an index that compounds only on busy days.
+
+    The mirror of :func:`nvi`. If informed money moves quietly, the crowd moves
+    loudly, so this takes the day's return when volume rose and holds flat
+    otherwise. Read together, the two say which sort of participant drove a
+    move.
+
+    Args:
+        close: Column name or expression of closing prices.
+        volume: Column name or expression of traded volume.
+        start_value: Level the index starts from, conventionally ``1000``.
+
+    Returns:
+        A ``pl.Expr`` yielding an index level. There is no warm-up; the first
+        bar is ``start_value``. A bar whose return cannot be computed carries
+        the level forward rather than nulling the rest of the index.
+
+    Raises:
+        ValueError: If ``start_value`` is not a positive finite number.
+        TypeError: If an input is not a ``str`` or ``pl.Expr``.
+    """
+    validate_positive("start_value", start_value)
+    close_expr, volume_expr = to_exprs(close, volume)
+    return _volume_index_expr(close_expr, volume_expr, float(start_value), True)
+
+
+def marketfi(high: IntoColumn, low: IntoColumn, volume: IntoColumn) -> pl.Expr:
+    """Market Facilitation Index: the bar's range per unit of volume.
+
+    Bill Williams' measure of how much price movement the market gave back for
+    the trade it absorbed. A wide range on light volume means the market moved
+    easily; a narrow range on heavy volume means the trade was absorbed without
+    moving price, which is the signature of a level being defended.
+
+    Args:
+        high: Column name or expression of high prices.
+        low: Column name or expression of low prices.
+        volume: Column name or expression of traded volume.
+
+    Returns:
+        A ``pl.Expr`` yielding price units per unit of volume. There is no
+        warm-up, and a bar with no volume reports ``0.0`` rather than dividing.
+
+    Raises:
+        TypeError: If an input is not a ``str`` or ``pl.Expr``.
+    """
+    return _marketfi_expr(*to_exprs(high, low, volume))
