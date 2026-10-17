@@ -225,8 +225,7 @@ tangent:
 $$x_t = 2\left(\frac{\mathrm{MEDPRICE}_t - \min_n}{\max_n - \min_n} - \tfrac{1}{2}\right),
 \qquad u_t = 0.33\,x_t + 0.67\,u_{t-1}$$
 
-$$\mathrm{FISHER}_t = \tfrac{1}{2}\ln\!\left(\frac{1 + u_t}{1 - u_t}\right)
-+ \tfrac{1}{2}\mathrm{FISHER}_{t-1}$$
+$$\mathrm{FISHER}_t = \tfrac{1}{2}\ln\!\left(\frac{1 + u_t}{1 - u_t}\right) + \tfrac{1}{2}\mathrm{FISHER}_{t-1}$$
 
 Price spends most of its time near the middle of a range, so a plain stochastic
 reading clusters there and extremes are hard to call. The transform pulls the

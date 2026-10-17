@@ -268,8 +268,7 @@ matches the TA-Lib lookback, which likewise ignores `vfactor`.
 
 Three weighted averages arranged so that the lag of the first two cancels:
 
-$$\mathrm{HMA}_t = \mathrm{WMA}\!\left(2\,\mathrm{WMA}(P, \lfloor n/2 \rfloor)
-- \mathrm{WMA}(P, n),\ \lfloor \sqrt{n} \rfloor\right)_t$$
+$$\mathrm{HMA}_t = \mathrm{WMA}\!\left(2\,\mathrm{WMA}(P, \lfloor n/2 \rfloor) - \mathrm{WMA}(P, n),\ \lfloor \sqrt{n} \rfloor\right)_t$$
 
 Doubling the half-length average and subtracting the full-length one produces a
 series that *overshoots* the current price by roughly the lag it was carrying;

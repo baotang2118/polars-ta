@@ -18,8 +18,7 @@ A bar with no range contributes nothing. `adosc` is the gap between two
 exponential averages of that line, which turns an open-ended total into a
 bounded oscillation:
 
-$$\mathrm{ADOSC}_t = \mathrm{EMA}^{\text{fast}}(\mathrm{AD})_t
-- \mathrm{EMA}^{\text{slow}}(\mathrm{AD})_t$$
+$$\mathrm{ADOSC}_t = \mathrm{EMA}^{\text{fast}}(\mathrm{AD})_t - \mathrm{EMA}^{\text{slow}}(\mathrm{AD})_t$$
 
 TA-Lib seeds **both** averages with the first A/D reading rather than with an
 SMA, which is `mode="recursive"` here; the warm-up is `slow_period - 1`.
