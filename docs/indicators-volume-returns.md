@@ -83,6 +83,78 @@ It starts at `start_value` (conventionally 1000) and has no warm-up. A bar whose
 return cannot be computed carries the level forward rather than nulling the rest
 of the index, which a cumulative product would otherwise do.
 
+### WAD — Williams Accumulation/Distribution
+
+Close-to-close progress, accumulated:
+
+$$\mathrm{WAD}_t = \mathrm{WAD}_{t-1} + \begin{cases}
+C_t - \min(L_t, C_{t-1}) & C_t > C_{t-1} \\
+C_t - \max(H_t, C_{t-1}) & C_t < C_{t-1} \\
+0 & \text{otherwise}
+\end{cases}$$
+
+Where `ad` signs volume by the close's place inside its own bar, this ignores
+volume entirely and measures the ground gained against the previous close.
+Reaching back to the previous close means a gap counts towards the move that
+opened it. There is no warm-up: the first bar has nothing to compare against and
+seeds the total at `0.0`.
+
+### KVO — Klinger Volume Oscillator
+
+Klinger's volume force signs each bar's volume by whether the high-low-close sum
+rose or fell, then scales it by how the bar's own range compares with the ranges
+accumulated since the trend began:
+
+$$d_t = H_t - L_t, \qquad
+\tau_t = \operatorname{sgn}\!\left((H+L+C)_t - (H+L+C)_{t-1}\right)$$
+
+$$\mathrm{cm}_t = \begin{cases}
+d_{t-1} + d_t & \tau_t \ne \tau_{t-1} \\
+\mathrm{cm}_{t-1} + d_t & \text{otherwise}
+\end{cases}, \qquad
+\mathrm{vf}_t = 100\,V_t\,\tau_t\left|2\left(\frac{d_t}{\mathrm{cm}_t} - 1\right)\right|$$
+
+$$\mathrm{KVO}_t = \mathrm{EMA}_{f}(\mathrm{vf})_t - \mathrm{EMA}_{s}(\mathrm{vf})_t$$
+
+A bar that widens an established move counts for far more than one that merely
+repeats it. Defaults are a fast 34 and a slow 55.
+
+**Warm-up.** $s$ leading nulls: one for the trend comparison and $s-1$ for the
+slower average. Both averages use `mode="recursive"`, seeded with the first
+force reading, as the reference implementations do.
+
+**Degenerate windows.** A trend with no accumulated range contributes `0.0`
+rather than dividing.
+
+**Implementation.** The trend flag and the cumulative range are carried bar by
+bar, so the volume force runs as a Python scan inside `map_batches`; the two
+averages over it are ordinary expressions.
+
+### PVI — Positive Volume Index
+
+The mirror of `nvi`. If informed money moves quietly, the crowd moves loudly, so
+this compounds the day's return when volume *rose* and holds flat otherwise:
+
+$$\mathrm{PVI}_t = \mathrm{PVI}_{t-1} \cdot \begin{cases}
+1 + \dfrac{C_t - C_{t-1}}{C_{t-1}} & V_t > V_{t-1} \\[2mm]
+1 & \text{otherwise}
+\end{cases}$$
+
+Read together, the two indices say which sort of participant drove a move.
+Conventions match `nvi` exactly: no warm-up, a `start_value` of 1000, and a bar
+whose return cannot be computed carries the level forward rather than nulling
+the rest of the index.
+
+### MARKETFI — Market Facilitation Index
+
+$$\mathrm{MARKETFI}_t = \frac{H_t - L_t}{V_t}$$
+
+Bill Williams' measure of how much price movement the market gave back for the
+trade it absorbed. A wide range on light volume means the market moved easily; a
+narrow range on heavy volume means the trade was absorbed without moving price,
+which is the signature of a level being defended. There is no warm-up, and a bar
+with no volume reports `0.0`.
+
 ### VWAP — Volume Weighted Average Price
 
 $$\mathrm{VWAP}_t = \frac{\sum_{i<n} \mathrm{TYPPRICE}_{t-i} V_{t-i}}

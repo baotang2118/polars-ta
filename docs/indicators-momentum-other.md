@@ -152,3 +152,39 @@ and dividing by the same smoothing of its absolute value rescales the result to
 $[-100, 100]$ regardless of the instrument's volatility. Defaults are a slow 25
 and a fast 13, giving a warm-up of $s + f - 1$. A window with no movement reports
 `0.0`.
+
+### FOSC — Forecast Oscillator
+
+How far price came in above the forecast the *previous* window made for it:
+
+$$\mathrm{FOSC}_t = 100 \cdot \frac{P_t - \mathrm{TSF}_{t-1}}{P_t}$$
+
+where $\mathrm{TSF}$ is the linear-regression forecast one bar past its window
+(see [statistics](indicators-statistics.md)). A run of positive readings says
+price keeps beating its own trend line; a cross through zero marks the trend
+losing its grip. A straight-line series is forecast exactly and reads `0.0`
+throughout. The warm-up is $n$, and a zero current value reports `0.0` rather
+than dividing. `window` must be at least 2, as for every regression function.
+
+### QSTICK
+
+$$\mathrm{QSTICK}_t = \mathrm{SMA}_n(C - O)_t$$
+
+The average candle body over the window. This is a different question from where
+price ended up: a market can grind higher on a run of red candles, and Qstick
+reads that as weakness. Positive while candles close above their opens on
+balance. The warm-up is $n - 1$.
+
+### VHF — Vertical Horizontal Filter
+
+Net travel divided by total travel:
+
+$$\mathrm{VHF}_t = \frac{\max_n P - \min_n P}
+{\sum_{i=0}^{n-1}\left|P_{t-i} - P_{t-i-1}\right|}$$
+
+A straight-line move spends all of its travel on the range and reads near its
+ceiling of $(n-1)/n$; a market thrashing inside the same range reads near $0$.
+VHF says whether a trend-following or a range-bound tool suits the current
+market, not which way to trade it. The warm-up is $n$ — one row for the
+differences and $n-1$ for the sums — and a window that never moved reports
+`0.0` rather than dividing.

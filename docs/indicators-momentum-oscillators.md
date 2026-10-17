@@ -214,3 +214,35 @@ $$
 
 Building on the bar's midpoint rather than its close keeps the reading out of
 the hands of a single print. The warm-up is $n_{\text{slow}} - 1$.
+
+### FISHER — Fisher Transform
+
+Ehlers' transform, which stretches a bounded range reading towards a normal
+distribution. The bar's median price is first scaled to $[-1, 1]$ against its
+$n$-period range, smoothed, and then passed through the inverse hyperbolic
+tangent:
+
+$$x_t = 2\left(\frac{\mathrm{MEDPRICE}_t - \min_n}{\max_n - \min_n} - \tfrac{1}{2}\right),
+\qquad u_t = 0.33\,x_t + 0.67\,u_{t-1}$$
+
+$$\mathrm{FISHER}_t = \tfrac{1}{2}\ln\!\left(\frac{1 + u_t}{1 - u_t}\right)
++ \tfrac{1}{2}\mathrm{FISHER}_{t-1}$$
+
+Price spends most of its time near the middle of a range, so a plain stochastic
+reading clusters there and extremes are hard to call. The transform pulls the
+middle apart and sends the edges towards infinity, turning a reversal at an
+extreme into a sharp, unambiguous spike.
+
+**Output.** A struct of `fisher` and `signal`, where `signal` is simply the
+previous bar's `fisher`; their crossing is the usual trigger.
+
+**Warm-up.** $n - 1$ for `fisher` and $n$ for `signal`. The two fields keep
+separate warm-ups, following `donchian` rather than `macd`, because aligning
+them would discard a good row.
+
+**Degenerate windows.** $u_t$ is clamped to $\pm 0.999$ so the logarithm stays
+finite, and a flat window contributes $x_t = 0$ rather than dividing.
+
+**Implementation.** The scaled position is a plain expression, but the clamped
+recursion feeds its own output back, so the transform runs as a Python scan
+inside `map_batches`. A null restarts it.

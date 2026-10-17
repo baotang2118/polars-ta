@@ -19,13 +19,13 @@ The reference is organized as an index and shared conventions, followed by nine 
 
 | Page | Covers |
 | ---- | ------ |
-| [Moving averages](indicators-overlays-averages.md) | Moving, adaptive, and dispatched averages (11) |
+| [Moving averages](indicators-overlays-averages.md) | Moving, adaptive, and dispatched averages (16) |
 | [Price overlays](indicators-overlays-price.md) | Bands, channels, stops, and price transforms (13) |
-| [Momentum oscillators](indicators-momentum-oscillators.md) | RSI-style, range, and bar oscillators (10) |
+| [Momentum oscillators](indicators-momentum-oscillators.md) | RSI-style, range, and bar oscillators (11) |
 | [Trend and direction](indicators-momentum-trend.md) | MACD, directional movement, Aroon, and Vortex (13) |
-| [Other momentum](indicators-momentum-other.md) | Rate-of-change, price oscillators, and related measures (15) |
-| [Volume and returns](indicators-volume-returns.md) | Volume indicators and return measures (12) |
-| [Volatility and cycle](indicators-volatility-cycle.md) | Volatility and Hilbert cycle indicators (10) |
+| [Other momentum](indicators-momentum-other.md) | Rate-of-change, price oscillators, and related measures (18) |
+| [Volume and returns](indicators-volume-returns.md) | Volume indicators and return measures (16) |
+| [Volatility and cycle](indicators-volatility-cycle.md) | Volatility and Hilbert cycle indicators (13) |
 | [Statistics](indicators-statistics.md) | Dispersion, correlation, and linear regression (9) |
 | [Candlestick patterns](patterns.md) | Candle settings and the pattern recognisers (61) |
 
@@ -35,8 +35,9 @@ Every indicator listed in the table below is implemented.
 
 | Indicator | Module | Inputs | Output |
 | --------- | ------ | ------ | ------ |
-| `sma`, `wma`, `ema`, `dema`, `tema`, `trima`, `t3` | `overlay.ma` | one column | one `Float64` column |
-| `kama` | `overlay.adaptive` | one column | one `Float64` column |
+| `sma`, `wma`, `ema`, `dema`, `tema`, `trima`, `t3`, `hma`, `zlema`, `wilders` | `overlay.ma` | one column | one `Float64` column |
+| `vwma` | `overlay.ma` | close, volume | one `Float64` column |
+| `kama`, `vidya` | `overlay.adaptive` | one column | one `Float64` column |
 | `mama` | `overlay.adaptive` | one column | struct of two `Float64` fields |
 | `ma`, `mavp` | `overlay.dispatch` | one or two columns | one `Float64` column |
 | `midpoint` | `overlay.midpoint` | one column | one `Float64` column |
@@ -74,16 +75,26 @@ Every indicator listed in the table below is implemented.
 | `ao` | `momentum.awesome` | high, low | one `Float64` column |
 | `mass` | `momentum.mass` | high, low | one `Float64` column |
 | `vortex` | `momentum.vortex` | high, low, close | struct of two `Float64` fields |
+| `fisher` | `momentum.fisher` | high, low | struct of two `Float64` fields |
+| `fosc` | `momentum.fosc` | one column | one `Float64` column |
+| `qstick` | `momentum.qstick` | open, close | one `Float64` column |
+| `vhf` | `momentum.vhf` | one column | one `Float64` column |
 | `ad`, `adosc`, `cmf` | `volume.flow` | high, low, close, volume | one `Float64` column |
+| `wad` | `volume.flow` | high, low, close | one `Float64` column |
+| `kvo` | `volume.klinger` | high, low, close, volume | one `Float64` column |
 | `obv` | `volume.flow` | close, volume | one `Float64` column |
-| `fi`, `vpt`, `nvi` | `volume.pressure` | close, volume | one `Float64` column |
+| `fi`, `vpt`, `nvi`, `pvi` | `volume.pressure` | close, volume | one `Float64` column |
 | `eom` | `volume.pressure` | high, low, volume | one `Float64` column |
+| `marketfi` | `volume.pressure` | high, low, volume | one `Float64` column |
 | `vwap` | `volume.vwap` | high, low, close, volume | one `Float64` column |
 | `true_range`, `atr`, `natr` | `volatility.atr` | high, low, close | one `Float64` column |
 | `ulcer` | `volatility.ulcer` | one column | one `Float64` column |
+| `cvi` | `volatility.historical` | high, low | one `Float64` column |
+| `annualized_volatility` | `volatility.historical` | one column | one `Float64` column |
 | `ht_dcperiod`, `ht_dcphase`, `ht_trendline` | `cycle.hilbert` | one column | one `Float64` column |
 | `ht_phasor`, `ht_sine` | `cycle.hilbert` | one column | struct of two `Float64` fields |
 | `ht_trendmode` | `cycle.hilbert` | one column | one `Int8` column |
+| `msw` | `cycle.msw` | one column | struct of two `Float64` fields |
 | `daily_return`, `daily_log_return`, `cumulative_return` | `returns.performance` | one column | one `Float64` column |
 | `var`, `stddev`, `zscore` | `statistic.dispersion` | one column | one `Float64` column |
 | `correl`, `beta` | `statistic.correlation` | two columns | one `Float64` column |
@@ -106,8 +117,15 @@ Detailed formulas are in the topic pages listed above.
   | Indicator | Leading nulls |
   | --------- | ------------- |
   | `bop`, `ad`, `obv`, `vpt`, `nvi`, `cumulative_return` | none |
+  | `pvi`, `wad`, `marketfi` | none |
   | `avgprice`, `medprice`, `typprice`, `wclprice` | none |
   | `sma`, `wma`, `ema`, `bbands`, `cci`, `donchian`, `midpoint`, `midprice`, `trima`, `willr` | `window - 1` |
+  | `wilders`, `vwma`, `qstick` | `window - 1` |
+  | `fisher` (`fisher`), `msw` | `window - 1` |
+  | `vidya` | `long_period - 1` |
+  | `hma` | `window + int(sqrt(window)) - 2` |
+  | `zlema` | `(window - 1) // 2 + window - 1` |
+  | `cvi` | `2 * window - 1` |
   | `plus_dm`, `minus_dm` | `window - 1` |
   | `cmf`, `vwap` | `window - 1` |
   | `ao` | `slow_period - 1` |
@@ -121,6 +139,8 @@ Detailed formulas are in the topic pages listed above.
   | `rsi`, `cmo`, `mfi`, `atr`, `natr`, `supertrend`, `kama`, `mom`, `roc`, `rocp`, `rocr`, `rocr100` | `window` |
   | `aroon`, `aroonosc`, `dx` | `window` |
   | `fi`, `eom`, `vortex` | `window` |
+  | `fosc`, `vhf`, `annualized_volatility` | `window` |
+  | `kvo` | `slow_period` |
   | `ulcer` | `2 * (window - 1)` |
   | `dpo` | `max(window - 1, window // 2 + 1)` |
   | `tsi` | `slow_period + fast_period - 1` |
@@ -141,6 +161,7 @@ Detailed formulas are in the topic pages listed above.
   | `keltner` | per field; see [price overlays](indicators-overlays-price.md) |
   | `ichimoku` | per field; see [price overlays](indicators-overlays-price.md) |
   | `kst` | per field; see [other momentum](indicators-momentum-other.md) |
+  | `fisher` | per field; `window - 1` and `window` |
   | `stc` | the chained averages' own lookbacks |
   | `var`, `stddev`, `zscore`, `correl`, `linearreg`, `linearreg_angle`, `linearreg_intercept`, `linearreg_slope`, `tsf` | `window - 1` |
   | `beta` | `window` |

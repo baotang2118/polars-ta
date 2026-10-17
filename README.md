@@ -219,8 +219,13 @@ Indicators are grouped by how they are charted. *Overlay* indicators are drawn o
 | Overlay | `overlay.ma` | `dema(column, window, ...)` | Double exponential moving average |
 | Overlay | `overlay.ma` | `tema(column, window, ...)` | Triple exponential moving average |
 | Overlay | `overlay.ma` | `trima(column, window=30)` | Triangular moving average |
+| Overlay | `overlay.ma` | `hma(column, window=9)` | Hull moving average |
+| Overlay | `overlay.ma` | `zlema(column, window=10, ...)` | Zero-lag exponential moving average |
+| Overlay | `overlay.ma` | `wilders(column, window=14)` | Wilder's smoothing |
+| Overlay | `overlay.ma` | `vwma(close, volume, window=20)` | Volume weighted moving average |
 | Overlay | `overlay.ma` | `t3(column, window=5, *, vfactor=0.7, ...)` | Tillson T3 |
 | Overlay | `overlay.adaptive` | `kama(column, window=30, *, fast_period=2, slow_period=30)` | Kaufman Adaptive Moving Average |
+| Overlay | `overlay.adaptive` | `vidya(column, 12, 26, *, alpha=0.2)` | Variable Index Dynamic Average |
 | Overlay | `overlay.adaptive` | `mama(column, *, fast_limit=0.5, slow_limit=0.05)` | MESA Adaptive Moving Average (struct of `mama`/`fama`) |
 | Overlay | `overlay.dispatch` | `ma(column, window=30, *, ma_type="sma")` | Moving average of a runtime-chosen kind |
 | Overlay | `overlay.dispatch` | `mavp(column, periods, min_period=2, max_period=30, *, ma_type="sma")` | Moving average with a per-row period |
@@ -270,25 +275,36 @@ Indicators are grouped by how they are charted. *Overlay* indicators are drawn o
 | Momentum | `momentum.awesome` | `ao(high, low, 5, 34)` | Awesome Oscillator |
 | Momentum | `momentum.mass` | `mass(high, low, 9, 25)` | Mass Index |
 | Momentum | `momentum.vortex` | `vortex(high, low, close, window=14)` | Vortex Indicator (struct of `plus`/`minus`) |
+| Momentum | `momentum.fisher` | `fisher(high, low, window=9)` | Fisher Transform (struct of `fisher`/`signal`) |
+| Momentum | `momentum.fosc` | `fosc(column, window=14)` | Forecast Oscillator |
+| Momentum | `momentum.qstick` | `qstick(open_, close, window=10)` | Qstick |
+| Momentum | `momentum.vhf` | `vhf(column, window=28)` | Vertical Horizontal Filter |
 | Volume | `volume.flow` | `ad(high, low, close, volume)` | Chaikin A/D Line |
 | Volume | `volume.flow` | `adosc(high, low, close, volume, 3, 10)` | Chaikin A/D Oscillator |
 | Volume | `volume.flow` | `obv(close, volume)` | On Balance Volume |
 | Volume | `volume.flow` | `cmf(high, low, close, volume, window=20)` | Chaikin Money Flow |
+| Volume | `volume.flow` | `wad(high, low, close)` | Williams Accumulation/Distribution |
+| Volume | `volume.klinger` | `kvo(high, low, close, volume, 34, 55)` | Klinger Volume Oscillator |
 | Volume | `volume.pressure` | `fi(close, volume, window=13)` | Force Index |
 | Volume | `volume.pressure` | `eom(high, low, volume, window=14)` | Ease of Movement |
 | Volume | `volume.pressure` | `vpt(close, volume)` | Volume-Price Trend |
 | Volume | `volume.pressure` | `nvi(close, volume, *, start_value=1000.0)` | Negative Volume Index |
+| Volume | `volume.pressure` | `pvi(close, volume, *, start_value=1000.0)` | Positive Volume Index |
+| Volume | `volume.pressure` | `marketfi(high, low, volume)` | Market Facilitation Index |
 | Volume | `volume.vwap` | `vwap(high, low, close, volume, window=14)` | Volume Weighted Average Price |
 | Volatility | `volatility.atr` | `true_range(high, low, close)` | True Range |
 | Volatility | `volatility.atr` | `atr(high, low, close, window=14)` | Average True Range |
 | Volatility | `volatility.atr` | `natr(high, low, close, window=14)` | Normalized Average True Range |
 | Volatility | `volatility.ulcer` | `ulcer(column, window=14)` | Ulcer Index |
+| Volatility | `volatility.historical` | `cvi(high, low, window=10)` | Chaikin's Volatility |
+| Volatility | `volatility.historical` | `annualized_volatility(column, window=20, *, periods_per_year=252)` | Annualized historical volatility |
 | Cycle | `cycle.hilbert` | `ht_dcperiod(column)` | Dominant Cycle Period |
 | Cycle | `cycle.hilbert` | `ht_dcphase(column)` | Dominant Cycle Phase |
 | Cycle | `cycle.hilbert` | `ht_phasor(column)` | Phasor Components (struct of `in_phase`/`quadrature`) |
 | Cycle | `cycle.hilbert` | `ht_sine(column)` | SineWave (struct of `sine`/`lead_sine`) |
 | Cycle | `cycle.hilbert` | `ht_trendmode(column)` | Trend versus Cycle Mode (`Int8`) |
 | Cycle | `cycle.hilbert` | `ht_trendline(column)` | Instantaneous Trendline |
+| Cycle | `cycle.msw` | `msw(column, window=5)` | Mesa Sine Wave (struct of `sine`/`lead`) |
 | Returns | `returns.performance` | `daily_return(column)` | Daily return, in percent |
 | Returns | `returns.performance` | `daily_log_return(column)` | Daily log return, in percent |
 | Returns | `returns.performance` | `cumulative_return(column)` | Return from the first known value |

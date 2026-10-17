@@ -264,6 +264,79 @@ is the most aggressive lag cancellation.
 the sixth pass still gates the output even though its coefficient is zero. This
 matches the TA-Lib lookback, which likewise ignores `vfactor`.
 
+## HMA — Hull Moving Average
+
+Three weighted averages arranged so that the lag of the first two cancels:
+
+$$\mathrm{HMA}_t = \mathrm{WMA}\!\left(2\,\mathrm{WMA}(P, \lfloor n/2 \rfloor)
+- \mathrm{WMA}(P, n),\ \lfloor \sqrt{n} \rfloor\right)_t$$
+
+Doubling the half-length average and subtracting the full-length one produces a
+series that *overshoots* the current price by roughly the lag it was carrying;
+the final $\sqrt{n}$-period pass smooths that overshoot away. The result turns
+far earlier than an SMA of the same length, at the cost of overshooting at sharp
+reversals.
+
+**Warm-up.** $n + \lfloor \sqrt{n} \rfloor - 2$: the long inner average needs
+$n-1$ rows and the outer pass a further $\lfloor \sqrt{n} \rfloor - 1$.
+
+**Null handling.** As for WMA, propagated through both passes.
+
+**Arguments.** `window` must be at least 2, since a Hull average needs two
+distinct inner lengths.
+
+## ZLEMA — Zero-Lag Exponential Moving Average
+
+An EMA applied to a de-lagged copy of the input. An EMA of period $n$ lags by
+about $\ell = \lfloor (n-1)/2 \rfloor$ bars, so that much of the recent change
+is added back before smoothing:
+
+$$\mathrm{ZLEMA}_t = \mathrm{EMA}\!\left(2P - P_{\cdot - \ell},\ n\right)_t,
+\qquad \ell = \left\lfloor \frac{n-1}{2} \right\rfloor$$
+
+Because $2P_t - P_{t-\ell} = P_t + (P_t - P_{t-\ell})$, the de-lagged series is
+the price plus its own momentum over the lag. That cancels most of the phase
+delay but amplifies single outliers, which arrive twice.
+
+**Warm-up.** $\ell + n - 1$: the shift costs $\ell$ rows and the EMA $n-1$.
+
+**Arguments.** `alpha` and `mode` behave exactly as for `ema`.
+
+## WILDERS — Wilder's Smoothing
+
+The exponential recursion Wilder used throughout *New Concepts in Technical
+Trading Systems*, and therefore the one inside RSI, ATR, ADX, and the
+directional indicators:
+
+$$\mathrm{W}_t = \mathrm{W}_{t-1} + \frac{1}{n}\left(P_t - \mathrm{W}_{t-1}\right)$$
+
+Carrying $1/n$ of each new value instead of the EMA's $2/(n+1)$ makes it react
+about half as fast; a Wilder average of period $n$ behaves like an EMA of period
+$2n - 1$.
+
+**Warm-up.** $n - 1$. The recursion is seeded with the simple moving average of
+the first complete window, as TA-Lib does.
+
+**Implementation.** `ema(column, n, alpha=1/n, mode="talib")`. The function
+exists under its own name because the indicators that rely on this convention
+rarely spell the $\alpha$ out.
+
+## VWMA — Volume Weighted Moving Average
+
+Each close weighted by the volume that traded on its bar:
+
+$$\mathrm{VWMA}_t = \frac{\sum_{i=0}^{n-1} P_{t-i} V_{t-i}}
+{\sum_{i=0}^{n-1} V_{t-i}}$$
+
+Read against an `sma` of the same length, it says whether the heavily traded
+bars sat above or below the unweighted mean. It differs from `vwap`, which
+averages the *typical* price rather than the close.
+
+**Warm-up.** $n - 1$.
+
+**Zero volume.** A window that traded nothing is **null**, not `0.0`, following
+`vwap`: a price of zero would be nonsense rather than a meaningful reading.
+
 ## KAMA — Kaufman Adaptive Moving Average
 
 An EMA whose smoothing factor is chosen bar by bar from an *efficiency ratio*:
@@ -293,6 +366,28 @@ value immediately before the first output.
 the recursion itself has a *varying* $\alpha$ and so cannot use `ewm_mean`. It
 runs a Python scan inside `map_batches`. A null restarts the recursion rather
 than corrupting it.
+
+## VIDYA — Variable Index Dynamic Average
+
+Chande's adaptive average. Where KAMA reads *efficiency*, this reads
+*volatility*: a short standard deviation divided by a long one.
+
+$$k_t = \frac{\sigma_t(s)}{\sigma_t(\ell)}, \qquad
+\mathrm{VIDYA}_t = \mathrm{VIDYA}_{t-1} + \alpha k_t\left(P_t - \mathrm{VIDYA}_{t-1}\right)$$
+
+with $s$ = `short_period` (default 12), $\ell$ = `long_period` (default 26), and
+$\alpha$ = `alpha` (default 0.2). Both deviations are population figures. A
+burst of volatility pushes $k$ above one and lets the average track price
+closely; a quiet stretch pulls it towards zero and the average flattens.
+
+**Warm-up.** $\ell - 1$ leading nulls. The first live row is $P_{\ell-1}$
+itself, which seeds the recursion.
+
+**Degenerate windows.** A long window with no dispersion would divide by zero,
+so $k$ is reported as $0$ and the average holds flat.
+
+**Implementation.** A varying $\alpha$ again rules out `ewm_mean`, so VIDYA runs
+a Python scan inside `map_batches`, as KAMA does. A null restarts the recursion.
 
 ## MAMA — MESA Adaptive Moving Average
 
