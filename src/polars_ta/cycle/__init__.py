@@ -8,6 +8,7 @@ from polars_ta.cycle.hilbert import (
     ht_trendline,
     ht_trendmode,
 )
+from polars_ta.cycle.msw import msw
 
 __all__ = [
     "ht_dcperiod",
@@ -16,4 +17,5 @@ __all__ = [
     "ht_sine",
     "ht_trendline",
     "ht_trendmode",
+    "msw",
 ]

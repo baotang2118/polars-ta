@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import polars as pl
 
-from polars_ta._common import IntoColumn, to_expr, validate_window
+from polars_ta._common import IntoColumn, to_expr, validate_alpha, validate_window
 from polars_ta._hilbert import SHORT_LOOKBACK, hilbert_transform, mask_lookback
 
 MAMA_FIELDS = ("mama", "fama")
@@ -137,3 +137,87 @@ def mama(
     _validate_limit("fast_limit", fast_limit)
     _validate_limit("slow_limit", slow_limit)
     return _mama_expr(to_expr(column), float(fast_limit), float(slow_limit))
+
+
+def _vidya_scan(inputs: pl.Series) -> pl.Series:
+    """Run the VIDYA recursion, seeding with the first bar that has a factor."""
+    values = inputs.struct.field("value").to_list()
+    factors = inputs.struct.field("factor").to_list()
+
+    result: list[float | None] = [None] * len(values)
+    previous: float | None = None
+    for index in range(len(values)):
+        if factors[index] is None or values[index] is None:
+            previous = None
+            continue
+        if previous is None:
+            previous = values[index]
+        else:
+            previous += factors[index] * (values[index] - previous)
+        result[index] = previous
+    return pl.Series(values=result, dtype=_RETURN_DTYPE)
+
+
+def _vidya_expr(
+    values: pl.Expr, short_period: int, long_period: int, alpha: float
+) -> pl.Expr:
+    short_std = values.rolling_std(
+        window_size=short_period, min_samples=short_period, ddof=0
+    )
+    long_std = values.rolling_std(
+        window_size=long_period, min_samples=long_period, ddof=0
+    )
+    # A flat long window cannot say the short one is volatile, so nothing adapts.
+    ratio = (
+        pl.when(short_std.is_null() | long_std.is_null())
+        .then(None)
+        .when(long_std != 0.0)
+        .then(short_std / long_std)
+        .otherwise(0.0)
+    )
+    return pl.struct(value=values, factor=alpha * ratio).map_batches(
+        _vidya_scan, return_dtype=_RETURN_DTYPE
+    )
+
+
+def vidya(
+    column: IntoColumn,
+    short_period: int = 12,
+    long_period: int = 26,
+    *,
+    alpha: float = 0.2,
+) -> pl.Expr:
+    """Chande's Variable Index Dynamic Average, which speeds up when volatility does.
+
+    The smoothing factor is ``alpha`` scaled by the ratio of a short standard
+    deviation to a long one. A burst of volatility pushes that ratio above one
+    and lets the average track price closely; a quiet stretch pulls it down and
+    the average flattens.
+
+    Args:
+        column: Column name or expression holding the input values.
+        short_period: Number of periods in the faster standard deviation.
+        long_period: Number of periods in the slower standard deviation; also
+            sets the warm-up.
+        alpha: Base smoothing factor the volatility ratio scales.
+
+    Returns:
+        A ``pl.Expr``. The first ``long_period - 1`` rows are null; the first
+        live row is the input value itself, which seeds the recursion. A long
+        window with no dispersion holds the average flat rather than dividing,
+        and a null input ends the recursion.
+
+    Raises:
+        ValueError: If a period is invalid, ``short_period`` exceeds
+            ``long_period``, or ``alpha`` is outside ``(0, 1]``.
+        TypeError: If ``column`` is not a ``str`` or ``pl.Expr``.
+    """
+    validate_window(short_period)
+    validate_window(long_period)
+    validate_alpha(alpha)
+    if short_period > long_period:
+        raise ValueError(
+            "short_period must not exceed long_period, "
+            f"got {short_period} > {long_period}"
+        )
+    return _vidya_expr(to_expr(column), short_period, long_period, float(alpha))
