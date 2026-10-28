@@ -109,8 +109,9 @@ def mavp(
     *,
     ma_type: MaType = "sma",
 ) -> pl.Expr:
-    """Moving average whose period is read from a second column, row by row.
+    """Moving Average with Variable Period (per-row period), as in TA-Lib's ``MAVP``.
 
+    Whose period is read from a second column, row by row.
     Each row's period is truncated to an integer and clamped to
     ``[min_period, max_period]``. One average is built per candidate period, so
     the expression grows linearly with ``max_period - min_period``; keep that

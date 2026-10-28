@@ -232,7 +232,7 @@ Indicators are grouped by how they are charted. *Overlay* indicators are drawn o
 | Overlay | `overlay.adaptive` | `vidya(column, 12, 26, *, alpha=0.2)` | Variable Index Dynamic Average |
 | Overlay | `overlay.adaptive` | `mama(column, *, fast_limit=0.5, slow_limit=0.05)` | MESA Adaptive Moving Average (struct of `mama`/`fama`) |
 | Overlay | `overlay.dispatch` | `ma(column, window=30, *, ma_type="sma")` | Moving average of a runtime-chosen kind |
-| Overlay | `overlay.dispatch` | `mavp(column, periods, min_period=2, max_period=30, *, ma_type="sma")` | Moving average with a per-row period |
+| Overlay | `overlay.dispatch` | `mavp(column, periods, min_period=2, max_period=30, *, ma_type="sma")` | Moving Average with Variable Period (per-row period) |
 | Overlay | `overlay.midpoint` | `midpoint(column, window=14)` | Midpoint of a rolling range |
 | Overlay | `overlay.midpoint` | `midprice(high, low, window=14)` | Midpoint price |
 | Overlay | `overlay.transform` | `avgprice(open_, high, low, close)` | Average price |
@@ -363,6 +363,14 @@ uv run pytest
 ```
 
 Tests use plain pytest assertions, `raises` for exceptions, and `mark.parametrize` for repeated cases. Expected outputs are fixed constants; warm-up, bounds, null handling, and relationships between indicators are tested separately.
+
+### Price-data acceptance tests
+
+The [XAU](tests/uat/test_gold_prices.py) acceptance test evaluates every public indicator across all eight categories (`cycle`, `momentum`, `overlay`, `pattern`, `returns`, `statistic`, `volatility`, and `volume`) on `XAU-1d-data.csv` and compares each category against `XAU-1d-data-expect-<type>.csv` (creating the expected CSV if it does not exist). Run it with:
+
+```sh
+uv run pytest tests/uat/test_gold_prices.py
+```
 
 ## Project References
 
