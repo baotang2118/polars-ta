@@ -1,4 +1,4 @@
-Date,Open,High,Low,Close,Volume,ht_dcperiod,ht_dcphase,ht_phasor_in_phase,ht_phasor_quadrature,ht_sine_sine,ht_sine_lead_sine,ht_trendline,ht_trendmode,msw_sine,msw_lead
+Date,Open,High,Low,Close,Volume,ht_dcperiod_close,ht_dcphase_close,ht_phasor_close_in_phase,ht_phasor_close_quadrature,ht_sine_close_sine,ht_sine_close_lead_sine,ht_trendline_close,ht_trendmode_close,msw_close_5_sine,msw_close_5_lead
 2025.03.14,2989.38,3004.85,2978.45,2986.24,79493.00,,,,,,,,,,
 2025.03.17,2983.84,3001.99,2982.22,3001.02,63203.00,,,,,,,,,,
 2025.03.18,3000.79,3038.26,2999.56,3033.76,76386.00,,,,,,,,,,

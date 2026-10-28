@@ -1,4 +1,4 @@
-Date,Open,High,Low,Close,Volume,beta,correl,linearreg,linearreg_angle,linearreg_intercept,linearreg_slope,stddev,tsf,var,zscore
+Date,Open,High,Low,Close,Volume,beta_high_low_5,correl_high_low_30,linearreg_close_14,linearreg_angle_close_14,linearreg_intercept_close_14,linearreg_slope_close_14,stddev_close_5,tsf_close_14,var_close_5,zscore_close_20
 2025.03.14,2989.38,3004.85,2978.45,2986.24,79493.00,,,,,,,,,,
 2025.03.17,2983.84,3001.99,2982.22,3001.02,63203.00,,,,,,,,,,
 2025.03.18,3000.79,3038.26,2999.56,3033.76,76386.00,,,,,,,,,,

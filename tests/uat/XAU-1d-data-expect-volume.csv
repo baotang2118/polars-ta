@@ -1,4 +1,4 @@
-Date,Open,High,Low,Close,Volume,ad,adosc,cmf,eom,fi,kvo,marketfi,nvi,obv,pvi,vpt,vwap,wad
+Date,Open,High,Low,Close,Volume,ad_high_low_close_volume,adosc_high_low_close_volume_3_10,cmf_high_low_close_volume_20,eom_high_low_volume_14,fi_close_volume_13,kvo_high_low_close_volume_34_55,marketfi_high_low_volume,nvi_close_volume,obv_close_volume,pvi_close_volume,vpt_close_volume,vwap_high_low_close_volume_14,wad_high_low_close
 2025.03.14,2989.38,3004.85,2978.45,2986.24,79493.00,-32580.09,,,,,,0.00,1000.00,79493.00,1000.00,0.00,,0.00
 2025.03.17,2983.84,3001.99,2982.22,3001.02,63203.00,24420.90,,,,,,0.00,1004.95,142696.00,1000.00,312.81,,18.80
 2025.03.18,3000.79,3038.26,2999.56,3033.76,76386.00,83042.71,,,,,,0.00,1004.95,219082.00,1010.91,1146.16,,53.00

@@ -1,4 +1,4 @@
-Date,Open,High,Low,Close,Volume,cumulative_return,daily_log_return,daily_return
+Date,Open,High,Low,Close,Volume,cumulative_return_close,daily_log_return_close,daily_return_close
 2025.03.14,2989.38,3004.85,2978.45,2986.24,79493.00,0.00,,
 2025.03.17,2983.84,3001.99,2982.22,3001.02,63203.00,0.49,0.49,0.49
 2025.03.18,3000.79,3038.26,2999.56,3033.76,76386.00,1.59,1.09,1.09

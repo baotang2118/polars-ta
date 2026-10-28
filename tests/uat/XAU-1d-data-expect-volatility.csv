@@ -1,4 +1,4 @@
-Date,Open,High,Low,Close,Volume,annualized_volatility,atr,cvi,natr,true_range,ulcer
+Date,Open,High,Low,Close,Volume,annualized_volatility_close_20,atr_high_low_close_14,cvi_high_low_10,natr_high_low_close_14,true_range_high_low_close,ulcer_close_14
 2025.03.14,2989.38,3004.85,2978.45,2986.24,79493.00,,,,,,
 2025.03.17,2983.84,3001.99,2982.22,3001.02,63203.00,,,,,19.77,
 2025.03.18,3000.79,3038.26,2999.56,3033.76,76386.00,,,,,38.70,
