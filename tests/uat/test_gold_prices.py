@@ -2,7 +2,7 @@
 
 Run with:
 
-    uv run pytest tests/uat/test_xau_prices.py
+    uv run pytest tests/uat/test_gold_prices.py
 """
 
 from pathlib import Path

@@ -366,10 +366,10 @@ Tests use plain pytest assertions, `raises` for exceptions, and `mark.parametriz
 
 ### Price-data acceptance tests
 
-The [Apple](tests/uat/test_apple_prices.py) and [XAU](tests/uat/test_xau_prices.py) tests calculate a seven-session SMA from each input CSV and compare it with the expected CSV's `SMA_7` column. Run both with:
+The [Apple](tests/uat/test_apple_prices.py) and [XAU](tests/uat/test_gold_prices.py) tests calculate a seven-session SMA from each input CSV and compare it with the expected CSV's `SMA_7` column. Run both with:
 
 ```sh
-uv run pytest tests/uat/test_apple_prices.py tests/uat/test_xau_prices.py
+uv run pytest tests/uat/test_apple_prices.py tests/uat/test_gold_prices.py
 ```
 
 ## Project References
