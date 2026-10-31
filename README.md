@@ -2,6 +2,22 @@
 
 A Python technical-indicator library designed around Polars.
 
+<!-- CI Status -->
+[![CI](https://github.com/baotang2118/polars-ta/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/baotang2118/polars-ta/actions/workflows/ci.yml)
+
+<!-- PyPI Version -->
+[![PyPI Version](https://img.shields.io/pypi/v/polars-ta.svg?logo=pypi&logoColor=white)](https://pypi.org/project/polars-ta/)
+
+<!-- Python Versions -->
+[![Python Versions](https://img.shields.io/pypi/pyversions/polars-ta.svg?logo=python&logoColor=white)](https://pypi.org/project/polars-ta/)
+
+<!-- License -->
+[![License](https://img.shields.io/github/license/baotang2118/polars-ta.svg)](LICENSE)
+
+<!-- Code Quality & Tooling -->
+[![Coverage Status](https://img.shields.io/codecov/c/github/baotang2118/polars-ta/main.svg?logo=codecov)](https://codecov.io/gh/baotang2118/polars-ta)
+[![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
+
 ## Quick start
 
 ### 1. Install
